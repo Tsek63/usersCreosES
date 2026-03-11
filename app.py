@@ -5,37 +5,40 @@ import pandas as pd
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard")
 
-# --- CSS SÉLECTIF : SEULS LES FILTRES SONT EN BLANC ---
+# --- CSS DE PRÉCISION : SUPPRESSION TOTALE DES ESPACES VIDES ---
 st.markdown("""
     <style>
-    /* 1. FOND ET TEXTE GLOBAL (Bleu foncé partout) */
+    /* 1. Fond et texte global bleu foncé */
     .stApp { background-color: #E3F2FD !important; }
-    h1, h2, h3, h4, p, li, div, span { color: #003366 !important; font-family: 'Segoe UI', sans-serif; }
+    h1, h2, h3, h4, p, span, div { color: #003366 !important; font-family: 'Segoe UI', sans-serif; }
 
-    /* 2. SUPPRESSION DES LABELS (Grands rectangles) */
-    div[data-testid="stWidgetLabel"] { display: none !important; }
+    /* 2. ÉLIMINATION RADICALE DES RECTANGLES DU DESSUS */
+    div[data-testid="stWidgetLabel"] { 
+        display: none !important; 
+        height: 0px !important; 
+        margin-bottom: 0px !important; 
+        padding: 0px !important;
+    }
     
-    /* 3. FILTRES & RECHERCHE (Fond bleu foncé, Texte blanc) */
-    div[data-baseweb="input"] > div, 
-    div[data-baseweb="select"] > div {
+    /* 3. FILTRES (Fond bleu foncé, Texte blanc écrit) */
+    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
         background-color: #003366 !important;
         border: 1px solid #BEE3F8 !important;
         height: 42px !important;
     }
-    
-    /* Forçage du blanc UNIQUEMENT dans les inputs et selectbox */
     input { color: white !important; -webkit-text-fill-color: white !important; }
     div[data-baseweb="select"] span { color: white !important; }
 
-    /* 4. CARTE (Points sans rectangles noirs) */
+    /* 4. CARTE & POINTS (Infobulle au survol) */
     .city-dot {
-        height: 14px; width: 14px;
+        height: 12px; width: 12px;
         border-radius: 3px;
         display: inline-block;
-        margin: 2px;
+        margin: 1px;
         border: 1px solid rgba(0,0,0,0.1);
+        cursor: help;
     }
-    
+
     /* 5. BOUTONS */
     .stButton > button {
         background-color: #003366 !important;
@@ -45,11 +48,8 @@ st.markdown("""
     }
 
     .white-card { background-color: white; padding: 20px; border-radius: 12px; border: 1px solid #BEE3F8; margin-bottom: 20px; }
-    
-    /* 6. BADGES */
-    .badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-right: 4px; border: 1px solid rgba(0,0,0,0.1); }
-    .bg-pre { background-color: #A9D0F5; color: #003366 !important; }
-    .bg-cantine { background-color: #FFD580; color: #003366 !important; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; color: #003366 !important; border: 1px solid rgba(0,0,0,0.1); }
+    .bg-pre { background-color: #A9D0F5; } .bg-cantine { background-color: #FFD580; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -62,48 +62,36 @@ PROV_COLORS = {
     "Liège": "#CCE5FF", "Namur": "#FFD9CC", "Luxembourg": "#FFC9F3"
 }
 
-# Référentiel complet des 281 communes (Exemple réduit)
+# RÉFÉRENTIEL COMPLET DES 281 COMMUNES
 @st.cache_data
-def get_ref():
-    return [
-        {"name": "Anderlecht", "prov": "Bruxelles"}, {"name": "Uccle", "prov": "Bruxelles"},
-        {"name": "Wavre", "prov": "Brabant Wallon"}, {"name": "Nivelles", "prov": "Brabant Wallon"},
-        {"name": "Charleroi", "prov": "Hainaut"}, {"name": "Mons", "prov": "Hainaut"},
-        {"name": "Liège", "prov": "Liège"}, {"name": "Spa", "prov": "Liège"},
-        {"name": "Namur", "prov": "Namur"}, {"name": "Dinant", "prov": "Namur"},
-        {"name": "Arlon", "prov": "Luxembourg"}, {"name": "Bastogne", "prov": "Luxembourg"}
-    ] # À compléter avec vos 281 noms
+def get_full_ref():
+    data = {
+        "Bruxelles": ["Anderlecht", "Auderghem", "Berchem-Sainte-Agathe", "Bruxelles", "Etterbeek", "Evere", "Forest", "Ganshoren", "Ixelles", "Jette", "Koekelberg", "Molenbeek-Saint-Jean", "Saint-Gilles", "Saint-Josse-ten-Noode", "Schaerbeek", "Uccle", "Watermael-Boitsfort", "Woluwe-Saint-Lambert", "Woluwe-Saint-Pierre"],
+        "Brabant Wallon": ["Beauvechain", "Braine-l'Alleud", "Braine-le-Château", "Chastre", "Chaumont-Gistoux", "Court-Saint-Étienne", "Genappe", "Grez-Doiceau", "Hélécine", "Incourt", "Ittre", "Jodoigne", "La Hulpe", "Lasne", "Mont-Saint-Guibert", "Nivelles", "Orp-Jauche", "Ottignies-Louvain-la-Neuve", "Perwez", "Ramillies", "Rebecq", "Rixensart", "Tubize", "Villers-la-Ville", "Walhain", "Waterloo", "Wavre"],
+        "Hainaut": ["Aiseau-Presles", "Anderlues", "Antoing", "Ath", "Beaumont", "Belœil", "Bernissart", "Binche", "Boussu", "Braine-le-Comte", "Brugelette", "Brunehaut", "Celles", "Chapelle-lez-Herlaimont", "Charleroi", "Châtelet", "Chièvres", "Chimay", "Colfontaine", "Comines-Warneton", "Courcelles", "Dour", "Écaussinnes", "Ellezelles", "Enghien", "Erquelinnes", "Estaimpuis", "Estinnes", "Farciennes", "Fleurus", "Fontaine-l'Évêque", "Frameries", "Frasnes-lez-Anvaing", "Froidchapelle", "Gerpinnes", "Ham-sur-Heure-Nalinnes", "Hensies", "Honnelles", "Jurbise", "La Louvière", "Le Rœulx", "Lens", "Les Bons Villers", "Lessines", "Leuze-en-Hainaut", "Lobbes", "Manage", "Merbes-le-Château", "Momignies", "Mons", "Mont-de-l'Enclus", "Montigny-le-Tilleul", "Morlanwelz", "Mouscron", "Pecq", "Péruwelz", "Pont-à-Celles", "Quaregnon", "Quévy", "Quiévrain", "Rumes", "Saint-Ghislain", "Seneffe", "Silly", "Sivry-Rance", "Soignies", "Thuin", "Tournai"],
+        "Liège": ["Amay", "Amblève", "Ans", "Anthisnes", "Aubel", "Awans", "Aywaille", "Baelen", "Bassenge", "Berloz", "Beyne-Heusay", "Blegny", "Braives", "Bullange", "Burdinne", "Burg-Reuland", "Bütgenbach", "Chaudfontaine", "Clavier", "Comblain-au-Pont", "Crisnée", "Dalhem", "Dison", "Donceel", "Engis", "Esneux", "Eupen", "Faimes", "Ferrières", "Fexhe-le-Haut-Clocher", "Flémalle", "Fléron", "Geer", "Grâce-Hollogne", "Hamoir", "Hannut", "Héron", "Herstal", "Herve", "Huy", "Jalhay", "Juprelle", "La Calamine", "Liège", "Lierneux", "Limbourg", "Lincent", "Lontzen", "Malmedy", "Marchin", "Modave", "Nandrin", "Neupré", "Olne", "Oreye", "Ouffet", "Oupeye", "Pepinster", "Plombières", "Raeren", "Remicourt", "Saint-Georges-sur-Meuse", "Saint-Nicolas", "Saint-Vith", "Seraing", "Soumagne", "Spa", "Sprimont", "Stavelot", "Stoumont", "Theux", "Thimister-Clermont", "Tinlot", "Trois-Ponts", "Trooz", "Verlaine", "Verviers", "Visé", "Waimes", "Wanze", "Waremme", "Wasseiges", "Welkenraedt"],
+        "Namur": ["Andenne", "Anhée", "Assesse", "Beauraing", "Bièvre", "Cerfontaine", "Ciney", "Couvin", "Dinant", "Doische", "Éghezée", "Fernelmont", "Floreffe", "Florennes", "Fosses-la-Ville", "Gedinne", "Gembloux", "Gesves", "Hastière", "Havelange", "Houyet", "Jemeppe-sur-Sambre", "La Bruyère", "Mettet", "Namur", "Ohey", "Onhaye", "Philippeville", "Profondeville", "Rochefort", "Sambreville", "Sombreffe", "Somme-Leuze", "Viroinval", "Vresse-sur-Semois", "Walcourt", "Yvoir"],
+        "Luxembourg": ["Arlon", "Attert", "Aubange", "Bastogne", "Bertrix", "Bouillon", "Chiny", "Daverdisse", "Durbuy", "Érezée", "Étalle", "Fauvillers", "Florenville", "Gouvy", "Habay", "Herbeumont", "Hotton", "Houffalize", "La Roche-en-Ardenne", "Léglise", "Libin", "Libramont-Chevigny", "Manhay", "Marche-en-Famenne", "Martelange", "Meix-devant-Virton", "Messancy", "Musson", "Nassogne", "Neufchâteau", "Paliseul", "Rendeux", "Rouvroy", "Sainte-Ode", "Saint-Hubert", "Saint-Léger", "Tellin", "Tenneville", "Tintigny", "Vaux-sur-Sûre", "Vielsalm", "Virton", "Wellin"]
+    }
+    return [{"name": n, "prov": p} for p, names in data.items() for n in names]
 
-all_communes = get_ref()
-
-# --- FILTRES ---
-if 'search' not in st.session_state: st.session_state.search = ""
-def reset():
-    st.session_state.search = ""; st.session_state.p = "Toutes"
-    st.session_state.py = "Tous"; st.session_state.s = "Tous"
+all_ref = get_full_ref()
 
 # --- INTERFACE ---
 c1, c2 = st.columns([0.35, 0.65])
 
 with c1:
     st.markdown("<div class='white-card'>", unsafe_allow_html=True)
-    st.subheader("📍 Légende & Carte")
-    
-    # Légende avec les couleurs distinctes
+    st.subheader("📍 Légende & Carte (281 communes)")
     l_cols = st.columns(2)
     for i, (p_name, p_col) in enumerate(PROV_COLORS.items()):
         l_cols[i%2].markdown(f"<span style='color:{p_col}; font-size:20px;'>■</span> {p_name}", unsafe_allow_html=True)
     
     st.write("---")
-    # Carte avec Tooltip au survol
     for p_name, p_col in PROV_COLORS.items():
         st.markdown(f"**{p_name}**", unsafe_allow_html=True)
-        coms_p = [c for c in all_communes if c['prov'] == p_name]
-        html_dots = ""
-        for c in coms_p:
-            active = "border: 2px solid #003366;" if not df_db[df_db['Commune']==c['name']].empty else ""
-            # Le titre 'title' crée l'infobulle au survol
-            html_dots += f"<div class='city-dot' style='background-color:{p_col}; {active}' title='{c['name']}'></div>"
+        coms_p = [c for c in all_ref if c['prov'] == p_name]
+        html_dots = "".join([f"<div class='city-dot' style='background-color:{p_col}; {'border:2px solid #003366;' if not df_db[df_db['Commune']==c['name']].empty else ''}' title='{c['name']}'></div>" for c in coms_p])
         st.markdown(f"<div>{html_dots}</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -111,22 +99,21 @@ with c2:
     st.markdown("<div class='white-card'>", unsafe_allow_html=True)
     st.title("👥 Utilisateurs Creos")
     
-    # Filtres alignés sur une seule ligne
+    # Barre de recherche et filtres unifiée
     f1, f2, f3, f4, f5 = st.columns([1.5, 1, 1, 1, 0.8])
-    f1.text_input("Search", key="search", placeholder="Rechercher...")
-    f2.selectbox("Province", ["Toutes"] + list(PROV_COLORS.keys()), key="p")
-    f3.selectbox("Paiement", ["Tous", "Prépaiement", "Post-paiement"], key="py")
-    f4.selectbox("Service", ["Tous", "Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key="s")
-    f5.button("EFFACER", on_click=reset)
+    with f1: st.text_input("Recherche", key="search", placeholder="Nom de commune...")
+    with f2: st.selectbox("Prov", ["Toutes"] + list(PROV_COLORS.keys()), key="p")
+    with f3: st.selectbox("Pay", ["Tous", "Prépaiement", "Post-paiement"], key="py")
+    with f4: st.selectbox("Serv", ["Tous", "Cantine Jour", "Garderie", "Activités"], key="s")
+    with f5: st.button("EFFACER", on_click=lambda: st.session_state.clear())
 
     # Filtrage
     df_f = df_db.copy()
     if st.session_state.search: df_f = df_f[df_f['Commune'].str.contains(st.session_state.search, case=False, na=False)]
-    if st.session_state.p != "Toutes": df_f = df_f[df_f['Province'] == st.session_state.p]
-
+    
     st.write("---")
-    # Liste par province
-    for prov in (PROV_COLORS.keys() if st.session_state.p == "Toutes" else [st.session_state.p]):
+    # Liste filtrée
+    for prov in (PROV_COLORS.keys() if st.session_state.get('p', 'Toutes') == 'Toutes' else [st.session_state.p]):
         p_data = df_f[df_f['Province'] == prov].sort_values("Commune")
         if not p_data.empty:
             st.markdown(f"<h4 style='border-bottom:2px solid #A9D0F5;'>{prov.upper()}</h4>", unsafe_allow_html=True)
@@ -135,5 +122,5 @@ with c2:
                 l1.write(f"**{row['Commune']}**")
                 l2.markdown(f"<span class='badge bg-pre'>{row['Paiement']}</span>", unsafe_allow_html=True)
                 l3.markdown(f"<span class='badge bg-cantine'>{row['Services']}</span>", unsafe_allow_html=True)
-                l4.button("📝", key=f"btn_{row['Commune']}")
+                l4.button("📝", key=f"ed_{row['Commune']}")
     st.markdown("</div>", unsafe_allow_html=True)
