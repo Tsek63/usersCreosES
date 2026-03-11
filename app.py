@@ -2,108 +2,76 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# --- CONFIGURATION ---
+# --- CONFIGURATION STANDARD ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard")
-
-# --- CSS DE LISIBILITÉ FORCÉE (JAUNE ET NOIR) ---
-st.markdown("""
-    <style>
-    /* 1. Nettoyage du haut de page */
-    [data-testid="stHeader"] { display: none !important; }
-    .main .block-container { padding-top: 1rem !important; }
-    div[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; }
-
-    /* 2. Fond de page bleu ciel et texte général NOIR pour être sûr de voir */
-    .stApp { background-color: #E3F2FD !important; }
-    h1, h2, h3, h4, p, span, div, b { color: #000000 !important; }
-
-    /* 3. FILTRES : FOND JAUNE PALE / TEXTE NOIR (Impossible de ne pas lire) */
-    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
-        background-color: #FFFFE0 !important; /* Jaune clair */
-        border: 2px solid #000000 !important;
-        height: 45px !important;
-    }
-    input { 
-        color: #000000 !important; 
-        -webkit-text-fill-color: #000000 !important; 
-        font-weight: bold !important; 
-        font-size: 16px !important;
-    }
-    div[data-baseweb="select"] span { 
-        color: #000000 !important; 
-        font-weight: bold !important; 
-    }
-
-    /* 4. ALIGNEMENT DU BOUTON EFFACER */
-    [data-testid="stHorizontalBlock"] { align-items: flex-end !important; }
-    .stButton > button {
-        background-color: #CC0000 !important; /* Rouge pour bien le voir */
-        color: white !important;
-        height: 45px !important;
-        width: 100% !important;
-        font-weight: bold !important;
-        border: 2px solid #000000 !important;
-    }
-
-    /* 5. CARTE (CARRES COULEUR) */
-    .city-dot { height: 12px; width: 12px; border-radius: 2px; display: inline-block; margin: 1px; border: 1px solid #000; cursor: help; }
-    .white-card { background-color: white; padding: 20px; border-radius: 12px; border: 2px solid #003366; margin-bottom: 20px; }
-    </style>
-""", unsafe_allow_html=True)
 
 # --- DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_db = conn.read(ttl=0).dropna(how="all")
 
+# Couleurs pour la légende
 PROV_COLORS = {
-    "Bruxelles": "#FFFF00", "Brabant Wallon": "#00FFFF", "Hainaut": "#FF00FF",
-    "Liège": "#00FF00", "Namur": "#FF8000", "Luxembourg": "#FF0000"
+    "Bruxelles": "🟡", "Brabant Wallon": "🔵", "Hainaut": "🟣",
+    "Liège": "🟢", "Namur": "🟠", "Luxembourg": "🔴"
 }
 
+# Fonctions pour les filtres (Évite les erreurs de crash)
+if "search_input" not in st.session_state:
+    st.session_state.search_input = ""
+
 def clear_filters():
-    st.session_state["search_val"] = ""
-    st.session_state["prov_val"] = "Toutes"
-
-@st.cache_data
-def get_full_ref():
-    # Liste simplifiée pour le test, remettez la liste complète si ça marche
-    return [
-        {"name": "Anderlecht", "prov": "Bruxelles"}, {"name": "Uccle", "prov": "Bruxelles"},
-        {"name": "Wavre", "prov": "Brabant Wallon"}, {"name": "Liège", "prov": "Liège"},
-        {"name": "Namur", "prov": "Namur"}, {"name": "Arlon", "prov": "Luxembourg"}
-    ]
-
-all_ref = get_full_ref()
+    st.session_state.search_input = ""
 
 # --- INTERFACE ---
-c1, c2 = st.columns([0.35, 0.65])
+st.title("👥 Gestion des Utilisateurs Creos")
+
+# BARRE DE FILTRES SIMPLE (Alignée automatiquement par Streamlit)
+col_search, col_prov, col_clear = st.columns([2, 1, 0.5])
+
+with col_search:
+    search_query = st.text_input("Rechercher une commune", key="search_input")
+
+with col_prov:
+    prov_filter = st.selectbox("Filtrer par Province", ["Toutes"] + list(PROV_COLORS.keys()))
+
+with col_clear:
+    # Le bouton est naturellement aligné car il y a un label vide au-dessus
+    st.write("") 
+    st.button("Effacer", on_click=clear_filters, use_container_width=True)
+
+st.divider()
+
+# --- AFFICHAGE ---
+c1, c2 = st.columns([0.4, 0.6])
 
 with c1:
-    st.markdown("<div class='white-card'>", unsafe_allow_html=True)
-    st.subheader("📍 Carte & Légende")
-    for p_name, p_col in PROV_COLORS.items():
-        st.markdown(f"<b style='color:{p_col}; background:black; padding:2px;'> ■ </b> <b>{p_name}</b>", unsafe_allow_html=True)
-        coms_p = [c for c in all_ref if c['prov'] == p_name]
-        dots = "".join([f"<div class='city-dot' style='background-color:{p_col};' title='{c['name']}'></div>" for c in coms_p])
-        st.markdown(f"<div>{dots}</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.subheader("📍 Légende")
+    for prov, emoji in PROV_COLORS.items():
+        st.write(f"{emoji} **{prov}**")
+    
+    st.info("La carte détaillée sera réintégrée une fois l'affichage stabilisé.")
 
 with c2:
-    st.markdown("<div class='white-card'>", unsafe_allow_html=True)
-    st.title("LISTE DES UTILISATEURS")
+    st.subheader("📋 Liste des Communes")
     
-    # BARRE DE FILTRES
-    f1, f2, f3 = st.columns([2, 1, 1])
-    with f1: st.text_input("RECHERCHE", key="search_val")
-    with f2: st.selectbox("PROVINCE", ["Toutes"] + list(PROV_COLORS.keys()), key="prov_val")
-    with f3: st.button("EFFACER", on_click=clear_filters)
+    # Filtrage simple
+    df_f = df_db.copy()
+    if search_query:
+        df_f = df_f[df_f['Commune'].str.contains(search_query, case=False, na=False)]
+    if prov_filter != "Toutes":
+        df_f = df_f[df_f['Province'] == prov_filter]
 
+    if df_f.empty:
+        st.warning("Aucun résultat trouvé.")
+    else:
+        # Tableau standard ultra-lisible
+        st.dataframe(
+            df_f[['Commune', 'Province', 'Paiement', 'Services']], 
+            use_container_width=True,
+            hide_index=True
+        )
+
+# --- BOUTON D'ACTION ---
+if not df_f.empty:
     st.write("---")
-    # Liste
-    search = st.session_state.get("search_val", "")
-    df_f = df_db[df_db['Commune'].str.contains(search, case=False, na=False)] if search else df_db
-
-    if not df_f.empty:
-        for _, row in df_f.iterrows():
-            st.write(f"**{row['Commune']}** - {row['Province']} | {row['Paiement']}")
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("Sélectionnez une ligne dans le tableau pour voir les détails (Optionnel)")
