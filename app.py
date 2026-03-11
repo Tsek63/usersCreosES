@@ -2,97 +2,105 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# --- CONFIGURATION ---
-st.set_page_config(layout="wide", page_title="Creos Dashboard")
+st.set_page_config(layout="wide", page_title="Creos - Gestion Communale")
 
-# Couleurs par province
+# --- RÉFÉRENTIEL COULEURS ---
 PROV_COLORS = {
-    "Bruxelles": "#FFCC00",      # Jaune
-    "Brabant Wallon": "#FF5733", # Orange/Rouge
-    "Hainaut": "#C70039",       # Rouge foncé
-    "Liège": "#900C3F",         # Bordeaux
-    "Namur": "#581845",         # Violet
-    "Luxembourg": "#2E86C1"      # Bleu
+    "Bruxelles": "#FFCC00", "Brabant Wallon": "#FF5733", 
+    "Hainaut": "#C70039", "Liège": "#900C3F", 
+    "Namur": "#581845", "Luxembourg": "#2E86C1"
 }
 
-# --- CONNEXION & DONNÉES ---
+# --- CHARGEMENT DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read(ttl=0).dropna(how="all")
+df_db = conn.read(ttl=0).dropna(how="all")
 
-# --- INTERFACE (30/70) ---
+# --- INTERFACE 30/70 ---
 col_sidebar, col_main = st.columns([0.3, 0.7])
 
 with col_sidebar:
-    st.header("🔍 Recherche")
-    search_query = st.text_input("Rechercher une commune...", placeholder="Ex: Oreye, Namur...").strip().lower()
+    st.header("🏢 Communes")
     
-    st.divider()
+    # Barre de recherche
+    search = st.text_input("Filtrer une commune...", placeholder="Tapez le nom...").strip()
     
-    # On affiche la grille ici ou en dessous ? 
-    # Pour respecter votre demande, la grille est à gauche sous la recherche
-    st.subheader("📍 Carte des Communes")
+    # Simulation de la base complète (Wallonie/Bxl)
+    # Note : Idéalement, on charge une liste de toutes les communes belges ici
+    all_communes = sorted(["Oreye", "Namur", "Liège", "Mons", "Arlon", "Wavre", "Bruxelles", "Charleroi", "Tournai", "Eupen", "Huy", "Verviers", "Gembloux", "Ottignies"]) # À compléter
     
-    # Création d'une grille de tuiles
-    if not df.empty:
-        # On filtre si recherche
-        grid_df = df.copy()
-        if search_query:
-            grid_df = grid_df[grid_df['Commune'].str.lower().contains(search_query)]
+    if search:
+        all_communes = [c for c in all_communes if search.lower() in c.lower()]
+
+    st.write("---")
+    
+    # GRILLE DE TUILES (Hexagones/Carrés)
+    # On crée une grille de 4 colonnes
+    grid_cols = st.columns(4)
+    selected_from_grid = None
+    
+    for i, com in enumerate(all_communes):
+        # On vérifie si la commune est déjà dans la Google Sheet
+        row_data = df_db[df_db['Commune'] == com]
+        is_encoded = not row_data.empty
         
-        # Affichage en petites tuiles carrées
-        cols_grid = st.columns(5) # 5 tuiles par ligne
-        for idx, row in grid_df.iterrows():
-            with cols_grid[idx % 5]:
-                color = PROV_COLORS.get(row['Province'], "#ddd")
-                # Un bouton stylisé pour simuler la tuile
-                if st.button(f"■", key=f"btn_{row['Commune']}", help=row['Commune']):
-                    st.session_state.selected_commune = row['Commune']
-                    st.rerun()
-                st.caption(row['Commune'][:8]) # Affiche un nom court sous la tuile
+        # Couleur : Province si encodé, sinon gris
+        bg_color = PROV_COLORS.get(row_data['Province'].iloc[0], "#E0E0E0") if is_encoded else "#E0E0E0"
+        text_color = "white" if is_encoded else "black"
+        
+        with grid_cols[i % 4]:
+            # Utilisation de boutons stylisés
+            if st.button(com, key=f"btn_{com}", use_container_width=True, 
+                         help=f"Cliquer pour gérer {com}"):
+                st.session_state.active_com = com
 
 with col_main:
-    st.header("⚙️ Configuration & Services")
+    st.header("📝 Fiche d'encodage")
     
-    # Si une recherche est en cours, on propose de l'ajouter si elle n'existe pas
-    target_commune = search_query.capitalize() if search_query else st.session_state.get('selected_commune', None)
+    target = st.session_state.get('active_com')
     
-    if target_commune:
-        # Chercher si la commune existe déjà
-        existing_data = df[df['Commune'] == target_commune]
+    if target:
+        # Récupération des données existantes
+        existing = df_db[df_db['Commune'] == target]
         
         with st.container(border=True):
-            st.subheader(f"Commune : {target_commune}")
+            st.subheader(f"Commune : {target}")
             
-            with st.form("form_update"):
+            with st.form("edit_form"):
                 c1, c2 = st.columns(2)
                 
-                # Valeurs par défaut si la commune existe déjà
-                curr_prov = existing_data['Province'].iloc[0] if not existing_data.empty else "Liège"
-                curr_pay = existing_data['Paiement'].iloc[0] if not existing_data.empty else "Pre"
-                curr_serv = existing_data['Services'].iloc[0].split('|') if not existing_data.empty and isinstance(existing_data['Services'].iloc[0], str) else []
+                # Pré-remplissage si déjà en base
+                val_prov = existing['Province'].iloc[0] if not existing.empty else "Liège"
+                val_pay = existing['Paiement'].iloc[0] if not existing.empty else "Pre"
+                val_serv = existing['Services'].iloc[0].split('|') if not existing.empty and isinstance(existing['Services'].iloc[0], str) else []
 
                 with c1:
-                    new_prov = st.selectbox("Province", list(PROV_COLORS.keys()), index=list(PROV_COLORS.keys()).index(curr_prov))
-                    new_pay = st.radio("Type de Paiement", ["Pre", "Post"], index=0 if curr_pay == "Pre" else 1, horizontal=True)
+                    new_prov = st.selectbox("Province", list(PROV_COLORS.keys()), index=list(PROV_COLORS.keys()).index(val_prov))
+                    new_pay = st.radio("Paiement", ["Pre", "Post"], index=0 if val_pay == "Pre" else 1, horizontal=True)
                 
                 with c2:
-                    new_serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], default=curr_serv)
+                    new_serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], default=val_serv)
 
-                submitted = st.form_submit_button("Enregistrer les modifications")
+                st.divider()
                 
-                if submitted:
-                    # Mise à jour du DataFrame
-                    new_row = pd.DataFrame([[target_commune, new_prov, new_pay, "|".join(new_serv)]], 
-                                         columns=["Commune", "Province", "Paiement", "Services"])
-                    
-                    df_updated = pd.concat([df[df['Commune'] != target_commune], new_row], ignore_index=True)
-                    conn.update(data=df_updated)
-                    st.success(f"Données de {target_commune} synchronisées !")
-                    st.rerun()
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.form_submit_button("✅ VALIDER & ENREGISTRER", use_container_width=True):
+                        # Logique de sauvegarde
+                        new_data = pd.DataFrame([[target, new_prov, new_pay, "|".join(new_serv)]], 
+                                              columns=["Commune", "Province", "Paiement", "Services"])
+                        df_final = pd.concat([df_db[df_db['Commune'] != target], new_data], ignore_index=True)
+                        conn.update(data=df_final)
+                        st.success(f"Enregistré : {target} est maintenant à jour.")
+                        st.rerun()
+                
+                with col_btn2:
+                    if st.form_submit_button("❌ ANNULER", use_container_width=True):
+                        st.session_state.active_com = None
+                        st.rerun()
     else:
-        st.info("Sélectionnez une commune dans la grille à gauche ou utilisez la barre de recherche pour commencer.")
+        st.info("Sélectionnez une commune dans la grille à gauche pour ouvrir sa fiche d'encodage.")
 
-    # Affichage récapitulatif en bas
-    st.divider()
-    st.subheader("📋 Liste globale")
-    st.dataframe(df, use_container_width=True)
+    # Affichage rapide de la DB en dessous
+    if not df_db.empty:
+        with st.expander("Voir la base de données globale"):
+            st.dataframe(df_db, use_container_width=True)
