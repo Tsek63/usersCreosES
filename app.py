@@ -5,28 +5,38 @@ import pandas as pd
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard")
 
-# --- CSS DE VERROUILLAGE FINAL ---
+# --- CSS DE VERROUILLAGE TOTAL ---
 st.markdown("""
     <style>
+    /* 1. Suppression du bandeau blanc du haut et des espaces inutiles */
     [data-testid="stHeader"] { display: none !important; }
     .main .block-container { padding-top: 1rem !important; }
     div[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; }
+
+    /* 2. Fond de page et texte bleu foncé */
     .stApp { background-color: #E3F2FD !important; }
     h1, h2, h3, h4, p, span, div { color: #003366 !important; }
 
-    /* ALIGNEMENT VERTICAL DES FILTRES */
-    [data-testid="stHorizontalBlock"] { align-items: flex-end !important; }
+    /* 3. ALIGNEMENT PARFAIT DU BOUTON EFFACER */
+    /* On force l'alignement vertical de la ligne de filtres */
+    [data-testid="stHorizontalBlock"] {
+        align-items: flex-end !important;
+    }
 
-    /* FILTRES : TEXTE BLANC / FOND BLEU NUIT */
+    /* 4. FILTRES & RECHERCHE : LISIBILITÉ MAXIMALE */
     div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
         background-color: #002244 !important; 
         border: 2px solid #BEE3F8 !important;
         height: 45px !important;
     }
-    input { color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; font-weight: bold !important; }
+    input { 
+        color: #FFFFFF !important; 
+        -webkit-text-fill-color: #FFFFFF !important; 
+        font-weight: bold !important;
+    }
     div[data-baseweb="select"] span { color: #FFFFFF !important; }
 
-    /* BOUTON EFFACER */
+    /* 5. BOUTON EFFACER (Verrouillé sur 45px) */
     .stButton > button {
         background-color: #003366 !important;
         color: white !important;
@@ -34,10 +44,19 @@ st.markdown("""
         width: 100% !important;
         border: 2px solid #BEE3F8 !important;
         font-weight: bold !important;
+        margin-bottom: 1px !important; /* Ajustement micrométrique pour l'alignement */
     }
 
-    /* CARTE */
-    .city-dot { height: 12px; width: 12px; border-radius: 2px; display: inline-block; margin: 1px; border: 1px solid rgba(0,0,0,0.1); cursor: help; }
+    /* 6. CARTE : CARRES SANS RECTANGLES NOIRS */
+    .city-dot {
+        height: 12px; width: 12px;
+        border-radius: 2px;
+        display: inline-block;
+        margin: 1px;
+        border: 1px solid rgba(0,0,0,0.1);
+        cursor: help;
+    }
+
     .white-card { background-color: white; padding: 20px; border-radius: 12px; border: 1px solid #BEE3F8; margin-bottom: 20px; }
     .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; color: #003366 !important; border: 1px solid rgba(0,0,0,0.1); }
     .bg-pre { background-color: #A9D0F5; } .bg-cantine { background-color: #FFD580; }
@@ -53,14 +72,6 @@ PROV_COLORS = {
     "Liège": "#CCE5FF", "Namur": "#FFD9CC", "Luxembourg": "#FFC9F3"
 }
 
-# Fonction pour vider les filtres proprement (Évite l'erreur API)
-def clear_filters():
-    st.session_state["search_val"] = ""
-    st.session_state["prov_val"] = "Toutes"
-    st.session_state["pay_val"] = "Tous"
-    st.session_state["serv_val"] = "Tous"
-
-# Référentiel complet des 281 communes
 @st.cache_data
 def get_full_ref():
     data = {
@@ -97,22 +108,24 @@ with c2:
     st.markdown("<div class='white-card'>", unsafe_allow_html=True)
     st.title("👥 Utilisateurs Creos")
     
-    # BARRE DE FILTRES
+    # BARRE DE FILTRES ALIGNÉE (Flexbox forcé)
     f1, f2, f3, f4, f5 = st.columns([1.5, 1, 1, 1, 0.8])
-    with f1: st.text_input("Recherche", key="search_val", placeholder="Rechercher...")
-    with f2: st.selectbox("Prov", ["Toutes"] + list(PROV_COLORS.keys()), key="prov_val")
-    with f3: st.selectbox("Pay", ["Tous", "Prépaiement", "Post-paiement"], key="pay_val")
-    with f4: st.selectbox("Serv", ["Tous", "Cantine", "Garderie", "Activités"], key="serv_val")
-    with f5: st.button("EFFACER", on_click=clear_filters)
+    with f1: st.text_input("Search", key="search", placeholder="Rechercher...")
+    with f2: st.selectbox("Prov", ["Toutes"] + list(PROV_COLORS.keys()), key="p")
+    with f3: st.selectbox("Pay", ["Tous", "Prépaiement", "Post-paiement"], key="py")
+    with f4: st.selectbox("Serv", ["Tous", "Cantine", "Garderie", "Activités"], key="s")
+    with f5: 
+        if st.button("EFFACER"):
+            st.session_state.search = ""
+            st.rerun()
 
-    # Filtrage
+    # Liste filtrée
     df_f = df_db.copy()
-    search = st.session_state.get("search_val", "")
-    if search: df_f = df_f[df_f['Commune'].str.contains(search, case=False, na=False)]
+    if st.session_state.search: 
+        df_f = df_f[df_f['Commune'].str.contains(st.session_state.search, case=False, na=False)]
     
     st.write("---")
-    # Liste
-    for prov in (PROV_COLORS.keys() if st.session_state.get("prov_val", "Toutes") == "Toutes" else [st.session_state["prov_val"]]):
+    for prov in (PROV_COLORS.keys() if st.session_state.get('p', 'Toutes') == 'Toutes' else [st.session_state.p]):
         p_data = df_f[df_f['Province'] == prov].sort_values("Commune")
         if not p_data.empty:
             st.markdown(f"<h4>{prov.upper()}</h4>", unsafe_allow_html=True)
