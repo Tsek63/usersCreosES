@@ -5,63 +5,68 @@ import pandas as pd
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard")
 
-# --- STYLE CSS (Carrés, Badges et Pop-up) ---
+# --- CSS COMPLET ---
 st.markdown("""
     <style>
-    /* Carrés de la carte */
-    div.stButton > button {
-        height: 18px !important; width: 18px !important; min-width: 18px !important;
-        padding: 0px !important; margin: 1px !important; border: none !important; border-radius: 3px;
+    /* Carte : Carrés de 16px colorés */
+    .stButton > button {
+        border: none !important;
+        height: 16px !important;
+        width: 16px !important;
+        min-width: 16px !important;
+        padding: 0 !important;
+        margin: 1px !important;
+        border-radius: 3px !important;
     }
-    /* Style des badges dans la liste */
-    .badge { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; color: white; margin-right: 5px; display: inline-block; }
-    .bg-pre { background-color: #4A90E2; } /* Bleu */
-    .bg-post { background-color: #50E3C2; } /* Vert/Cyan */
-    .bg-service { background-color: #F5A623; } /* Orange */
-    .prov-header { color: #1f4e79; font-weight: bold; border-bottom: 2px solid #eee; margin-top: 20px; margin-bottom: 10px; }
+    /* Couleurs de fond forcées pour la carte */
+    button[kind="secondary"] { background-color: #f0f2f6; } /* fallback */
+    
+    /* Badges de la liste de droite */
+    .badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; color: white; margin-right: 4px; display: inline-block; }
+    .bg-pre { background-color: #4A90E2; }
+    .bg-post { background-color: #2ECC71; }
+    .bg-service { background-color: #F39C12; }
+    .prov-label { font-size: 14px; font-weight: bold; color: #1f4e79; margin-top: 15px; border-bottom: 1px solid #ddd; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- COULEURS PROVINCES (Pastel) ---
+# --- CONFIGURATION COULEURS & DATA ---
 PROV_COLORS = {
     "Bruxelles": "#FFEFA1", "Brabant Wallon": "#A9F1EB", "Hainaut": "#C8B6FF",
     "Liège": "#9AE8FF", "Namur": "#FFCCB6", "Luxembourg": "#FF85F3"
 }
 
-# --- DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_db = conn.read(ttl=0).dropna(how="all")
 
-# --- LISTE DES 281 COMMUNES (Extraits pour l'exemple, à compléter si besoin) ---
+# Récupération de la liste complète (Assurez-vous qu'elle contient les 281 communes)
+# Importée ou définie ici
 def get_full_list():
-    return [
-        {"name": "Anderlecht", "prov": "Bruxelles"}, {"name": "Auderghem", "prov": "Bruxelles"}, {"name": "Berchem-Sainte-Agathe", "prov": "Bruxelles"}, {"name": "Bruxelles", "prov": "Bruxelles"}, {"name": "Etterbeek", "prov": "Bruxelles"}, {"name": "Evere", "prov": "Bruxelles"}, {"name": "Forest", "prov": "Bruxelles"}, {"name": "Ganshoren", "prov": "Bruxelles"}, {"name": "Ixelles", "prov": "Bruxelles"}, {"name": "Jette", "prov": "Bruxelles"}, {"name": "Koekelberg", "prov": "Bruxelles"}, {"name": "Molenbeek-Saint-Jean", "prov": "Bruxelles"}, {"name": "Saint-Gilles", "prov": "Bruxelles"}, {"name": "Saint-Josse-ten-Noode", "prov": "Bruxelles"}, {"name": "Schaerbeek", "prov": "Bruxelles"}, {"name": "Uccle", "prov": "Bruxelles"}, {"name": "Watermael-Boitsfort", "prov": "Bruxelles"}, {"name": "Woluwe-Saint-Lambert", "prov": "Bruxelles"}, {"name": "Woluwe-Saint-Pierre", "prov": "Bruxelles"},
-        {"name": "Beauvechain", "prov": "Brabant Wallon"}, {"name": "Braine-l'Alleud", "prov": "Brabant Wallon"}, {"name": "Braine-le-Château", "prov": "Brabant Wallon"}, {"name": "Chastre", "prov": "Brabant Wallon"}, {"name": "Chaumont-Gistoux", "prov": "Brabant Wallon"}, {"name": "Court-Saint-Étienne", "prov": "Brabant Wallon"}, {"name": "Genappe", "prov": "Brabant Wallon"}, {"name": "Grez-Doiceau", "prov": "Brabant Wallon"}, {"name": "Hélécine", "prov": "Brabant Wallon"}, {"name": "Incourt", "prov": "Brabant Wallon"}, {"name": "Ittre", "prov": "Brabant Wallon"}, {"name": "Jodoigne", "prov": "Brabant Wallon"}, {"name": "La Hulpe", "prov": "Brabant Wallon"}, {"name": "Lasne", "prov": "Brabant Wallon"}, {"name": "Mont-Saint-Guibert", "prov": "Brabant Wallon"}, {"name": "Nivelles", "prov": "Brabant Wallon"}, {"name": "Orp-Jauche", "prov": "Brabant Wallon"}, {"name": "Ottignies-Louvain-la-Neuve", "prov": "Brabant Wallon"}, {"name": "Perwez", "prov": "Brabant Wallon"}, {"name": "Ramillies", "prov": "Brabant Wallon"}, {"name": "Rebecq", "prov": "Brabant Wallon"}, {"name": "Rixensart", "prov": "Brabant Wallon"}, {"name": "Tubize", "prov": "Brabant Wallon"}, {"name": "Villers-la-Ville", "prov": "Brabant Wallon"}, {"name": "Walhain", "prov": "Brabant Wallon"}, {"name": "Waterloo", "prov": "Brabant Wallon"}, {"name": "Wavre", "prov": "Brabant Wallon"},
-        # ... Ajoutez ici le reste de vos communes (Hainaut, Liège, etc.)
-    ]
+    # ... (Votre liste complète de communes ici) ...
+    return [{"name": "Evere", "prov": "Bruxelles"}, {"name": "Uccle", "prov": "Bruxelles"}, 
+            {"name": "Jodoigne", "prov": "Brabant Wallon"}, {"name": "Baelen", "prov": "Liège"}] # Exemple
 
 all_communes = get_full_list()
 
-# --- POP-UP D'ENCODAGE (Image 1) ---
-@st.dialog("Configuration")
+# --- FONCTION POP-UP (Small Width) ---
+@st.dialog("Configuration", width="small")
 def edit_commune(name, prov):
+    st.subheader(f":blue[{name}]")
     existing = df_db[df_db['Commune'] == name]
-    d_pay = existing['Paiement'].iloc[0] if not existing.empty else "Pré-paiement"
-    d_serv = str(existing['Services'].iloc[0]).split('|') if not existing.empty and not pd.isna(existing['Services'].iloc[0]) else []
     
-    st.title(f":blue[{name}]")
+    # Valeurs par défaut
+    d_pay = existing['Paiement'].iloc[0] if not existing.empty else "Pré-paiement"
+    d_serv = str(existing['Services'].iloc[0]).split('|') if not existing.empty else []
+
     st.write("**Paiement**")
-    pay = st.radio("Paiement", ["Pré-paiement", "Post-paiement"], index=0 if d_pay == "Pré-paiement" else 1, label_visibility="collapsed")
+    pay = st.radio("Pay", ["Pré-paiement", "Post-paiement"], index=0 if d_pay == "Pré-paiement" else 1, horizontal=True, label_visibility="collapsed")
     
     st.write("**Services**")
     choices = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-    serv = []
-    for choice in choices:
-        if st.checkbox(choice, value=(choice in d_serv)):
-            serv.append(choice)
-    
+    serv = [c for c in choices if st.checkbox(c, value=(c in d_serv))]
+
     st.divider()
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns([1, 1, 1])
     if c1.button("VALIDER", type="primary", use_container_width=True):
         new_row = pd.DataFrame([[name, prov, pay, "|".join(serv)]], columns=["Commune", "Province", "Paiement", "Services"])
         up_df = pd.concat([df_db[df_db['Commune'] != name], new_row], ignore_index=True)
@@ -69,56 +74,63 @@ def edit_commune(name, prov):
         st.rerun()
     if c2.button("ANNULER", use_container_width=True):
         st.rerun()
+    if not existing.empty:
+        if c3.button("🗑️", help="Supprimer l'encodage", use_container_width=True):
+            up_df = df_db[df_db['Commune'] != name]
+            conn.update(data=up_df)
+            st.rerun()
 
 # --- INTERFACE PRINCIPALE ---
 col_map, col_list = st.columns([0.4, 0.6])
 
 with col_map:
-    st.subheader("🗺️ Carte")
-    # Affichage par province pour recréer l'aspect "groupé"
-    for prov_name in PROV_COLORS.keys():
-        st.caption(f"**{prov_name}**")
-        coms_in_prov = [c for c in all_communes if c['prov'] == prov_name]
-        grid = st.columns(8) # 8 carrés par ligne
-        for idx, com in enumerate(coms_in_prov):
-            btn_key = f"m_{com['name']}_{prov_name}".replace(" ", "_")
-            with grid[idx % 8]:
-                if st.button(" ", key=btn_key):
-                    edit_commune(com['name'], prov_name)
-                st.markdown(f"<style>button[key='{btn_key}'] {{ background-color: {PROV_COLORS[prov_name]} !important; }}</style>", unsafe_allow_html=True)
+    st.subheader("🗺️ Carte Interactive")
+    # Affichage groupé par province pour respecter la "forme" géographique
+    for prov, color in PROV_COLORS.items():
+        st.markdown(f"<div style='font-size:12px; font-weight:bold; margin-top:10px;'>{prov}</div>", unsafe_allow_html=True)
+        coms = [c for c in all_communes if c['prov'] == prov]
+        grid = st.columns(10)
+        for i, com in enumerate(coms):
+            with grid[i % 10]:
+                btn_id = f"m_{com['name']}".replace(" ", "_")
+                if st.button(" ", key=btn_id):
+                    edit_commune(com['name'], prov)
+                # Injection CSS spécifique pour la couleur de CHAQUE bouton
+                st.markdown(f"<style>button[key='{btn_id}'] {{ background-color: {color} !important; }}</style>", unsafe_allow_html=True)
 
 with col_list:
-    st.title("Utilisateurs Creos Extrascolaire")
+    st.header("Utilisateurs Creos Extrascolaire")
     
-    # Barre de recherche et filtres
-    search = st.text_input("🔍 Chercher une commune...", placeholder="Ex: Evere")
+    # --- FILTRES ---
+    search = st.text_input("Rechercher une commune...", placeholder="Tapez le nom...")
     
-    f1, f2, f3 = st.columns(3)
-    sel_prov = f1.selectbox("Provinces", ["Toutes les Provinces"] + list(PROV_COLORS.keys()))
-    sel_pay = f2.selectbox("Paiements", ["Tous", "Pré-paiement", "Post-paiement"])
-    sel_serv = f3.selectbox("Services", ["Tous", "Cantine", "Garderie", "Activités"])
+    f1, f2, f3, f4 = st.columns([2, 2, 2, 1])
+    s_prov = f1.selectbox("Provinces", ["Toutes les Provinces"] + list(PROV_COLORS.keys()), key="f_prov")
+    s_pay = f2.selectbox("Paiements", ["Tous", "Pré-paiement", "Post-paiement"], key="f_pay")
+    s_serv = f3.selectbox("Services", ["Tous", "Cantine Jour", "Garderie", "Activités"], key="f_serv")
+    
+    if f4.button("Effacer filtres", style="margin-top:28px"):
+        # Reset simple via rerun (ou on pourrait utiliser le session_state)
+        st.rerun()
 
-    # Filtrage
-    df_filt = df_db.copy()
-    if search: df_filt = df_filt[df_filt['Commune'].str.contains(search, case=False)]
-    if sel_prov != "Toutes les Provinces": df_filt = df_filt[df_filt['Province'] == sel_prov]
-    if sel_pay != "Tous": df_filt = df_filt[df_filt['Paiement'] == sel_pay]
-    if sel_serv != "Tous": df_filt = df_filt[df_filt['Services'].str.contains(sel_serv, case=False)]
+    # --- LOGIQUE FILTRAGE ---
+    df_f = df_db.copy()
+    if search: df_f = df_f[df_f['Commune'].str.contains(search, case=False)]
+    if s_prov != "Toutes les Provinces": df_f = df_f[df_f['Province'] == s_prov]
+    if s_pay != "Tous": df_f = df_f[df_f['Paiement'] == s_pay]
+    if s_serv != "Tous": df_f = df_f[df_f['Services'].str.contains(s_serv, case=False)]
 
-    # Liste détaillée (Image 2)
-    for p in (list(PROV_COLORS.keys()) if sel_prov == "Toutes les Provinces" else [sel_prov]):
-        p_df = df_filt[df_filt['Province'] == p].sort_values("Commune")
-        if not p_df.empty:
-            st.markdown(f"<div class='prov-header'>{p.upper()}</div>", unsafe_allow_html=True)
-            for _, row in p_df.iterrows():
+    # --- LISTE STYLE IMAGE 2 ---
+    for p in (PROV_COLORS.keys() if s_prov == "Toutes les Provinces" else [s_prov]):
+        p_data = df_f[df_f['Province'] == p].sort_values("Commune")
+        if not p_data.empty:
+            st.markdown(f"<div class='prov-label'>{p.upper()}</div>", unsafe_allow_html=True)
+            for _, row in p_data.iterrows():
                 l1, l2, l3 = st.columns([0.3, 0.2, 0.5])
-                l1.write(f"**{row['Commune']}**")
+                l1.markdown(f"**{row['Commune']}**")
                 
-                # Badge Paiement
                 p_cls = "bg-pre" if row['Paiement'] == "Pré-paiement" else "bg-post"
                 l2.markdown(f'<span class="badge {p_cls}">{row["Paiement"]}</span>', unsafe_allow_html=True)
                 
-                # Badges Services
-                s_list = str(row['Services']).split('|')
-                s_html = "".join([f'<span class="badge bg-service">{s}</span>' for s in s_list if s and s != "nan"])
-                l3.markdown(s_html, unsafe_allow_html=True)
+                s_badges = "".join([f'<span class="badge bg-service">{s}</span>' for s in str(row['Services']).split('|') if s])
+                l3.markdown(s_badges, unsafe_allow_html=True)
