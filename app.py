@@ -5,7 +5,7 @@ import pandas as pd
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire v4.0")
 
 # Connexion
-conn = st.connection("gsheets", type=GSheetsConnection, **st.secrets.connections.gsheets)
+conn = st.connection("gsheets", type=GSheetsConnection, **st.secrets["connections"]["gsheets"])
 
 # Chargement
 df = conn.read(ttl=0).dropna(how="all")
