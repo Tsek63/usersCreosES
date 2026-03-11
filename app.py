@@ -50,18 +50,22 @@ with col_sidebar:
     st.divider()
     search = st.text_input("🔍 Filtrer...", "").strip().lower()
 
-    # CSS pour CARRÉS PLEINS ET PETITS
+# CSS pour CARRÉS PLEINS, PETITS ET PROPRES
     st.markdown("""
         <style>
         div.stButton > button {
             height: 25px !important;
             width: 25px !important;
             min-width: 25px !important;
-            border-radius: 2px;
+            border-radius: 4px;
             padding: 0px !important;
             margin: 1px !important;
-            border: none !important;
-            color: transparent !important;
+            border: 1px solid rgba(0,0,0,0.1) !important;
+            transition: transform 0.2s;
+        }
+        div.stButton > button:hover {
+            transform: scale(1.2);
+            border: 1px solid black !important;
         }
         </style>
     """, unsafe_allow_html=True)
