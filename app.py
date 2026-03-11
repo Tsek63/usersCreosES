@@ -5,23 +5,24 @@ import pandas as pd
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard")
 
-# --- STYLE CSS (Carrés et Badges) ---
+# --- STYLE CSS (Carrés, Badges et Pop-up) ---
 st.markdown("""
     <style>
     /* Carrés de la carte */
     div.stButton > button {
-        height: 15px !important; width: 15px !important; min-width: 15px !important;
-        padding: 0px !important; margin: 1px !important; border: none !important; border-radius: 2px;
+        height: 18px !important; width: 18px !important; min-width: 18px !important;
+        padding: 0px !important; margin: 1px !important; border: none !important; border-radius: 3px;
     }
     /* Style des badges dans la liste */
-    .badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; margin-right: 4px; }
-    .bg-pre { background-color: #4e73df; }
-    .bg-post { background-color: #1cc88a; }
-    .bg-service { background-color: #36b9cc; }
+    .badge { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; color: white; margin-right: 5px; display: inline-block; }
+    .bg-pre { background-color: #4A90E2; } /* Bleu */
+    .bg-post { background-color: #50E3C2; } /* Vert/Cyan */
+    .bg-service { background-color: #F5A623; } /* Orange */
+    .prov-header { color: #1f4e79; font-weight: bold; border-bottom: 2px solid #eee; margin-top: 20px; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- COULEURS PROVINCES ---
+# --- COULEURS PROVINCES (Pastel) ---
 PROV_COLORS = {
     "Bruxelles": "#FFEFA1", "Brabant Wallon": "#A9F1EB", "Hainaut": "#C8B6FF",
     "Liège": "#9AE8FF", "Namur": "#FFCCB6", "Luxembourg": "#FF85F3"
@@ -31,93 +32,93 @@ PROV_COLORS = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_db = conn.read(ttl=0).dropna(how="all")
 
-# (La liste all_communes doit contenir vos 281 communes comme précédemment)
-# Pour le test, je simule la fonction get_full_list()
-from data_list import get_full_list 
+# --- LISTE DES 281 COMMUNES (Extraits pour l'exemple, à compléter si besoin) ---
+def get_full_list():
+    return [
+        {"name": "Anderlecht", "prov": "Bruxelles"}, {"name": "Auderghem", "prov": "Bruxelles"}, {"name": "Berchem-Sainte-Agathe", "prov": "Bruxelles"}, {"name": "Bruxelles", "prov": "Bruxelles"}, {"name": "Etterbeek", "prov": "Bruxelles"}, {"name": "Evere", "prov": "Bruxelles"}, {"name": "Forest", "prov": "Bruxelles"}, {"name": "Ganshoren", "prov": "Bruxelles"}, {"name": "Ixelles", "prov": "Bruxelles"}, {"name": "Jette", "prov": "Bruxelles"}, {"name": "Koekelberg", "prov": "Bruxelles"}, {"name": "Molenbeek-Saint-Jean", "prov": "Bruxelles"}, {"name": "Saint-Gilles", "prov": "Bruxelles"}, {"name": "Saint-Josse-ten-Noode", "prov": "Bruxelles"}, {"name": "Schaerbeek", "prov": "Bruxelles"}, {"name": "Uccle", "prov": "Bruxelles"}, {"name": "Watermael-Boitsfort", "prov": "Bruxelles"}, {"name": "Woluwe-Saint-Lambert", "prov": "Bruxelles"}, {"name": "Woluwe-Saint-Pierre", "prov": "Bruxelles"},
+        {"name": "Beauvechain", "prov": "Brabant Wallon"}, {"name": "Braine-l'Alleud", "prov": "Brabant Wallon"}, {"name": "Braine-le-Château", "prov": "Brabant Wallon"}, {"name": "Chastre", "prov": "Brabant Wallon"}, {"name": "Chaumont-Gistoux", "prov": "Brabant Wallon"}, {"name": "Court-Saint-Étienne", "prov": "Brabant Wallon"}, {"name": "Genappe", "prov": "Brabant Wallon"}, {"name": "Grez-Doiceau", "prov": "Brabant Wallon"}, {"name": "Hélécine", "prov": "Brabant Wallon"}, {"name": "Incourt", "prov": "Brabant Wallon"}, {"name": "Ittre", "prov": "Brabant Wallon"}, {"name": "Jodoigne", "prov": "Brabant Wallon"}, {"name": "La Hulpe", "prov": "Brabant Wallon"}, {"name": "Lasne", "prov": "Brabant Wallon"}, {"name": "Mont-Saint-Guibert", "prov": "Brabant Wallon"}, {"name": "Nivelles", "prov": "Brabant Wallon"}, {"name": "Orp-Jauche", "prov": "Brabant Wallon"}, {"name": "Ottignies-Louvain-la-Neuve", "prov": "Brabant Wallon"}, {"name": "Perwez", "prov": "Brabant Wallon"}, {"name": "Ramillies", "prov": "Brabant Wallon"}, {"name": "Rebecq", "prov": "Brabant Wallon"}, {"name": "Rixensart", "prov": "Brabant Wallon"}, {"name": "Tubize", "prov": "Brabant Wallon"}, {"name": "Villers-la-Ville", "prov": "Brabant Wallon"}, {"name": "Walhain", "prov": "Brabant Wallon"}, {"name": "Waterloo", "prov": "Brabant Wallon"}, {"name": "Wavre", "prov": "Brabant Wallon"},
+        # ... Ajoutez ici le reste de vos communes (Hainaut, Liège, etc.)
+    ]
+
 all_communes = get_full_list()
 
-# --- LOGIQUE DE POP-UP (Dialog) ---
-@st.dialog("Configuration de la commune")
+# --- POP-UP D'ENCODAGE (Image 1) ---
+@st.dialog("Configuration")
 def edit_commune(name, prov):
     existing = df_db[df_db['Commune'] == name]
     d_pay = existing['Paiement'].iloc[0] if not existing.empty else "Pré-paiement"
-    d_serv = existing['Services'].iloc[0].split('|') if not existing.empty and isinstance(existing['Services'].iloc[0], str) else []
+    d_serv = str(existing['Services'].iloc[0]).split('|') if not existing.empty and not pd.isna(existing['Services'].iloc[0]) else []
     
-    st.subheader(f"📍 {name}")
-    st.write(f"Province : {prov}")
+    st.title(f":blue[{name}]")
+    st.write("**Paiement**")
+    pay = st.radio("Paiement", ["Pré-paiement", "Post-paiement"], index=0 if d_pay == "Pré-paiement" else 1, label_visibility="collapsed")
     
-    pay = st.radio("Paiement", ["Pré-paiement", "Post-paiement"], index=0 if d_pay == "Pré-paiement" else 1)
-    serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], default=d_serv)
+    st.write("**Services**")
+    choices = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+    serv = []
+    for choice in choices:
+        if st.checkbox(choice, value=(choice in d_serv)):
+            serv.append(choice)
     
-    col1, col2 = st.columns(2)
-    if col1.button("VALIDER", type="primary", use_container_width=True):
+    st.divider()
+    c1, c2 = st.columns(2)
+    if c1.button("VALIDER", type="primary", use_container_width=True):
         new_row = pd.DataFrame([[name, prov, pay, "|".join(serv)]], columns=["Commune", "Province", "Paiement", "Services"])
         up_df = pd.concat([df_db[df_db['Commune'] != name], new_row], ignore_index=True)
         conn.update(data=up_df)
         st.rerun()
-    if col2.button("ANNULER", use_container_width=True):
+    if c2.button("ANNULER", use_container_width=True):
         st.rerun()
 
 # --- INTERFACE PRINCIPALE ---
-col_left, col_right = st.columns([0.4, 0.6])
+col_map, col_list = st.columns([0.4, 0.6])
 
-# --- GAUCHE : LA CARTE ---
-with col_left:
+with col_map:
     st.subheader("🗺️ Carte")
-    # On définit des zones pour placer les provinces "géographiquement"
-    zones = {
-        "Haut": ["Bruxelles", "Brabant Wallon"],
-        "Milieu": ["Hainaut", "Namur", "Liège"],
-        "Bas": ["Luxembourg"]
-    }
+    # Affichage par province pour recréer l'aspect "groupé"
+    for prov_name in PROV_COLORS.keys():
+        st.caption(f"**{prov_name}**")
+        coms_in_prov = [c for c in all_communes if c['prov'] == prov_name]
+        grid = st.columns(8) # 8 carrés par ligne
+        for idx, com in enumerate(coms_in_prov):
+            btn_key = f"m_{com['name']}_{prov_name}".replace(" ", "_")
+            with grid[idx % 8]:
+                if st.button(" ", key=btn_key):
+                    edit_commune(com['name'], prov_name)
+                st.markdown(f"<style>button[key='{btn_key}'] {{ background-color: {PROV_COLORS[prov_name]} !important; }}</style>", unsafe_allow_html=True)
+
+with col_list:
+    st.title("Utilisateurs Creos Extrascolaire")
     
-    for zone, provs in zones.items():
-        cols_zone = st.columns(len(provs))
-        for i, p_name in enumerate(provs):
-            with cols_zone[i]:
-                st.caption(p_name)
-                coms = [c for c in all_communes if c['prov'] == p_name]
-                inner_cols = st.columns(6) # Grille de 6 carrés de large
-                for idx, com in enumerate(coms):
-                    btn_key = f"map_{com['name']}_{p_name}"
-                    with inner_cols[idx % 6]:
-                        if st.button(" ", key=btn_key):
-                            edit_commune(com['name'], p_name)
-                        st.markdown(f"<style>button[key='{btn_key}'] {{ background-color: {PROV_COLORS[p_name]} !important; }}</style>", unsafe_allow_html=True)
-
-# --- DROITE : GESTION ET FILTRES ---
-with col_right:
-    st.subheader("Utilisateurs Creos Extrascolaire")
+    # Barre de recherche et filtres
+    search = st.text_input("🔍 Chercher une commune...", placeholder="Ex: Evere")
     
-    # Barre de recherche et Filtres
-    search = st.text_input("🔍 Chercher une commune...", label_visibility="collapsed")
-    f_col1, f_col2, f_col3 = st.columns(3)
-    f_prov = f_col1.selectbox("Toutes les Provinces", ["Toutes"] + list(PROV_COLORS.keys()))
-    f_pay = f_col2.selectbox("Paiements", ["Tous", "Pré-paiement", "Post-paiement"])
-    f_serv = f_col3.selectbox("Services", ["Tous", "Cantine", "Garderie", "Activités"])
+    f1, f2, f3 = st.columns(3)
+    sel_prov = f1.selectbox("Provinces", ["Toutes les Provinces"] + list(PROV_COLORS.keys()))
+    sel_pay = f2.selectbox("Paiements", ["Tous", "Pré-paiement", "Post-paiement"])
+    sel_serv = f3.selectbox("Services", ["Tous", "Cantine", "Garderie", "Activités"])
 
-    # Filtrage du DataFrame
-    display_df = df_db.copy()
-    if search: display_df = display_df[display_df['Commune'].str.contains(search, case=False)]
-    if f_prov != "Toutes": display_df = display_df[display_df['Province'] == f_prov]
-    if f_pay != "Tous": display_df = display_df[display_df['Paiement'] == f_pay]
-    if f_serv != "Tous": display_df = display_df[display_df['Services'].str.contains(f_serv, case=False)]
+    # Filtrage
+    df_filt = df_db.copy()
+    if search: df_filt = df_filt[df_filt['Commune'].str.contains(search, case=False)]
+    if sel_prov != "Toutes les Provinces": df_filt = df_filt[df_filt['Province'] == sel_prov]
+    if sel_pay != "Tous": df_filt = df_filt[df_filt['Paiement'] == sel_pay]
+    if sel_serv != "Tous": df_filt = df_filt[df_filt['Services'].str.contains(sel_serv, case=False)]
 
-    # Affichage façon Liste (Image 2)
-    for prov in (list(PROV_COLORS.keys()) if f_prov == "Toutes" else [f_prov]):
-        prov_data = display_df[display_df['Province'] == prov].sort_values("Commune")
-        if not prov_data.empty:
-            st.markdown(f"#### :blue[{prov.upper()}]")
-            for _, row in prov_data.iterrows():
-                c1, c2, c3 = st.columns([0.3, 0.2, 0.5])
-                c1.write(f"**{row['Commune']}**")
+    # Liste détaillée (Image 2)
+    for p in (list(PROV_COLORS.keys()) if sel_prov == "Toutes les Provinces" else [sel_prov]):
+        p_df = df_filt[df_filt['Province'] == p].sort_values("Commune")
+        if not p_df.empty:
+            st.markdown(f"<div class='prov-header'>{p.upper()}</div>", unsafe_allow_html=True)
+            for _, row in p_df.iterrows():
+                l1, l2, l3 = st.columns([0.3, 0.2, 0.5])
+                l1.write(f"**{row['Commune']}**")
                 
                 # Badge Paiement
-                pay_class = "bg-pre" if row['Paiement'] == "Pré-paiement" else "bg-post"
-                c2.markdown(f'<span class="badge {pay_class}">{row["Paiement"]}</span>', unsafe_allow_html=True)
+                p_cls = "bg-pre" if row['Paiement'] == "Pré-paiement" else "bg-post"
+                l2.markdown(f'<span class="badge {p_cls}">{row["Paiement"]}</span>', unsafe_allow_html=True)
                 
                 # Badges Services
-                servs = row['Services'].split('|')
-                serv_html = "".join([f'<span class="badge bg-service">{s}</span>' for s in servs if s])
-                c3.markdown(serv_html, unsafe_allow_html=True)
-            st.divider()
+                s_list = str(row['Services']).split('|')
+                s_html = "".join([f'<span class="badge bg-service">{s}</span>' for s in s_list if s and s != "nan"])
+                l3.markdown(s_html, unsafe_allow_html=True)
