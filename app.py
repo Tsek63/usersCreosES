@@ -47,3 +47,50 @@ with tab1:
             # Transformation de la chaîne "A|B" en liste de badges
             badges = row['Services'].split('|') if isinstance(row['Services'], str) else []
             c2.write(f"**Services:** {' / '.join(badges)}")
+
+# --- STYLE & CARTE ---
+st.markdown("""
+<style>
+    .province-box {
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        margin-bottom: 10px;
+        cursor: pointer;
+    }
+    .province-box:hover { background-color: #f0f2f6; }
+    .stBadge { font-size: 1.2rem; }
+</style>
+""", unsafe_allow_html=True)
+
+# Création des colonnes pour l'affichage
+col_map, col_details = st.columns([1, 1])
+
+with col_map:
+    st.subheader("📍 Sélection par Province")
+    # On crée des boutons stylisés pour simuler le clic sur la carte par province
+    provinces = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"]
+    
+    # On utilise des boutons pour filtrer
+    selected_p = None
+    for p in provinces:
+        count = len(df[df['Province'] == p])
+        if st.button(f"{p} ({count} communes)", key=p, use_container_width=True):
+            selected_p = p
+
+with col_details:
+    st.subheader("🔍 Détails")
+    if selected_p:
+        st.write(f"Communes encodées en **{selected_p}** :")
+        sub_df = df[df['Province'] == selected_p]
+        
+        if sub_df.empty:
+            st.info("Aucune commune encodées pour cette province.")
+        else:
+            for _, row in sub_df.iterrows():
+                with st.expander(f"🏙️ {row['Commune']}"):
+                    st.write(f"**Paiement :** {row['Paiement']}")
+                    servs = row['Services'].split('|') if row['Services'] else []
+                    st.write(f"**Services :** {', '.join(servs)}")
+    else:
+        st.info("Cliquez sur une province à gauche pour voir les détails.")
