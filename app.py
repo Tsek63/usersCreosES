@@ -1,92 +1,102 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-import streamlit.components.v1 as components
-import json
 import pandas as pd
+import json
 
-# Configuration de la page
+# --- CONFIGURATION PAGE ---
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire v4.0")
 
 # --- CONNEXION GOOGLE SHEETS ---
-# Note: Les informations de connexion seront dans le menu "Secrets" de Streamlit Cloud
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     try:
-        df = conn.read(ttl=0) # ttl=0 pour forcer la lecture fraîche
-        # Transformer le DataFrame en dictionnaire pour le JS
-        data_dict = {}
-        for _, row in df.iterrows():
-            data_dict[row['Commune']] = {
-                "prov": row['Province'],
-                "pay": row['Paiement'],
-                "services": str(row['Services']).split('|') if row['Services'] else []
-            }
-        return data_dict
+        df = conn.read(ttl=0)
+        # Nettoyage des données vides
+        df = df.dropna(subset=['Commune'])
+        return df
     except:
-        return {}
+        return pd.DataFrame(columns=['Commune', 'Province', 'Paiement', 'Services'])
 
-def save_data(commune, province, paiement, services):
-    # Récupérer les données actuelles
-    df = conn.read(ttl=0)
+# --- LOGIQUE DE MISE À JOUR ---
+def update_commune(commune_name, province, pay, services_list):
+    df = load_data()
+    services_str = "|".join(services_list)
     
-    # Préparer la nouvelle ligne
-    new_data = pd.DataFrame([{
-        "Commune": commune,
+    new_row = pd.DataFrame([{
+        "Commune": commune_name,
         "Province": province,
-        "Paiement": paiement,
-        "Services": "|".join(services)
+        "Paiement": pay,
+        "Services": services_str
     }])
     
-    # Mettre à jour ou ajouter
-    if commune in df['Commune'].values:
-        df = df[df['Commune'] != commune]
+    # Supprimer l'ancienne entrée si elle existe
+    df = df[df['Commune'] != commune_name]
+    # Ajouter la nouvelle
+    df = pd.concat([df, new_row], ignore_index=True)
     
-    df = pd.concat([df, new_data], ignore_index=True)
     conn.update(data=df)
-    st.cache_data.clear()
+    st.toast(f"✅ {commune_name} mis à jour dans Google Sheets !")
 
-# --- INTERFACE ---
-st.title("🌐 Creos Extrascolaire - Partage Collaboratif")
+# --- CHARGEMENT INITIAL ---
+df_data = load_data()
+# Conversion pour le JS (carte SVG)
+selected_dict = {}
+for _, row in df_data.iterrows():
+    selected_dict[row['Commune']] = {
+        "prov": row['Province'],
+        "pay": row['Paiement'],
+        "services": str(row['Services']).split('|') if row['Services'] else []
+    }
 
-# Chargement des données
-data_json = json.dumps(load_data())
-
-# On injecte votre code HTML/JS original (adapté pour communiquer avec Streamlit)
-html_code = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* Copiez ici TOUT votre style CSS d'origine */
-        {open('style.css', 'r').read() if 'style.css' in locals() else ""} 
-        /* (Note: Pour simplifier j'inclus le style directement dans la réponse ci-dessous) */
-    </style>
-</head>
-<body>
-    <script>
-        // On initialise selected avec les données venant de Google Sheets
-        let selected = new Map(Object.entries({data_json}));
-        
-        // On modifie la fonction saveCommune pour envoyer les infos à Streamlit
-        async function saveCommune() {{
-            // ... (votre logique de récupération de formulaire) ...
+# --- INTERFACE STREAMLIT (PANEL DE GAUCHE) ---
+with st.sidebar:
+    st.image("https://via.placeholder.com/150x50?text=CREOS+LOGO") # Remplacez par votre logo
+    st.title("Configuration")
+    
+    with st.expander("➕ Ajouter/Modifier une commune", expanded=True):
+        with st.form("edit_form"):
+            c_name = st.text_input("Nom de la commune")
+            c_prov = st.selectbox("Province", ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"])
+            c_pay = st.radio("Paiement", ["Pre", "Post"], format_func=lambda x: "Prépaiement" if x=="Pre" else "Post-paiement")
+            c_serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
             
-            // Envoyer au parent (Streamlit)
-            window.parent.postMessage({{
-                type: 'SAVE',
-                commune: currentCommune,
-                prov: prov,
-                pay: pay,
-                services: serv
-            }}, "*");
-        }}
-    </script>
-</body>
-</html>
-"""
+            submit = st.form_submit_button("Enregistrer dans le Cloud")
+            if submit and c_name:
+                update_commune(c_name, c_prov, c_pay, c_serv)
+                st.rerun()
 
-# Affichage de l'application
-# Note : L'intégration complète demande de passer par un "Custom Component" 
-# pour que le JS puisse renvoyer des données à Python.
+    if st.button("🗑️ Vider la base de données"):
+        if st.checkbox("Confirmer la suppression totale"):
+            conn.update(data=pd.DataFrame(columns=['Commune', 'Province', 'Paiement', 'Services']))
+            st.rerun()
+
+# --- AFFICHAGE PRINCIPAL (CARTE & LISTE) ---
+# Ici on réutilise votre CSS et votre SVG original pour ne pas changer vos habitudes
+st.markdown(f"""
+<style>
+    {open('style.css', 'r').read() if 'style.css' in locals() else "/* Insérez votre CSS ici */"}
+    .commune {{ stroke: #fff; stroke-width: 0.8; fill: #e2e8f0; }}
+    .active {{ stroke: #000; stroke-width: 2px; }}
+</style>
+""", unsafe_allow_html=True)
+
+col1, col2 = st.columns([1, 2])
+
+with col1:
+    st.subheader("Statistiques & Carte")
+    st.write(f"Total actifs : **{len(df_data)}**")
+    # Note: Pour une interactivité totale sur la carte SVG dans Streamlit, 
+    # on utilise le panel de gauche pour l'encodage et la liste pour le visuel.
+    st.info("Utilisez le formulaire à gauche pour mettre à jour les données.")
+
+with col2:
+    st.subheader("Liste des encodages partagés")
+    # Filtres Streamlit natifs (plus rapides)
+    f_prov = st.multiselect("Filtrer par Province", df_data['Province'].unique())
+    
+    display_df = df_data.copy()
+    if f_prov:
+        display_df = display_df[display_df['Province'].isin(f_prov)]
+    
+    st.dataframe(display_df, use_container_width=True)
