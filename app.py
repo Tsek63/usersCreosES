@@ -11,23 +11,52 @@ PROV_COLORS = {
     "Liège": "#CCE5FF", "Namur": "#FFD9CC", "Luxembourg": "#FFC9F3"
 }
 
-# --- STYLE CSS (Texte bleu foncé & Carrés) ---
+# --- STYLE CSS : FORÇAGE BLEU FONCÉ ---
 st.markdown(f"""
     <style>
+    /* Fond de l'application */
     .stApp {{ background-color: #E3F2FD !important; }}
-    h1, h2, h3, h4, p, span, label {{ color: #003366 !important; font-family: 'Segoe UI', sans-serif; font-weight: 500; }}
-    .white-card {{ background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #BEE3F8; }}
     
+    /* Texte général */
+    h1, h2, h3, h4, p, span, label {{ color: #003366 !important; font-family: 'Segoe UI', sans-serif; }}
+
+    /* FORÇAGE DES FILTRES ET INPUTS (Bleu foncé au lieu de noir/blanc) */
+    div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {{
+        background-color: #003366 !important;
+        color: white !important;
+        border: 1px solid #002244 !important;
+    }}
+    /* Texte à l'intérieur des filtres */
+    div[data-testid="stSelectbox"] svg, div[data-baseweb="select"] div {{
+        color: white !important;
+    }}
+
+    /* BOUTONS (Bleu foncé, texte blanc) */
+    .stButton > button {{
+        background-color: #003366 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+        transition: 0.3s;
+    }}
+    .stButton > button:hover {{
+        background-color: #0055A4 !important;
+        color: #E3F2FD !important;
+    }}
+
     /* CARTE : Points */
     .dot {{ height: 14px; width: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.3); display: inline-block; }}
-    
-    /* BADGES : Texte foncé sur fond pastel */
+
+    /* BADGES LISTE */
     .badge {{ padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; color: #003366 !important; margin-right: 4px; display: inline-flex; border: 1px solid rgba(0,0,0,0.1); }}
     .bg-pre {{ background-color: #A9D0F5; }}
     .bg-post {{ background-color: #CBD5E0; }}
     .bg-cantine {{ background-color: #FFD580; }}
     .bg-garderie {{ background-color: #9DECF9; }}
     .bg-activites {{ background-color: #C6F6D5; }}
+
+    /* Conteneur blanc */
+    .white-card {{ background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #BEE3F8; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -35,7 +64,7 @@ st.markdown(f"""
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_db = conn.read(ttl=0).dropna(how="all")
 
-# --- DIALOGUE DE MODIFICATION ---
+# --- POP-UP MODIFICATION ---
 @st.dialog("Configuration", width="small")
 def edit_popup(name, prov):
     st.markdown(f"### :blue[{name}]")
@@ -63,7 +92,7 @@ def edit_popup(name, prov):
     if c2.button("ANNULER", use_container_width=True): st.rerun()
     
     if not row.empty:
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.write("---")
         if st.button("🗑️ SUPPRIMER LA DONNÉE", use_container_width=True):
             conn.update(data=df_db[df_db['Commune'] != name])
             st.rerun()
@@ -79,7 +108,6 @@ with col_map:
         (l1 if i < 3 else l2).markdown(f"<span style='color:{c}; font-size:20px;'>■</span> {p}", unsafe_allow_html=True)
     
     st.write("---")
-    # Simulation Carte (Boucle sur les données encodées pour l'exemple)
     for prov, color in PROV_COLORS.items():
         st.markdown(f"<small><b>{prov}</b></small>", unsafe_allow_html=True)
         p_data = df_db[df_db['Province'] == prov]
@@ -94,28 +122,27 @@ with col_list:
     st.markdown("<div class='white-card'>", unsafe_allow_html=True)
     st.title("Utilisateurs Creos Extrascolaire")
     
-    # --- BARRE DE RECHERCHE ET FILTRES (Image 3 & 5) ---
-    search = st.text_input("🔍 Rechercher une commune...", placeholder="Entrez un nom...")
+    # --- FILTRES BLEU FONCÉ ---
+    search = st.text_input("🔍 Rechercher une commune...", placeholder="Entrez un nom")
     
-    f1, f2, f3, f4 = st.columns([2, 2, 2, 1])
+    f1, f2, f3, f4 = st.columns([2, 2, 2, 1.2])
     s_prov = f1.selectbox("Provinces", ["Toutes"] + list(PROV_COLORS.keys()))
     s_pay = f2.selectbox("Paiements", ["Tous", "Prépaiement", "Post-paiement"])
     s_serv = f3.selectbox("Services", ["Tous", "Cantine", "Garderie", "Activités"])
     
-    if f4.button("Effacer", use_container_width=True):
+    if f4.button("EFFACER FILTRES", use_container_width=True):
         st.rerun()
 
-    # Logique de filtrage
+    # Filtrage
     df_f = df_db.copy()
     if search: df_f = df_f[df_f['Commune'].str.contains(search, case=False, na=False)]
     if s_prov != "Toutes": df_f = df_f[df_f['Province'] == s_prov]
     if s_pay != "Tous": df_f = df_f[df_f['Paiement'] == s_pay]
     if s_serv != "Tous": df_f = df_f[df_f['Services'].str.contains(s_serv, case=False, na=False)]
 
-    # --- LISTE DES DONNÉES ---
+    # --- LISTE ---
     st.markdown("<br>", unsafe_allow_html=True)
-    view_provinces = list(PROV_COLORS.keys()) if s_prov == "Toutes" else [s_prov]
-    for p in view_provinces:
+    for p in (PROV_COLORS.keys() if s_prov == "Toutes" else [s_prov]):
         p_rows = df_f[df_f['Province'] == p].sort_values("Commune")
         if not p_rows.empty:
             st.markdown(f"<h4 style='color:#003366; border-bottom:2px solid #A9D0F5; padding:5px 0;'>{p.upper()}</h4>", unsafe_allow_html=True)
@@ -123,17 +150,11 @@ with col_list:
                 c1, c2, c3, c4 = st.columns([0.3, 0.2, 0.4, 0.1])
                 c1.write(f"**{row['Commune']}**")
                 
-                # Badge Paiement
                 p_cls = "bg-pre" if row['Paiement'] == "Prépaiement" else "bg-post"
                 c2.markdown(f'<span class="badge {p_cls}">{row["Paiement"]}</span>', unsafe_allow_html=True)
                 
-                # Badges Services
                 s_list = str(row['Services']).split('|')
-                s_html = ""
-                for s in s_list:
-                    if "Cantine" in s: s_html += f'<span class="badge bg-cantine">{s}</span>'
-                    elif "Garderie" in s: s_html += f'<span class="badge bg-garderie">{s}</span>'
-                    elif "Activités" in s: s_html += f'<span class="badge bg-activites">{s}</span>'
+                s_html = "".join([f'<span class="badge bg-garderie">{s}</span>' for s in s_list if s and s != 'nan'])
                 c3.markdown(s_html, unsafe_allow_html=True)
                 
                 if c4.button("📝", key=f"ed_l_{row['Commune']}"): edit_popup(row['Commune'], p)
