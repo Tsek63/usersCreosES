@@ -5,34 +5,38 @@ import pandas as pd
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard")
 
-# --- CSS DE PRÉCISION ---
+# --- CSS DE VERROUILLAGE TOTAL ---
 st.markdown("""
     <style>
-    /* 1. FOND ET TEXTE GÉNÉRAL */
-    .stApp { background-color: #E3F2FD !important; }
-    h1, h2, h3, h4, p, span, div { color: #003366 !important; }
-
-    /* 2. SUPPRESSION DES RECTANGLES ET ESPACES HAUT DE PAGE */
+    /* 1. Suppression du bandeau blanc du haut et des espaces inutiles */
     [data-testid="stHeader"] { display: none !important; }
     .main .block-container { padding-top: 1rem !important; }
     div[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; }
 
-    /* 3. FILTRES & RECHERCHE : FOND FONCÉ / TEXTE BLANC FLASH */
+    /* 2. Fond de page et texte bleu foncé */
+    .stApp { background-color: #E3F2FD !important; }
+    h1, h2, h3, h4, p, span, div { color: #003366 !important; }
+
+    /* 3. ALIGNEMENT PARFAIT DU BOUTON EFFACER */
+    /* On force l'alignement vertical de la ligne de filtres */
+    [data-testid="stHorizontalBlock"] {
+        align-items: flex-end !important;
+    }
+
+    /* 4. FILTRES & RECHERCHE : LISIBILITÉ MAXIMALE */
     div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
-        background-color: #002244 !important; /* Bleu très sombre pour contraste */
+        background-color: #002244 !important; 
         border: 2px solid #BEE3F8 !important;
         height: 45px !important;
     }
-    
-    /* Forçage du texte blanc dans les champs (Recherche + Select) */
     input { 
         color: #FFFFFF !important; 
         -webkit-text-fill-color: #FFFFFF !important; 
         font-weight: bold !important;
     }
-    div[data-baseweb="select"] span { color: #FFFFFF !important; font-weight: bold !important; }
+    div[data-baseweb="select"] span { color: #FFFFFF !important; }
 
-    /* 4. ALIGNEMENT DU BOUTON EFFACER */
+    /* 5. BOUTON EFFACER (Verrouillé sur 45px) */
     .stButton > button {
         background-color: #003366 !important;
         color: white !important;
@@ -40,13 +44,13 @@ st.markdown("""
         width: 100% !important;
         border: 2px solid #BEE3F8 !important;
         font-weight: bold !important;
-        margin-top: 0px !important; /* Aligné avec les filtres sans label */
+        margin-bottom: 1px !important; /* Ajustement micrométrique pour l'alignement */
     }
 
-    /* 5. CARTE & POINTS */
+    /* 6. CARTE : CARRES SANS RECTANGLES NOIRS */
     .city-dot {
         height: 12px; width: 12px;
-        border-radius: 3px;
+        border-radius: 2px;
         display: inline-block;
         margin: 1px;
         border: 1px solid rgba(0,0,0,0.1);
@@ -59,7 +63,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- DONNÉES & RÉFÉRENTIEL ---
+# --- DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_db = conn.read(ttl=0).dropna(how="all")
 
@@ -70,11 +74,13 @@ PROV_COLORS = {
 
 @st.cache_data
 def get_full_ref():
-    # Liste complète des 281 communes (Simulée ici)
     data = {
-        "Bruxelles": ["Anderlecht", "Auderghem", "Evere", "Uccle", "Ixelles"],
-        "Brabant Wallon": ["Wavre", "Nivelles", "Waterloo", "Braine-l'Alleud"],
-        "Liège": ["Liège", "Verviers", "Huy", "Spa", "Oreye", "Sprimont", "Awans"]
+        "Bruxelles": ["Anderlecht", "Auderghem", "Berchem-Sainte-Agathe", "Bruxelles", "Etterbeek", "Evere", "Forest", "Ganshoren", "Ixelles", "Jette", "Koekelberg", "Molenbeek-Saint-Jean", "Saint-Gilles", "Saint-Josse-ten-Noode", "Schaerbeek", "Uccle", "Watermael-Boitsfort", "Woluwe-Saint-Lambert", "Woluwe-Saint-Pierre"],
+        "Brabant Wallon": ["Beauvechain", "Braine-l'Alleud", "Braine-le-Château", "Chastre", "Chaumont-Gistoux", "Court-Saint-Étienne", "Genappe", "Grez-Doiceau", "Hélécine", "Incourt", "Ittre", "Jodoigne", "La Hulpe", "Lasne", "Mont-Saint-Guibert", "Nivelles", "Orp-Jauche", "Ottignies-Louvain-la-Neuve", "Perwez", "Ramillies", "Rebecq", "Rixensart", "Tubize", "Villers-la-Ville", "Walhain", "Waterloo", "Wavre"],
+        "Hainaut": ["Aiseau-Presles", "Anderlues", "Antoing", "Ath", "Beaumont", "Belœil", "Bernissart", "Binche", "Boussu", "Braine-le-Comte", "Brugelette", "Brunehaut", "Celles", "Chapelle-lez-Herlaimont", "Charleroi", "Châtelet", "Chièvres", "Chimay", "Colfontaine", "Comines-Warneton", "Courcelles", "Dour", "Écaussinnes", "Ellezelles", "Enghien", "Erquelinnes", "Estaimpuis", "Estinnes", "Farciennes", "Fleurus", "Fontaine-l'Évêque", "Frameries", "Frasnes-lez-Anvaing", "Froidchapelle", "Gerpinnes", "Ham-sur-Heure-Nalinnes", "Hensies", "Honnelles", "Jurbise", "La Louvière", "Le Rœulx", "Lens", "Les Bons Villers", "Lessines", "Leuze-en-Hainaut", "Lobbes", "Manage", "Merbes-le-Château", "Momignies", "Mons", "Mont-de-l'Enclus", "Montigny-le-Tilleul", "Morlanwelz", "Mouscron", "Pecq", "Péruwelz", "Pont-à-Celles", "Quaregnon", "Quévy", "Quiévrain", "Rumes", "Saint-Ghislain", "Seneffe", "Silly", "Sivry-Rance", "Soignies", "Thuin", "Tournai"],
+        "Liège": ["Amay", "Amblève", "Ans", "Anthisnes", "Aubel", "Awans", "Aywaille", "Baelen", "Bassenge", "Berloz", "Beyne-Heusay", "Blegny", "Braives", "Bullange", "Burdinne", "Burg-Reuland", "Bütgenbach", "Chaudfontaine", "Clavier", "Comblain-au-Pont", "Crisnée", "Dalhem", "Dison", "Donceel", "Engis", "Esneux", "Eupen", "Faimes", "Ferrières", "Fexhe-le-Haut-Clocher", "Flémalle", "Fléron", "Geer", "Grâce-Hollogne", "Hamoir", "Hannut", "Héron", "Herstal", "Herve", "Huy", "Jalhay", "Juprelle", "La Calamine", "Liège", "Lierneux", "Limbourg", "Lincent", "Lontzen", "Malmedy", "Marchin", "Modave", "Nandrin", "Neupré", "Olne", "Oreye", "Ouffet", "Oupeye", "Pepinster", "Plombières", "Raeren", "Remicourt", "Saint-Georges-sur-Meuse", "Saint-Nicolas", "Saint-Vith", "Seraing", "Soumagne", "Spa", "Sprimont", "Stavelot", "Stoumont", "Theux", "Thimister-Clermont", "Tinlot", "Trois-Ponts", "Trooz", "Verlaine", "Verviers", "Visé", "Waimes", "Wanze", "Waremme", "Wasseiges", "Welkenraedt"],
+        "Namur": ["Andenne", "Anhée", "Assesse", "Beauraing", "Bièvre", "Cerfontaine", "Ciney", "Couvin", "Dinant", "Doische", "Éghezée", "Fernelmont", "Floreffe", "Florennes", "Fosses-la-Ville", "Gedinne", "Gembloux", "Gesves", "Hastière", "Havelange", "Houyet", "Jemeppe-sur-Sambre", "La Bruyère", "Mettet", "Namur", "Ohey", "Onhaye", "Philippeville", "Profondeville", "Rochefort", "Sambreville", "Sombreffe", "Somme-Leuze", "Viroinval", "Vresse-sur-Semois", "Walcourt", "Yvoir"],
+        "Luxembourg": ["Arlon", "Attert", "Aubange", "Bastogne", "Bertrix", "Bouillon", "Chiny", "Daverdisse", "Durbuy", "Érezée", "Étalle", "Fauvillers", "Florenville", "Gouvy", "Habay", "Herbeumont", "Hotton", "Houffalize", "La Roche-en-Ardenne", "Léglise", "Libin", "Libramont-Chevigny", "Manhay", "Marche-en-Famenne", "Martelange", "Meix-devant-Virton", "Messancy", "Musson", "Nassogne", "Neufchâteau", "Paliseul", "Rendeux", "Rouvroy", "Sainte-Ode", "Saint-Hubert", "Saint-Léger", "Tellin", "Tenneville", "Tintigny", "Vaux-sur-Sûre", "Vielsalm", "Virton", "Wellin"]
     }
     return [{"name": n, "prov": p} for p, names in data.items() for n in names]
 
@@ -102,9 +108,9 @@ with c2:
     st.markdown("<div class='white-card'>", unsafe_allow_html=True)
     st.title("👥 Utilisateurs Creos")
     
-    # BARRE DE FILTRES ALIGNÉE (Même hauteur, Contraste maximum)
+    # BARRE DE FILTRES ALIGNÉE (Flexbox forcé)
     f1, f2, f3, f4, f5 = st.columns([1.5, 1, 1, 1, 0.8])
-    with f1: st.text_input("Recherche", key="search", placeholder="Chercher...")
+    with f1: st.text_input("Search", key="search", placeholder="Rechercher...")
     with f2: st.selectbox("Prov", ["Toutes"] + list(PROV_COLORS.keys()), key="p")
     with f3: st.selectbox("Pay", ["Tous", "Prépaiement", "Post-paiement"], key="py")
     with f4: st.selectbox("Serv", ["Tous", "Cantine", "Garderie", "Activités"], key="s")
