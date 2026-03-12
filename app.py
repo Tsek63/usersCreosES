@@ -22,32 +22,39 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# Nettoyage et préparation
+# Nettoyage et Tri Python avant d'envoyer au JS
 df_gsheets['Commune'] = df_gsheets['Commune'].astype(str).str.strip()
 df_gsheets['Province'] = df_gsheets['Province'].astype(str).str.strip()
+# Définir l'ordre des provinces pour le tri
+ord_p = {p: i for i, p in enumerate(data_fwb.keys())}
+df_gsheets['ord'] = df_gsheets['Province'].map(ord_p).fillna(99)
+df_gsheets = df_gsheets.sort_values(['ord', 'Commune'])
 
-# On crée le JSON ici pour être sûr de son format
-json_data_gsheets = df_gsheets.to_json(orient='records')
+json_data = df_gsheets.to_json(orient='records')
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Administration")
-    st.write(f"Lignes en base : **{len(df_gsheets)}**")
-    with st.form("save_form"):
-        c_name = st.text_input("Commune")
-        c_prov = st.text_input("Province")
-        c_pay = st.selectbox("Paiement", ["Pre", "Post"])
-        c_serv = st.text_input("Services (ex: Garderie|Activités)")
-        submit = st.form_submit_button("💾 SAUVEGARDER")
+    st.header("💾 SAUVEGARDE")
+    st.info("Cliquez sur une commune ou remplissez manuellement :")
+    with st.form("main_form"):
+        # Les labels doivent être très précis pour le JS
+        f_commune = st.text_input("NOM_COMMUNE")
+        f_province = st.text_input("NOM_PROVINCE")
+        f_paiement = st.selectbox("MODE_PAIEMENT", ["Pre", "Post"])
+        f_services = st.text_input("LISTE_SERVICES")
+        btn = st.form_submit_button("VALIDER VERS GSHEETS")
 
-if submit and c_name:
-    new_row = pd.DataFrame([{"Commune": c_name, "Province": c_prov, "Paiement": c_pay, "Services": c_serv}])
-    updated_df = pd.concat([df_gsheets[df_gsheets['Commune'] != c_name], new_row], ignore_index=True)
+if btn and f_commune:
+    new_data = pd.DataFrame([{"Commune": f_commune, "Province": f_province, "Paiement": f_paiement, "Services": f_services}])
+    # On retire l'ancienne version si elle existe
+    df_clean = df_gsheets[df_gsheets['Commune'] != f_commune].drop(columns=['ord'], errors='ignore')
+    updated_df = pd.concat([df_clean, new_data], ignore_index=True)
     conn.update(data=updated_df)
+    st.success(f"Enregistré : {f_commune}")
     st.rerun()
 
-# --- 5. HTML/JS ---
-html_template = f"""
+# --- 5. HTML / JS ---
+html_code = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -55,182 +62,142 @@ html_template = f"""
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {{ 
-            --creos: #4169E1; --dark: #1e293b; --bg: #e0f2fe;
+            --creos: #4169E1; --dark: #1e293b; --bg: #f8fafc;
             --color-bxl: #ffeaa7; --color-bw: #81ecec; --color-hai: #a29bfe; 
             --color-lie: #74b9ff; --color-nam: #fab1a0; --color-lux: #FF43D0; 
-            --c-jour: #fb923c; --c-sem: #f59e0b; --c-mois: #d97706;
-            --c-gard: #38bdf8; --c-act: #4ade80;
         }}
-        body {{ margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; background: var(--bg); overflow: hidden; }}
-        #left-panel {{ flex: 0 0 35%; display: flex; flex-direction: column; background: var(--bg); border-right: 2px solid #bae6fd; padding: 20px; box-sizing: border-box; overflow-y: auto; }}
-        #right-panel {{ flex: 1; display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; overflow: hidden; }}
-        #map-container {{ height: 420px; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; }}
+        body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; background: var(--bg); overflow: hidden; }}
+        #left {{ flex: 0 0 40%; padding: 20px; border-right: 1px solid #ddd; display: flex; flex-direction: column; }}
+        #right {{ flex: 1; padding: 20px; overflow-y: auto; background: white; }}
+        #map {{ height: 450px; background: white; border-radius: 10px; border: 1px solid #eee; margin-bottom: 15px; position: relative; }}
         svg {{ width: 100%; height: 100%; }}
-        .commune {{ stroke: #fff; stroke-width: 0.8; cursor: pointer; transition: 0.2s; }}
-        .selected {{ stroke: #000 !important; stroke-width: 2.5px !important; }}
-        .highlight-search {{ stroke: #fbbf24 !important; stroke-width: 4px !important; }}
-        #list {{ flex: 1; overflow-y: auto; background: white; border-radius: 12px; border: 1px solid #bae6fd; }}
-        .prov-header {{ background: #f1f5f9; padding: 10px 20px; font-weight: 900; color: #475569; border-bottom: 1px solid #cbd5e1; }}
-        .item {{ display: grid; grid-template-columns: 180px 100px 1fr; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
-        .service-badge {{ font-size: 0.65rem; padding: 4px 8px; border-radius: 6px; color: white; margin: 2px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }}
-        .badge-jour {{ background: var(--c-jour); }} .badge-semaine {{ background: var(--c-sem); }} 
-        .badge-mois {{ background: var(--c-mois); }} .badge-gard {{ background: var(--c-gard); }} 
-        .badge-act {{ background: var(--c-act); }}
-        #config-menu {{ position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 20px; display: none; z-index: 1000; width: 280px; }}
-        .btn-save {{ background: var(--creos); color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }}
+        .commune {{ stroke: white; stroke-width: 0.5; cursor: pointer; }}
+        .selected {{ stroke: black !important; stroke-width: 2px !important; }}
+        .header-p {{ background: #f1f5f9; padding: 8px 15px; font-weight: bold; font-size: 13px; margin-top: 10px; border-radius: 5px; }}
+        .row-c {{ display: flex; justify-content: space-between; align-items: center; padding: 8px 15px; border-bottom: 1px solid #f8fafc; font-size: 13px; }}
+        .badge {{ padding: 3px 7px; border-radius: 4px; color: white; font-size: 10px; font-weight: bold; margin-left: 3px; display: inline-flex; align-items: center; gap: 3px; }}
+        #pop {{ position: fixed; background: white; border: 1px solid #ccc; padding: 15px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: none; z-index: 100; width: 220px; }}
     </style>
 </head>
 <body>
 
-<div id="config-menu">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h4 id="menu-title" style="margin:0;">Configuration</h4>
-        <i class="fa-solid fa-times" style="cursor:pointer;" onclick="this.parentElement.parentElement.style.display='none'"></i>
-    </div>
-    <div id="config-form"></div>
-    <button class="btn-save" onclick="saveData()">CONFIRMER</button>
+<div id="pop">
+    <h4 id="pop-title" style="margin-top:0"></h4>
+    <div id="pop-content"></div>
+    <button onclick="transfer()" style="width:100%; background:var(--creos); color:white; border:none; padding:8px; border-radius:5px; margin-top:10px; cursor:pointer">PREPARER SAUVEGARDE</button>
 </div>
 
-<div id="left-panel">
-    <div id="map-container"><svg id="svg-map" viewBox="0 0 850 650"></svg></div>
-    <div style="background: var(--dark); color: white; padding: 15px; border-radius: 12px; text-align:center;">
-        <div id="count" style="font-size: 2.2rem; font-weight: 900; color: #38bdf8;">0</div>
-        <div style="font-size:0.7rem; opacity:0.8;">UNITÉS CONFIGURÉES</div>
+<div id="left">
+    <div id="map"><svg id="svg-map" viewBox="0 0 850 650"></svg></div>
+    <div style="background:var(--dark); color:white; padding:15px; border-radius:10px; text-align:center">
+        <div id="stat" style="font-size:30px; font-weight:bold; color:#38bdf8">0</div>
+        <div style="font-size:12px">COMMUNES ENREGISTRÉES</div>
     </div>
 </div>
 
-<div id="right-panel">
-    <input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd; margin-bottom:15px;" placeholder="🔍 Chercher une commune..." onkeyup="searchAndHighlight()">
-    <div id="list"></div>
+<div id="right">
+    <div id="list-content"></div>
 </div>
 
 <script>
-    // Chargement sécurisé des données
-    const rawData = {json_data_gsheets};
-    const dataFWB = {json.dumps(data_fwb)};
-    
-    // On transforme le tableau JSON en Map pour un accès rapide
-    let selected = new Map();
-    rawData.forEach(row => {{
-        const srv = row.Services ? row.Services.split('|') : [];
-        selected.set(row.Commune, {{ prov: row.Province, pay: row.Paiement, services: srv }});
-    }});
+    const gsheetsData = {json_data};
+    const fwb = {json.dumps(data_fwb)};
+    let db = new Map();
+    gsheetsData.forEach(d => db.set(d.Commune, d));
 
-    const sData = {{
-        "Cantine Jour": {{ icon: "fa-utensils", c: "badge-jour" }},
-        "Cantine Semaine": {{ icon: "fa-calendar-day", c: "badge-semaine" }},
-        "Cantine Mois": {{ icon: "fa-calendar-days", c: "badge-mois" }},
-        "Garderie": {{ icon: "fa-clock", c: "badge-gard" }},
-        "Activités": {{ icon: "fa-volleyball", c: "badge-act" }}
+    const icons = {{
+        "Cantine Jour": {{ icon: "fa-utensils", color: "#fb923c" }},
+        "Cantine Semaine": {{ icon: "fa-calendar-day", color: "#f59e0b" }},
+        "Cantine Mois": {{ icon: "fa-calendar-days", color: "#d97706" }},
+        "Garderie": {{ icon: "fa-clock", color: "#38bdf8" }},
+        "Activités": {{ icon: "fa-volleyball", color: "#4ade80" }}
     }};
 
-    function init() {{
+    function initMap() {{
         const svg = document.getElementById('svg-map');
         const anchors = {{ "Bruxelles": [330, 40], "Brabant Wallon": [330, 110], "Hainaut": [40, 200], "Liège": [580, 80], "Namur": [280, 320], "Luxembourg": [530, 420] }};
 
-        Object.entries(dataFWB).forEach(([prov, list]) => {{
-            const safe = prov.toLowerCase().split(' ')[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const colorKey = (safe === 'brabant') ? 'bw' : (safe === 'bruxelles' ? 'bxl' : safe.substring(0,3));
-            list.forEach((name, i) => {{
-                const col = i % 8, row = Math.floor(i / 8);
-                const x = anchors[prov][0] + (col * 24), y = anchors[prov][1] + (row * 22);
+        Object.entries(fwb).forEach(([prov, communes]) => {{
+            const colorKey = prov.toLowerCase().includes('brabant') ? 'bw' : (prov.toLowerCase().includes('bruxelles') ? 'bxl' : prov.substring(0,3).toLowerCase());
+            communes.forEach((name, i) => {{
+                const x = anchors[prov][0] + (i % 8 * 24), y = anchors[prov][1] + (Math.floor(i / 8) * 22);
                 const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 21); r.setAttribute("height", 19); r.setAttribute("rx", 4);
+                r.setAttribute("class", "commune" + (db.has(name) ? " selected" : ""));
+                r.style.fill = `var(--color-${{colorKey}})`;
+                r.onclick = (e) => showPop(name, e, prov);
                 const t = document.createElementNS("http://www.w3.org/2000/svg", "title");
                 t.textContent = name;
-                r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 21); r.setAttribute("height", 19); r.setAttribute("rx", 5);
-                r.setAttribute("class", "commune"); r.setAttribute("data-name", name);
-                r.style.fill = `var(--color-${{colorKey}})`;
-                if(selected.has(name)) r.classList.add('selected');
-                r.onclick = (e) => openConfig(name, e);
                 r.appendChild(t); svg.appendChild(r);
             }});
         }});
-        updateUI();
+        renderList();
     }}
 
-    function openConfig(name, e) {{
-        const d = selected.get(name) || {{ pay: 'Pre', services: [] }};
-        const menu = document.getElementById('config-menu');
-        document.getElementById('menu-title').innerText = name;
-        document.getElementById('config-form').innerHTML = `
-            <div style="font-size:0.8rem; margin-bottom:10px;">
-                <strong>Paiement</strong><br>
-                <label><input type="radio" name="pay" value="Pre" ${{d.pay==='Pre'?'checked':''}}> Pre</label>
-                <label style="margin-left:10px;"><input type="radio" name="pay" value="Post" ${{d.pay==='Post'?'checked':''}}> Post</label>
+    function showPop(name, e, prov) {{
+        const pop = document.getElementById('pop');
+        const d = db.get(name) || {{ Paiement: 'Pre', Services: '' }};
+        const sList = d.Services.split('|');
+        document.getElementById('pop-title').innerText = name;
+        document.getElementById('pop-content').innerHTML = `
+            <input type="hidden" id="p-prov" value="${{prov}}">
+            <div style="font-size:12px">Paiement: 
+                <select id="p-pay"><option value="Pre" ${{d.Paiement==='Pre'?'selected':''}}>Pre</option><option value="Post" ${{d.Paiement==='Post'?'selected':''}}>Post</option></select>
             </div>
-            <div style="font-size:0.8rem;">
-                <strong>Services</strong><br>
-                ${{Object.keys(sData).map(s => `<label style="display:block;"><input type="checkbox" name="serv" value="${{s}}" ${{d.services.includes(s)?'checked':''}}> ${{s}}</label>`).join('')}}
+            <div style="font-size:11px; margin-top:10px">
+                ${{Object.keys(icons).map(s => `<label style="display:block"><input type="checkbox" class="p-serv" value="${{s}}" ${{sList.includes(s)?'checked':''}}> ${{s}}</label>`).join('')}}
             </div>
         `;
-        menu.style.display = 'block'; menu.style.left = Math.min(e.pageX, window.innerWidth-300)+'px'; menu.style.top = Math.min(e.pageY, window.innerHeight-350)+'px';
+        pop.style.display = 'block'; pop.style.left = e.pageX + 'px'; pop.style.top = e.pageY + 'px';
     }}
 
-    function saveData() {{
-        const name = document.getElementById('menu-title').innerText;
-        const pay = document.querySelector('input[name="pay"]:checked').value;
-        const servs = Array.from(document.querySelectorAll('input[name="serv"]:checked')).map(c => c.value);
-        let prov = "";
-        for(let [p, list] of Object.entries(dataFWB)) {{ if(list.includes(name)) {{ prov = p; break; }} }}
+    function transfer() {{
+        const name = document.getElementById('pop-title').innerText;
+        const prov = document.getElementById('p-prov').value;
+        const pay = document.getElementById('p-pay').value;
+        const servs = Array.from(document.querySelectorAll('.p-serv:checked')).map(x => x.value).join('|');
 
-        const parent = window.parent.document;
-        const inputs = parent.querySelectorAll('input[data-testid="stTextInputRootElement"] input');
-        if(inputs.length >= 3) {{
-            inputs[0].value = name; inputs[0].dispatchEvent(new Event('input', {{bubbles:true}}));
-            inputs[1].value = prov; inputs[1].dispatchEvent(new Event('input', {{bubbles:true}}));
-            inputs[2].value = servs.join('|'); inputs[2].dispatchEvent(new Event('input', {{bubbles:true}}));
-        }}
-        selected.set(name, {{ prov, pay, services: servs }});
-        document.querySelector(`rect[data-name="${{name}}"]`).classList.add('selected');
-        document.getElementById('config-menu').style.display = 'none';
-        updateUI();
-    }}
-
-    function searchAndHighlight() {{
-        const v = document.getElementById('searchInput').value.toLowerCase();
-        document.querySelectorAll('.commune').forEach(el => {{
-            const name = el.getAttribute('data-name').toLowerCase();
-            if(v.length > 1 && name.includes(v)) el.classList.add('highlight-search');
-            else el.classList.remove('highlight-search');
+        // PONT VERS STREAMLIT (Correction ciblée)
+        const inputs = window.parent.document.querySelectorAll('input');
+        inputs.forEach(i => {{
+            const label = i.parentElement.parentElement.querySelector('label');
+            if(label) {{
+                if(label.innerText.includes("NOM_COMMUNE")) {{ i.value = name; i.dispatchEvent(new Event('input', {{bubbles:true}})); }}
+                if(label.innerText.includes("NOM_PROVINCE")) {{ i.value = prov; i.dispatchEvent(new Event('input', {{bubbles:true}})); }}
+                if(label.innerText.includes("LISTE_SERVICES")) {{ i.value = servs; i.dispatchEvent(new Event('input', {{bubbles:true}})); }}
+            }}
         }});
+        document.getElementById('pop').style.display = 'none';
+        alert("Prêt pour " + name + " ! Cliquez sur VALIDER à gauche.");
     }}
 
-    function updateUI() {{
-        const listDiv = document.getElementById('list');
-        listDiv.innerHTML = "";
+    function renderList() {{
+        const cont = document.getElementById('list-content');
+        cont.innerHTML = "";
         let count = 0;
-        const provinces = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
+        const provs = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
         
-        provinces.forEach(p => {{
-            const filtered = Array.from(selected.entries())
-                .filter(([_, d]) => d.prov === p)
-                .sort((a,b) => a[0].localeCompare(b[0]));
-            
-            if(filtered.length > 0) {{
-                const header = document.createElement('div');
-                header.className = "prov-header";
-                header.innerText = p;
-                listDiv.appendChild(header);
-                
-                filtered.forEach(([name, d]) => {{
+        provs.forEach(p => {{
+            const items = Array.from(db.values()).filter(x => x.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
+            if(items.length > 0) {{
+                const h = document.createElement('div'); h.className = "header-p"; h.innerText = p; cont.appendChild(h);
+                items.forEach(it => {{
                     count++;
-                    const row = document.createElement('div');
-                    row.className = "item";
-                    row.innerHTML = `
-                        <strong style="color:#1e3a8a; font-size:0.9rem;">${{name}}</strong>
-                        <span style="font-size:0.7rem; font-weight:800; color:var(--creos);">${{d.pay.toUpperCase()}}</span>
-                        <div>${{d.services.map(s => `<span class="service-badge ${{sData[s].c}}"><i class="fa-solid ${{sData[s].icon}}"></i> ${{s}}</span>`).join('')}}</div>
-                    `;
-                    listDiv.appendChild(row);
+                    const row = document.createElement('div'); row.className = "row-c";
+                    const srvs = it.Services.split('|').filter(x => x).map(s => `
+                        <span class="badge" style="background:${{icons[s].color}}"><i class="fa-solid ${{icons[s].icon}}"></i> ${{s}}</span>
+                    `).join('');
+                    row.innerHTML = `<span><strong>${{it.Commune}}</strong> <small>${{it.Paiement}}</small></span><div>${{srvs}}</div>`;
+                    cont.appendChild(row);
                 }});
             }}
         }});
-        document.getElementById('count').innerText = count;
+        document.getElementById('stat').innerText = count;
     }}
-    init();
+    initMap();
 </script>
 </body>
 </html>
 """
 
-components.html(html_template, height=850)
+components.html(html_code, height=800)
