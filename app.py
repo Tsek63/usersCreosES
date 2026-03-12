@@ -22,38 +22,28 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# Tri par Province puis par Commune avant traitement
-prov_order = {p: i for i, p in enumerate(data_fwb.keys())}
-df_gsheets['prov_rank'] = df_gsheets['Province'].map(prov_order).fillna(99)
-df_gsheets = df_gsheets.sort_values(by=['prov_rank', 'Commune'])
+# Nettoyage et préparation
+df_gsheets['Commune'] = df_gsheets['Commune'].astype(str).str.strip()
+df_gsheets['Province'] = df_gsheets['Province'].astype(str).str.strip()
 
-data_dict = {}
-for _, row in df_gsheets.iterrows():
-    c = str(row['Commune']).strip()
-    if c and c != "nan":
-        s = str(row['Services']).split('|') if pd.notna(row['Services']) else []
-        data_dict[c] = {
-            "prov": str(row['Province']).strip(),
-            "pay": str(row['Paiement']).strip(),
-            "services": [srv.strip() for srv in s if srv]
-        }
+# On crée le JSON ici pour être sûr de son format
+json_data_gsheets = df_gsheets.to_json(orient='records')
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Sync GSheets")
-    st.write(f"Communes en base : **{len(data_dict)}**")
+    st.header("⚙️ Administration")
+    st.write(f"Lignes en base : **{len(df_gsheets)}**")
     with st.form("save_form"):
-        c_name = st.text_input("Commune", key="input_commune")
-        c_prov = st.text_input("Province", key="input_province")
-        c_pay = st.selectbox("Paiement", ["Pre", "Post"], key="input_pay")
-        c_serv = st.text_input("Services (séparés par |)", key="input_services")
+        c_name = st.text_input("Commune")
+        c_prov = st.text_input("Province")
+        c_pay = st.selectbox("Paiement", ["Pre", "Post"])
+        c_serv = st.text_input("Services (ex: Garderie|Activités)")
         submit = st.form_submit_button("💾 SAUVEGARDER")
 
 if submit and c_name:
-    new_entry = pd.DataFrame([{"Commune": c_name, "Province": c_prov, "Paiement": c_pay, "Services": c_serv}])
-    updated_df = pd.concat([df_gsheets[df_gsheets['Commune'] != c_name], new_entry], ignore_index=True)
-    conn.update(data=updated_df.drop(columns=['prov_rank'], errors='ignore'))
-    st.success("Synchronisé !")
+    new_row = pd.DataFrame([{"Commune": c_name, "Province": c_prov, "Paiement": c_pay, "Services": c_serv}])
+    updated_df = pd.concat([df_gsheets[df_gsheets['Commune'] != c_name], new_row], ignore_index=True)
+    conn.update(data=updated_df)
     st.rerun()
 
 # --- 5. HTML/JS ---
@@ -80,13 +70,13 @@ html_template = f"""
         .selected {{ stroke: #000 !important; stroke-width: 2.5px !important; }}
         .highlight-search {{ stroke: #fbbf24 !important; stroke-width: 4px !important; }}
         #list {{ flex: 1; overflow-y: auto; background: white; border-radius: 12px; border: 1px solid #bae6fd; }}
-        .prov-header {{ background: #f8fafc; padding: 8px 20px; font-weight: 800; font-size: 0.75rem; color: #64748b; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; }}
-        .item {{ display: grid; grid-template-columns: 160px 100px 1fr; padding: 10px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
-        .service-badge {{ font-size: 0.6rem; padding: 3px 6px; border-radius: 4px; color: white; margin: 2px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }}
+        .prov-header {{ background: #f1f5f9; padding: 10px 20px; font-weight: 900; color: #475569; border-bottom: 1px solid #cbd5e1; }}
+        .item {{ display: grid; grid-template-columns: 180px 100px 1fr; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
+        .service-badge {{ font-size: 0.65rem; padding: 4px 8px; border-radius: 6px; color: white; margin: 2px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }}
         .badge-jour {{ background: var(--c-jour); }} .badge-semaine {{ background: var(--c-sem); }} 
         .badge-mois {{ background: var(--c-mois); }} .badge-gard {{ background: var(--c-gard); }} 
         .badge-act {{ background: var(--c-act); }}
-        #config-menu {{ position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 20px; display: none; z-index: 1000; width: 280px; border: 1px solid #bae6fd; }}
+        #config-menu {{ position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 20px; display: none; z-index: 1000; width: 280px; }}
         .btn-save {{ background: var(--creos); color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }}
     </style>
 </head>
@@ -94,29 +84,38 @@ html_template = f"""
 
 <div id="config-menu">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h4 id="menu-title" style="margin:0; color:var(--creos);">Configuration</h4>
-        <i class="fa-solid fa-times" style="cursor:pointer; color:#94a3b8;" onclick="this.parentElement.parentElement.style.display='none'"></i>
+        <h4 id="menu-title" style="margin:0;">Configuration</h4>
+        <i class="fa-solid fa-times" style="cursor:pointer;" onclick="this.parentElement.parentElement.style.display='none'"></i>
     </div>
     <div id="config-form"></div>
-    <button class="btn-save" onclick="saveData()">CONFIRMER MODIF</button>
+    <button class="btn-save" onclick="saveData()">CONFIRMER</button>
 </div>
 
 <div id="left-panel">
-    <div style="font-size: 0.8rem; font-weight: 800; color: var(--creos); text-transform: uppercase; margin-bottom: 10px;">Carte Interactive</div>
     <div id="map-container"><svg id="svg-map" viewBox="0 0 850 650"></svg></div>
     <div style="background: var(--dark); color: white; padding: 15px; border-radius: 12px; text-align:center;">
         <div id="count" style="font-size: 2.2rem; font-weight: 900; color: #38bdf8;">0</div>
+        <div style="font-size:0.7rem; opacity:0.8;">UNITÉS CONFIGURÉES</div>
     </div>
 </div>
 
 <div id="right-panel">
-    <header style="margin-bottom:20px;"><input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd;" placeholder="🔍 Chercher une commune..." onkeyup="searchAndHighlight()"></header>
+    <input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd; margin-bottom:15px;" placeholder="🔍 Chercher une commune..." onkeyup="searchAndHighlight()">
     <div id="list"></div>
 </div>
 
 <script>
-    let selected = new Map(Object.entries({json.dumps(data_dict)}));
-    let dataFWB = {json.dumps(data_fwb)};
+    // Chargement sécurisé des données
+    const rawData = {json_data_gsheets};
+    const dataFWB = {json.dumps(data_fwb)};
+    
+    // On transforme le tableau JSON en Map pour un accès rapide
+    let selected = new Map();
+    rawData.forEach(row => {{
+        const srv = row.Services ? row.Services.split('|') : [];
+        selected.set(row.Commune, {{ prov: row.Province, pay: row.Paiement, services: srv }});
+    }});
+
     const sData = {{
         "Cantine Jour": {{ icon: "fa-utensils", c: "badge-jour" }},
         "Cantine Semaine": {{ icon: "fa-calendar-day", c: "badge-semaine" }},
@@ -135,7 +134,6 @@ html_template = f"""
             list.forEach((name, i) => {{
                 const col = i % 8, row = Math.floor(i / 8);
                 const x = anchors[prov][0] + (col * 24), y = anchors[prov][1] + (row * 22);
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 const t = document.createElementNS("http://www.w3.org/2000/svg", "title");
                 t.textContent = name;
@@ -144,22 +142,24 @@ html_template = f"""
                 r.style.fill = `var(--color-${{colorKey}})`;
                 if(selected.has(name)) r.classList.add('selected');
                 r.onclick = (e) => openConfig(name, e);
-                g.appendChild(r); g.appendChild(t); svg.appendChild(g);
+                r.appendChild(t); svg.appendChild(r);
             }});
         }});
         updateUI();
     }}
 
     function openConfig(name, e) {{
-        let d = selected.get(name) || {{ pay: 'Pre', services: [] }};
+        const d = selected.get(name) || {{ pay: 'Pre', services: [] }};
         const menu = document.getElementById('config-menu');
         document.getElementById('menu-title').innerText = name;
         document.getElementById('config-form').innerHTML = `
-            <div style="font-size:0.85rem; margin-bottom:10px;"><strong>Paiement</strong><br>
+            <div style="font-size:0.8rem; margin-bottom:10px;">
+                <strong>Paiement</strong><br>
                 <label><input type="radio" name="pay" value="Pre" ${{d.pay==='Pre'?'checked':''}}> Pre</label>
                 <label style="margin-left:10px;"><input type="radio" name="pay" value="Post" ${{d.pay==='Post'?'checked':''}}> Post</label>
             </div>
-            <div style="font-size:0.85rem;"><strong>Services</strong><br>
+            <div style="font-size:0.8rem;">
+                <strong>Services</strong><br>
                 ${{Object.keys(sData).map(s => `<label style="display:block;"><input type="checkbox" name="serv" value="${{s}}" ${{d.services.includes(s)?'checked':''}}> ${{s}}</label>`).join('')}}
             </div>
         `;
@@ -217,15 +217,15 @@ html_template = f"""
                     const row = document.createElement('div');
                     row.className = "item";
                     row.innerHTML = `
-                        <strong style="color:#1e3a8a; font-size:0.85rem;">${{name}}</strong>
-                        <span style="font-size:0.65rem; font-weight:bold; color:var(--creos);">${{d.pay.toUpperCase()}}</span>
+                        <strong style="color:#1e3a8a; font-size:0.9rem;">${{name}}</strong>
+                        <span style="font-size:0.7rem; font-weight:800; color:var(--creos);">${{d.pay.toUpperCase()}}</span>
                         <div>${{d.services.map(s => `<span class="service-badge ${{sData[s].c}}"><i class="fa-solid ${{sData[s].icon}}"></i> ${{s}}</span>`).join('')}}</div>
                     `;
                     listDiv.appendChild(row);
                 }});
             }}
         }});
-        document.getElementById('count').innerText = count + " UNITÉS";
+        document.getElementById('count').innerText = count;
     }}
     init();
 </script>
