@@ -3,7 +3,6 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import json
 import streamlit.components.v1 as components
-from streamlit_javascript import st_javascript
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard v3.5")
@@ -23,38 +22,35 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# Conversion pour le JS
+# Préparation du dictionnaire pour le JavaScript
 data_dict = {}
 for _, row in df_gsheets.iterrows():
     c = str(row['Commune']).strip()
     s = str(row['Services']).split('|') if pd.notna(row['Services']) else []
     data_dict[c] = {"prov": str(row['Province']), "pay": str(row['Paiement']), "services": s}
 
-# --- 4. INTERFACE CACHÉE POUR LA SAUVEGARDE ---
+# --- 4. INTERFACE DE SAUVEGARDE (SIDEBAR) ---
 with st.sidebar:
-    st.write("### Administration")
+    st.header("⚙️ Administration")
+    st.write("Les données ci-dessous se remplissent lors du clic sur la carte.")
     with st.form("save_form"):
-        st.info("Utilisez la carte pour modifier les données. Les infos s'afficheront ici pour confirmer.")
-        comm_name = st.text_input("Commune à sauver", key="input_commune")
-        comm_prov = st.text_input("Province", key="input_province")
-        comm_pay = st.selectbox("Paiement", ["Pre", "Post"], key="input_pay")
-        comm_serv = st.text_input("Services (séparés par |)", key="input_services")
-        submit = st.form_submit_button("💾 Synchroniser avec GSheets")
+        c_name = st.text_input("Commune sélectionnée", key="input_commune")
+        c_prov = st.text_input("Province", key="input_province")
+        c_pay = st.selectbox("Mode de Paiement", ["Pre", "Post"], key="input_pay")
+        c_serv = st.text_input("Services (format brut)", key="input_services")
+        submit = st.form_submit_button("💾 SAUVEGARDER DANS GSHEETS")
 
-if submit:
-    new_line = pd.DataFrame([{
-        "Commune": comm_name,
-        "Province": comm_prov,
-        "Paiement": comm_pay,
-        "Services": comm_serv
+if submit and c_name:
+    new_entry = pd.DataFrame([{
+        "Commune": c_name, "Province": c_prov,
+        "Paiement": c_pay, "Services": c_serv
     }])
-    # On remplace l'ancienne ligne par la nouvelle
-    updated_df = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_name], new_line], ignore_index=True)
+    updated_df = pd.concat([df_gsheets[df_gsheets['Commune'] != c_name], new_entry], ignore_index=True)
     conn.update(data=updated_df)
-    st.success(f"Données pour {comm_name} enregistrées !")
+    st.success(f"Mise à jour réussie pour {c_name} !")
     st.rerun()
 
-# --- 5. LE CODE HTML/JS ---
+# --- 5. CODE HTML/JS ---
 html_template = f"""
 <!DOCTYPE html>
 <html>
@@ -72,29 +68,33 @@ html_template = f"""
         body {{ margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; background: var(--bg); overflow: hidden; }}
         #left-panel {{ flex: 0 0 35%; display: flex; flex-direction: column; background: var(--bg); border-right: 2px solid #bae6fd; padding: 20px; box-sizing: border-box; overflow-y: auto; }}
         #right-panel {{ flex: 1; display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; overflow: hidden; }}
-        #map-container {{ height: 420px; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; position:relative; }}
+        
+        #map-container {{ height: 420px; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; }}
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: #fff; stroke-width: 0.8; cursor: pointer; transition: 0.2s; }}
         .selected {{ stroke: #000 !important; stroke-width: 2.5px !important; }}
         .highlight-search {{ stroke: #fbbf24 !important; stroke-width: 4px !important; }}
+
         #list {{ flex: 1; overflow-y: auto; background: white; border-radius: 12px; border: 1px solid #bae6fd; }}
-        .item {{ display: grid; grid-template-columns: 180px 150px 1fr; padding: 10px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
-        .service-badge {{ font-size: 0.65rem; padding: 3px 8px; border-radius: 6px; color: white; margin: 2px; font-weight: 700; display: inline-block; }}
+        .item {{ display: grid; grid-template-columns: 180px 140px 1fr; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
+        
+        .service-badge {{ font-size: 0.65rem; padding: 4px 8px; border-radius: 6px; color: white; margin: 2px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }}
         .badge-jour {{ background: var(--c-jour); }} .badge-semaine {{ background: var(--c-sem); }} 
         .badge-mois {{ background: var(--c-mois); }} .badge-gard {{ background: var(--c-gard); }} 
         .badge-act {{ background: var(--c-act); }}
+
         #config-menu {{ 
             position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); 
             padding: 20px; display: none; z-index: 1000; width: 280px; border: 1px solid #bae6fd; 
         }}
-        .btn-save {{ background: var(--creos); color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }}
+        .btn-save {{ background: var(--creos); color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 12px; }}
     </style>
 </head>
 <body>
 
 <div id="config-menu">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-        <h4 id="menu-title" style="margin:0; color:var(--creos);">Commune</h4>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h4 id="menu-title" style="margin:0; color:var(--creos);">Configuration</h4>
         <i class="fa-solid fa-times" style="cursor:pointer; color:#94a3b8;" onclick="this.parentElement.parentElement.style.display='none'"></i>
     </div>
     <div id="config-form"></div>
@@ -102,16 +102,17 @@ html_template = f"""
 </div>
 
 <div id="left-panel">
-    <div style="font-size: 0.8rem; font-weight: 800; color: var(--creos); text-transform: uppercase; margin-bottom: 10px;">Carte des Unités</div>
+    <div style="font-size: 0.8rem; font-weight: 800; color: var(--creos); text-transform: uppercase; margin-bottom: 10px;">Carte Interactive</div>
     <div id="map-container"><svg id="svg-map" viewBox="0 0 850 650"></svg></div>
     <div style="background: var(--dark); color: white; padding: 15px; border-radius: 12px; text-align:center;">
         <div id="count" style="font-size: 2.2rem; font-weight: 900; color: #38bdf8;">0</div>
+        <div style="font-size: 0.65rem; opacity: 0.8;">UNITÉS ACTIVES</div>
     </div>
 </div>
 
 <div id="right-panel">
     <header style="margin-bottom:20px;">
-        <input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd;" placeholder="Rechercher une commune..." onkeyup="searchAndHighlight()">
+        <input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd; outline:none;" placeholder="🔍 Chercher une commune (encadre sur la carte)..." onkeyup="searchAndHighlight()">
     </header>
     <div id="list"></div>
 </div>
@@ -120,6 +121,14 @@ html_template = f"""
     let selected = new Map(Object.entries({json.dumps(data_dict)}));
     let dataFWB = {json.dumps(data_fwb)};
     let currentCommune = null;
+
+    const sData = {{
+        "Cantine Jour": {{ icon: "fa-utensils", c: "badge-jour" }},
+        "Cantine Semaine": {{ icon: "fa-calendar-day", c: "badge-semaine" }},
+        "Cantine Mois": {{ icon: "fa-calendar-days", c: "badge-mois" }},
+        "Garderie": {{ icon: "fa-clock", c: "badge-gard" }},
+        "Activités": {{ icon: "fa-volleyball", c: "badge-act" }}
+    }};
 
     function init() {{
         const svg = document.getElementById('svg-map');
@@ -153,15 +162,14 @@ html_template = f"""
         document.getElementById('menu-title').innerText = name;
         document.getElementById('config-form').innerHTML = `
             <div style="font-size:0.85rem; margin-bottom:12px;"><strong>Paiement</strong><br>
-                <label><input type="radio" name="pay" value="Pre" ${{d.pay==='Pre'?'checked':''}}> Pre</label>
-                <label style="margin-left:10px;"><input type="radio" name="pay" value="Post" ${{d.pay==='Post'?'checked':''}}> Post</label>
+                <label><input type="radio" name="pay" value="Pre" ${{d.pay==='Pre'?'checked':''}}> Prépaiement</label>
+                <label style="margin-left:10px;"><input type="radio" name="pay" value="Post" ${{d.pay==='Post'?'checked':''}}> Post-paiement</label>
             </div>
             <div style="font-size:0.85rem;"><strong>Services</strong><br>
-                <label><input type="checkbox" name="serv" value="Cantine Jour" ${{d.services.includes('Cantine Jour')?'checked':''}}> Cantine Jour</label><br>
-                <label><input type="checkbox" name="serv" value="Cantine Semaine" ${{d.services.includes('Cantine Semaine')?'checked':''}}> Cantine Semaine</label><br>
-                <label><input type="checkbox" name="serv" value="Cantine Mois" ${{d.services.includes('Cantine Mois')?'checked':''}}> Cantine Mois</label><br>
-                <label><input type="checkbox" name="serv" value="Garderie" ${{d.services.includes('Garderie')?'checked':''}}> Garderie</label><br>
-                <label><input type="checkbox" name="serv" value="Activités" ${{d.services.includes('Activités')?'checked':''}}> Activités</label>
+                ${{Object.keys(sData).map(s => `
+                    <label style="display:block; margin-bottom:4px;">
+                        <input type="checkbox" name="serv" value="${{s}}" ${{d.services.includes(s)?'checked':''}}> ${{s}}
+                    </label>`).join('')}}
             </div>
         `;
         menu.style.display = 'block'; menu.style.left = Math.min(e.pageX, window.innerWidth - 300) + 'px'; menu.style.top = Math.min(e.pageY, window.innerHeight - 350) + 'px';
@@ -174,12 +182,22 @@ html_template = f"""
         for(let [p, list] of Object.entries(dataFWB)) {{ if(list.includes(currentCommune)) {{ prov = p; break; }} }}
 
         // REMPLISSAGE DU FORMULAIRE STREAMLIT (LE PONT)
-        window.parent.document.querySelector('input[aria-label="Commune à sauver"]').value = currentCommune;
-        window.parent.document.querySelector('input[aria-label="Province"]').value = prov;
-        window.parent.document.querySelector('input[aria-label="Services (séparés par |)"]').value = servs.join('|');
+        const parent = window.parent.document;
+        const inputs = parent.querySelectorAll('input[data-testid="stTextInputRootElement"] input');
+        // On cible par ordre d'apparition dans la sidebar
+        if(inputs.length >= 3) {{
+            inputs[0].value = currentCommune; inputs[0].dispatchEvent(new Event('input', {{bubbles:true}}));
+            inputs[1].value = prov; inputs[1].dispatchEvent(new Event('input', {{bubbles:true}}));
+            inputs[2].value = servs.join('|'); inputs[2].dispatchEvent(new Event('input', {{bubbles:true}}));
+        }}
         
-        alert("Modifications préparées pour " + currentCommune + ". Cliquez sur 'Synchroniser' dans la barre latérale pour confirmer.");
+        // Mise à jour locale immédiate
+        selected.set(currentCommune, {{ prov, pay, services: servs }});
+        document.querySelector(`rect[data-name="${{currentCommune}}"]`).classList.add('selected');
         document.getElementById('config-menu').style.display = 'none';
+        updateUI();
+        
+        alert("Modifications appliquées ! Cliquez sur 'SAUVEGARDER' dans le menu latéral pour confirmer sur Google Sheets.");
     }}
 
     function searchAndHighlight() {{
@@ -198,10 +216,21 @@ html_template = f"""
             total++;
             const row = document.createElement('div');
             row.className = "item";
-            row.innerHTML = `<strong style="color:#1e3a8a">${{name}}</strong><span style="font-size:0.7rem;">${{d.pay}}</span><div>${{d.services.length}} services</div>`;
+            row.innerHTML = `
+                <strong style="color:#1e3a8a; font-size:0.9rem;">${{name}}</strong>
+                <span style="font-size:0.7rem; font-weight:800; color:var(--creos);">
+                    <i class="fa-solid ${{d.pay==='Pre'?'fa-piggy-bank':'fa-file-invoice-dollar'}}"></i> ${{d.pay.toUpperCase()}}
+                </span>
+                <div>
+                    ${{d.services.map(s => `
+                        <span class="service-badge ${{sData[s].c}}">
+                            <i class="fa-solid ${{sData[s].icon}}"></i> ${{s}}
+                        </span>`).join('')}}
+                </div>
+            `;
             listDiv.appendChild(row);
         }});
-        document.getElementById('count').innerText = total + " Unités";
+        document.getElementById('count').innerText = total;
     }}
     init();
 </script>
