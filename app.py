@@ -3,6 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import json
 import streamlit.components.v1 as components
+from streamlit_javascript import st_javascript
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Dashboard v3.5")
@@ -20,35 +21,46 @@ data_fwb = {
 
 # --- 3. CONNEXION GSHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
+df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-def load_data():
-    df_raw = conn.read(ttl=0).dropna(how="all")
-    d = {}
-    for _, row in df_raw.iterrows():
-        c = str(row['Commune']).strip()
-        s = str(row['Services']).split('|') if pd.notna(row['Services']) else []
-        d[c] = {"prov": str(row['Province']), "pay": str(row['Paiement']), "services": s}
-    return d, df_raw
+# Conversion pour le JS
+data_dict = {}
+for _, row in df_gsheets.iterrows():
+    c = str(row['Commune']).strip()
+    s = str(row['Services']).split('|') if pd.notna(row['Services']) else []
+    data_dict[c] = {"prov": str(row['Province']), "pay": str(row['Paiement']), "services": s}
 
-data_dict, current_df = load_data()
+# --- 4. INTERFACE CACHÉE POUR LA SAUVEGARDE ---
+with st.sidebar:
+    st.write("### Administration")
+    with st.form("save_form"):
+        st.info("Utilisez la carte pour modifier les données. Les infos s'afficheront ici pour confirmer.")
+        comm_name = st.text_input("Commune à sauver", key="input_commune")
+        comm_prov = st.text_input("Province", key="input_province")
+        comm_pay = st.selectbox("Paiement", ["Pre", "Post"], key="input_pay")
+        comm_serv = st.text_input("Services (séparés par |)", key="input_services")
+        submit = st.form_submit_button("💾 Synchroniser avec GSheets")
 
-# --- 4. LE CODE HTML/JS ---
+if submit:
+    new_line = pd.DataFrame([{
+        "Commune": comm_name,
+        "Province": comm_prov,
+        "Paiement": comm_pay,
+        "Services": comm_serv
+    }])
+    # On remplace l'ancienne ligne par la nouvelle
+    updated_df = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_name], new_line], ignore_index=True)
+    conn.update(data=updated_df)
+    st.success(f"Données pour {comm_name} enregistrées !")
+    st.rerun()
+
+# --- 5. LE CODE HTML/JS ---
 html_template = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        // Fonction pour envoyer les données à Streamlit
-        function sendToStreamlit(data) {{
-            window.parent.postMessage({{
-                isStreamlitMessage: true,
-                type: "streamlit:setComponentValue",
-                value: data
-            }}, "*");
-        }}
-    </script>
     <style>
         :root {{ 
             --creos: #4169E1; --dark: #1e293b; --bg: #e0f2fe;
@@ -75,32 +87,31 @@ html_template = f"""
             position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); 
             padding: 20px; display: none; z-index: 1000; width: 280px; border: 1px solid #bae6fd; 
         }}
-        input[type="text"] {{ width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #bae6fd; box-sizing: border-box; outline: none; }}
         .btn-save {{ background: var(--creos); color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }}
     </style>
 </head>
 <body>
+
 <div id="config-menu">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
         <h4 id="menu-title" style="margin:0; color:var(--creos);">Commune</h4>
         <i class="fa-solid fa-times" style="cursor:pointer; color:#94a3b8;" onclick="this.parentElement.parentElement.style.display='none'"></i>
     </div>
     <div id="config-form"></div>
-    <button class="btn-save" onclick="saveData()">ENREGISTRER & SYNC</button>
+    <button class="btn-save" onclick="saveData()">CONFIRMER MODIF</button>
 </div>
 
 <div id="left-panel">
-    <div style="font-size: 0.8rem; font-weight: 800; color: var(--creos); text-transform: uppercase; margin-bottom: 10px;">Carte Interactive</div>
+    <div style="font-size: 0.8rem; font-weight: 800; color: var(--creos); text-transform: uppercase; margin-bottom: 10px;">Carte des Unités</div>
     <div id="map-container"><svg id="svg-map" viewBox="0 0 850 650"></svg></div>
     <div style="background: var(--dark); color: white; padding: 15px; border-radius: 12px; text-align:center;">
         <div id="count" style="font-size: 2.2rem; font-weight: 900; color: #38bdf8;">0</div>
-        <div style="font-size: 0.6rem; opacity: 0.7;">UNITÉS ENREGISTRÉES</div>
     </div>
 </div>
 
 <div id="right-panel">
     <header style="margin-bottom:20px;">
-        <input type="text" id="searchInput" placeholder="Taper le nom d'une commune pour l'entourer..." onkeyup="searchAndHighlight()">
+        <input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd;" placeholder="Rechercher une commune..." onkeyup="searchAndHighlight()">
     </header>
     <div id="list"></div>
 </div>
@@ -109,7 +120,6 @@ html_template = f"""
     let selected = new Map(Object.entries({json.dumps(data_dict)}));
     let dataFWB = {json.dumps(data_fwb)};
     let currentCommune = null;
-    const sData = {{ "Cantine Jour": "badge-jour", "Cantine Semaine": "badge-semaine", "Cantine Mois": "badge-mois", "Garderie": "badge-gard", "Activités": "badge-act" }};
 
     function init() {{
         const svg = document.getElementById('svg-map');
@@ -146,9 +156,12 @@ html_template = f"""
                 <label><input type="radio" name="pay" value="Pre" ${{d.pay==='Pre'?'checked':''}}> Pre</label>
                 <label style="margin-left:10px;"><input type="radio" name="pay" value="Post" ${{d.pay==='Post'?'checked':''}}> Post</label>
             </div>
-            <div style="font-size:0.85rem; line-height:1.6;">
-                <strong>Services</strong><br>
-                ${{Object.keys(sData).map(s => `<label style="display:block;"><input type="checkbox" name="serv" value="${{s}}" ${{d.services.includes(s)?'checked':''}}> ${{s}}</label>`).join('')}}
+            <div style="font-size:0.85rem;"><strong>Services</strong><br>
+                <label><input type="checkbox" name="serv" value="Cantine Jour" ${{d.services.includes('Cantine Jour')?'checked':''}}> Cantine Jour</label><br>
+                <label><input type="checkbox" name="serv" value="Cantine Semaine" ${{d.services.includes('Cantine Semaine')?'checked':''}}> Cantine Semaine</label><br>
+                <label><input type="checkbox" name="serv" value="Cantine Mois" ${{d.services.includes('Cantine Mois')?'checked':''}}> Cantine Mois</label><br>
+                <label><input type="checkbox" name="serv" value="Garderie" ${{d.services.includes('Garderie')?'checked':''}}> Garderie</label><br>
+                <label><input type="checkbox" name="serv" value="Activités" ${{d.services.includes('Activités')?'checked':''}}> Activités</label>
             </div>
         `;
         menu.style.display = 'block'; menu.style.left = Math.min(e.pageX, window.innerWidth - 300) + 'px'; menu.style.top = Math.min(e.pageY, window.innerHeight - 350) + 'px';
@@ -160,16 +173,13 @@ html_template = f"""
         let prov = "";
         for(let [p, list] of Object.entries(dataFWB)) {{ if(list.includes(currentCommune)) {{ prov = p; break; }} }}
 
-        const payload = {{ commune: currentCommune, province: prov, paiement: pay, services: servs.join('|') }};
+        // REMPLISSAGE DU FORMULAIRE STREAMLIT (LE PONT)
+        window.parent.document.querySelector('input[aria-label="Commune à sauver"]').value = currentCommune;
+        window.parent.document.querySelector('input[aria-label="Province"]').value = prov;
+        window.parent.document.querySelector('input[aria-label="Services (séparés par |)"]').value = servs.join('|');
         
-        // ENVOI À PYTHON
-        sendToStreamlit(payload);
-        
+        alert("Modifications préparées pour " + currentCommune + ". Cliquez sur 'Synchroniser' dans la barre latérale pour confirmer.");
         document.getElementById('config-menu').style.display = 'none';
-        // Mise à jour visuelle immédiate
-        selected.set(currentCommune, {{ prov, pay, services: servs }});
-        document.querySelector(`rect[data-name="${{currentCommune}}"]`).classList.add('selected');
-        updateUI();
     }}
 
     function searchAndHighlight() {{
@@ -188,10 +198,10 @@ html_template = f"""
             total++;
             const row = document.createElement('div');
             row.className = "item";
-            row.innerHTML = `<strong style="color:#1e3a8a">${{name}}</strong><span style="font-size:0.7rem; font-weight:bold; color:var(--creos);">${{d.pay.toUpperCase()}}</span><div>${{d.services.map(s => `<span class="service-badge ${{sData[s]}}">${{s}}</span>`).join('')}}</div>`;
+            row.innerHTML = `<strong style="color:#1e3a8a">${{name}}</strong><span style="font-size:0.7rem;">${{d.pay}}</span><div>${{d.services.length}} services</div>`;
             listDiv.appendChild(row);
         }});
-        document.getElementById('count').innerText = total;
+        document.getElementById('count').innerText = total + " Unités";
     }}
     init();
 </script>
@@ -199,21 +209,4 @@ html_template = f"""
 </html>
 """
 
-# --- 5. LOGIQUE DE SAUVEGARDE AUTOMATIQUE (PYTHON) ---
-# Cette ligne écoute les messages envoyés par le JavaScript
-new_entry = components.html(html_template, height=850)
-
-# Comme components.html ne retourne pas directement de valeur facilement sans un wrapper,
-# on utilise un petit trick : un bouton invisible ou une détection de changement.
-# Pour une vraie automatisation GSheets avec Streamlit, voici la partie Python :
-
-if new_entry:
-    # Si le JS envoie une donnée (via un custom component), on l'ajoute au DF
-    new_data = pd.DataFrame([new_entry])
-    updated_df = pd.concat([current_df[current_df['Commune'] != new_entry['commune']], new_data], ignore_index=True)
-    conn.update(worksheet="Sheet1", data=updated_df)
-    st.toast(f"✅ {new_entry['commune']} sauvegardé dans Google Sheets !", icon="🚀")
-
-# Note : Pour que le retour JS -> Python fonctionne parfaitement avec components.html, 
-# il est préférable d'utiliser le package 'streamlit-extras' ou de créer un composant bidirectionnel.
-# Ici, la sauvegarde visuelle est instantanée.
+components.html(html_template, height=850)
