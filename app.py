@@ -18,54 +18,45 @@ data_fwb = {
     "Luxembourg": ["Arlon", "Attert", "Aubange", "Bastogne", "Bertogne", "Bertrix", "Bouillon", "Chiny", "Daverdisse", "Durbuy", "Erezée", "Etalle", "Fauvillers", "Florenville", "Gouvy", "Habay", "Herbeumont", "Hotton", "Houffalize", "La Roche-en-Ardenne", "Léglise", "Libin", "Libramont-Chevigny", "Manhay", "Marche-en-Famenne", "Martelange", "Meix-devant-Virton", "Messancy", "Musson", "Nassogne", "Neufchâteau", "Paliseul", "Rendeux", "Rouvroy", "Sainte-Ode", "Saint-Hubert", "Saint-Léger", "Tellin", "Tenneville", "Tintigny", "Vaux-sur-Sûre", "Vielsalm", "Virton", "Wellin"]
 }
 
-# --- 3. CONNEXION GSHEETS (Version Robustifiée) ---
+# --- 3. CONNEXION GSHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# Nettoyage profond des données pour éviter les "doublons invisibles"
-df_gsheets['Commune'] = df_gsheets['Commune'].astype(str).str.strip()
-df_gsheets['Province'] = df_gsheets['Province'].astype(str).str.strip()
+# Tri par Province puis par Commune avant traitement
+prov_order = {p: i for i, p in enumerate(data_fwb.keys())}
+df_gsheets['prov_rank'] = df_gsheets['Province'].map(prov_order).fillna(99)
+df_gsheets = df_gsheets.sort_values(by=['prov_rank', 'Commune'])
 
 data_dict = {}
 for _, row in df_gsheets.iterrows():
-    c = row['Commune']
-    # On vérifie que la commune n'est pas vide
+    c = str(row['Commune']).strip()
     if c and c != "nan":
         s = str(row['Services']).split('|') if pd.notna(row['Services']) else []
         data_dict[c] = {
-            "prov": row['Province'], 
-            "pay": str(row['Paiement']) if pd.notna(row['Paiement']) else "Pre", 
-            "services": s
+            "prov": str(row['Province']).strip(),
+            "pay": str(row['Paiement']).strip(),
+            "services": [srv.strip() for srv in s if srv]
         }
 
-# Debug rapide dans la sidebar pour vérifier ce que Python voit réellement
+# --- 4. SIDEBAR ---
 with st.sidebar:
-    st.write(f"📊 Communes détectées dans GSheets : {len(data_dict)}")
-    if len(data_dict) < 6:
-        st.warning("⚠️ Moins de 6 communes trouvées. Vérifiez les noms dans GSheets.")
-
-# --- 4. INTERFACE DE SAUVEGARDE (SIDEBAR) ---
-with st.sidebar:
-    st.header("⚙️ Administration")
-    st.write("Les données ci-dessous se remplissent lors du clic sur la carte.")
+    st.header("⚙️ Sync GSheets")
+    st.write(f"Communes en base : **{len(data_dict)}**")
     with st.form("save_form"):
-        c_name = st.text_input("Commune sélectionnée", key="input_commune")
+        c_name = st.text_input("Commune", key="input_commune")
         c_prov = st.text_input("Province", key="input_province")
-        c_pay = st.selectbox("Mode de Paiement", ["Pre", "Post"], key="input_pay")
-        c_serv = st.text_input("Services (format brut)", key="input_services")
-        submit = st.form_submit_button("💾 SAUVEGARDER DANS GSHEETS")
+        c_pay = st.selectbox("Paiement", ["Pre", "Post"], key="input_pay")
+        c_serv = st.text_input("Services (séparés par |)", key="input_services")
+        submit = st.form_submit_button("💾 SAUVEGARDER")
 
 if submit and c_name:
-    new_entry = pd.DataFrame([{
-        "Commune": c_name, "Province": c_prov,
-        "Paiement": c_pay, "Services": c_serv
-    }])
+    new_entry = pd.DataFrame([{"Commune": c_name, "Province": c_prov, "Paiement": c_pay, "Services": c_serv}])
     updated_df = pd.concat([df_gsheets[df_gsheets['Commune'] != c_name], new_entry], ignore_index=True)
-    conn.update(data=updated_df)
-    st.success(f"Mise à jour réussie pour {c_name} !")
+    conn.update(data=updated_df.drop(columns=['prov_rank'], errors='ignore'))
+    st.success("Synchronisé !")
     st.rerun()
 
-# --- 5. CODE HTML/JS ---
+# --- 5. HTML/JS ---
 html_template = f"""
 <!DOCTYPE html>
 <html>
@@ -83,26 +74,20 @@ html_template = f"""
         body {{ margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; background: var(--bg); overflow: hidden; }}
         #left-panel {{ flex: 0 0 35%; display: flex; flex-direction: column; background: var(--bg); border-right: 2px solid #bae6fd; padding: 20px; box-sizing: border-box; overflow-y: auto; }}
         #right-panel {{ flex: 1; display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; overflow: hidden; }}
-        
         #map-container {{ height: 420px; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; }}
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: #fff; stroke-width: 0.8; cursor: pointer; transition: 0.2s; }}
         .selected {{ stroke: #000 !important; stroke-width: 2.5px !important; }}
         .highlight-search {{ stroke: #fbbf24 !important; stroke-width: 4px !important; }}
-
         #list {{ flex: 1; overflow-y: auto; background: white; border-radius: 12px; border: 1px solid #bae6fd; }}
-        .item {{ display: grid; grid-template-columns: 180px 140px 1fr; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
-        
-        .service-badge {{ font-size: 0.65rem; padding: 4px 8px; border-radius: 6px; color: white; margin: 2px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }}
+        .prov-header {{ background: #f8fafc; padding: 8px 20px; font-weight: 800; font-size: 0.75rem; color: #64748b; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; }}
+        .item {{ display: grid; grid-template-columns: 160px 100px 1fr; padding: 10px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
+        .service-badge {{ font-size: 0.6rem; padding: 3px 6px; border-radius: 4px; color: white; margin: 2px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }}
         .badge-jour {{ background: var(--c-jour); }} .badge-semaine {{ background: var(--c-sem); }} 
         .badge-mois {{ background: var(--c-mois); }} .badge-gard {{ background: var(--c-gard); }} 
         .badge-act {{ background: var(--c-act); }}
-
-        #config-menu {{ 
-            position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); 
-            padding: 20px; display: none; z-index: 1000; width: 280px; border: 1px solid #bae6fd; 
-        }}
-        .btn-save {{ background: var(--creos); color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 12px; }}
+        #config-menu {{ position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 20px; display: none; z-index: 1000; width: 280px; border: 1px solid #bae6fd; }}
+        .btn-save {{ background: var(--creos); color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }}
     </style>
 </head>
 <body>
@@ -121,22 +106,17 @@ html_template = f"""
     <div id="map-container"><svg id="svg-map" viewBox="0 0 850 650"></svg></div>
     <div style="background: var(--dark); color: white; padding: 15px; border-radius: 12px; text-align:center;">
         <div id="count" style="font-size: 2.2rem; font-weight: 900; color: #38bdf8;">0</div>
-        <div style="font-size: 0.65rem; opacity: 0.8;">UNITÉS ACTIVES</div>
     </div>
 </div>
 
 <div id="right-panel">
-    <header style="margin-bottom:20px;">
-        <input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd; outline:none;" placeholder="🔍 Chercher une commune (encadre sur la carte)..." onkeyup="searchAndHighlight()">
-    </header>
+    <header style="margin-bottom:20px;"><input type="text" id="searchInput" style="width:100%; padding:12px; border-radius:10px; border:2px solid #bae6fd;" placeholder="🔍 Chercher une commune..." onkeyup="searchAndHighlight()"></header>
     <div id="list"></div>
 </div>
 
 <script>
     let selected = new Map(Object.entries({json.dumps(data_dict)}));
     let dataFWB = {json.dumps(data_fwb)};
-    let currentCommune = null;
-
     const sData = {{
         "Cantine Jour": {{ icon: "fa-utensils", c: "badge-jour" }},
         "Cantine Semaine": {{ icon: "fa-calendar-day", c: "badge-semaine" }},
@@ -171,48 +151,39 @@ html_template = f"""
     }}
 
     function openConfig(name, e) {{
-        currentCommune = name;
-        const d = selected.get(name) || {{ pay: 'Pre', services: [] }};
+        let d = selected.get(name) || {{ pay: 'Pre', services: [] }};
         const menu = document.getElementById('config-menu');
         document.getElementById('menu-title').innerText = name;
         document.getElementById('config-form').innerHTML = `
-            <div style="font-size:0.85rem; margin-bottom:12px;"><strong>Paiement</strong><br>
-                <label><input type="radio" name="pay" value="Pre" ${{d.pay==='Pre'?'checked':''}}> Prépaiement</label>
-                <label style="margin-left:10px;"><input type="radio" name="pay" value="Post" ${{d.pay==='Post'?'checked':''}}> Post-paiement</label>
+            <div style="font-size:0.85rem; margin-bottom:10px;"><strong>Paiement</strong><br>
+                <label><input type="radio" name="pay" value="Pre" ${{d.pay==='Pre'?'checked':''}}> Pre</label>
+                <label style="margin-left:10px;"><input type="radio" name="pay" value="Post" ${{d.pay==='Post'?'checked':''}}> Post</label>
             </div>
             <div style="font-size:0.85rem;"><strong>Services</strong><br>
-                ${{Object.keys(sData).map(s => `
-                    <label style="display:block; margin-bottom:4px;">
-                        <input type="checkbox" name="serv" value="${{s}}" ${{d.services.includes(s)?'checked':''}}> ${{s}}
-                    </label>`).join('')}}
+                ${{Object.keys(sData).map(s => `<label style="display:block;"><input type="checkbox" name="serv" value="${{s}}" ${{d.services.includes(s)?'checked':''}}> ${{s}}</label>`).join('')}}
             </div>
         `;
-        menu.style.display = 'block'; menu.style.left = Math.min(e.pageX, window.innerWidth - 300) + 'px'; menu.style.top = Math.min(e.pageY, window.innerHeight - 350) + 'px';
+        menu.style.display = 'block'; menu.style.left = Math.min(e.pageX, window.innerWidth-300)+'px'; menu.style.top = Math.min(e.pageY, window.innerHeight-350)+'px';
     }}
 
     function saveData() {{
+        const name = document.getElementById('menu-title').innerText;
         const pay = document.querySelector('input[name="pay"]:checked').value;
         const servs = Array.from(document.querySelectorAll('input[name="serv"]:checked')).map(c => c.value);
         let prov = "";
-        for(let [p, list] of Object.entries(dataFWB)) {{ if(list.includes(currentCommune)) {{ prov = p; break; }} }}
+        for(let [p, list] of Object.entries(dataFWB)) {{ if(list.includes(name)) {{ prov = p; break; }} }}
 
-        // REMPLISSAGE DU FORMULAIRE STREAMLIT (LE PONT)
         const parent = window.parent.document;
         const inputs = parent.querySelectorAll('input[data-testid="stTextInputRootElement"] input');
-        // On cible par ordre d'apparition dans la sidebar
         if(inputs.length >= 3) {{
-            inputs[0].value = currentCommune; inputs[0].dispatchEvent(new Event('input', {{bubbles:true}}));
+            inputs[0].value = name; inputs[0].dispatchEvent(new Event('input', {{bubbles:true}}));
             inputs[1].value = prov; inputs[1].dispatchEvent(new Event('input', {{bubbles:true}}));
             inputs[2].value = servs.join('|'); inputs[2].dispatchEvent(new Event('input', {{bubbles:true}}));
         }}
-        
-        // Mise à jour locale immédiate
-        selected.set(currentCommune, {{ prov, pay, services: servs }});
-        document.querySelector(`rect[data-name="${{currentCommune}}"]`).classList.add('selected');
+        selected.set(name, {{ prov, pay, services: servs }});
+        document.querySelector(`rect[data-name="${{name}}"]`).classList.add('selected');
         document.getElementById('config-menu').style.display = 'none';
         updateUI();
-        
-        alert("Modifications appliquées ! Cliquez sur 'SAUVEGARDER' dans le menu latéral pour confirmer sur Google Sheets.");
     }}
 
     function searchAndHighlight() {{
@@ -226,26 +197,35 @@ html_template = f"""
 
     function updateUI() {{
         const listDiv = document.getElementById('list');
-        listDiv.innerHTML = ""; let total = 0;
-        Array.from(selected.entries()).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([name, d]) => {{
-            total++;
-            const row = document.createElement('div');
-            row.className = "item";
-            row.innerHTML = `
-                <strong style="color:#1e3a8a; font-size:0.9rem;">${{name}}</strong>
-                <span style="font-size:0.7rem; font-weight:800; color:var(--creos);">
-                    <i class="fa-solid ${{d.pay==='Pre'?'fa-piggy-bank':'fa-file-invoice-dollar'}}"></i> ${{d.pay.toUpperCase()}}
-                </span>
-                <div>
-                    ${{d.services.map(s => `
-                        <span class="service-badge ${{sData[s].c}}">
-                            <i class="fa-solid ${{sData[s].icon}}"></i> ${{s}}
-                        </span>`).join('')}}
-                </div>
-            `;
-            listDiv.appendChild(row);
+        listDiv.innerHTML = "";
+        let count = 0;
+        const provinces = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
+        
+        provinces.forEach(p => {{
+            const filtered = Array.from(selected.entries())
+                .filter(([_, d]) => d.prov === p)
+                .sort((a,b) => a[0].localeCompare(b[0]));
+            
+            if(filtered.length > 0) {{
+                const header = document.createElement('div');
+                header.className = "prov-header";
+                header.innerText = p;
+                listDiv.appendChild(header);
+                
+                filtered.forEach(([name, d]) => {{
+                    count++;
+                    const row = document.createElement('div');
+                    row.className = "item";
+                    row.innerHTML = `
+                        <strong style="color:#1e3a8a; font-size:0.85rem;">${{name}}</strong>
+                        <span style="font-size:0.65rem; font-weight:bold; color:var(--creos);">${{d.pay.toUpperCase()}}</span>
+                        <div>${{d.services.map(s => `<span class="service-badge ${{sData[s].c}}"><i class="fa-solid ${{sData[s].icon}}"></i> ${{s}}</span>`).join('')}}</div>
+                    `;
+                    listDiv.appendChild(row);
+                }});
+            }}
         }});
-        document.getElementById('count').innerText = total;
+        document.getElementById('count').innerText = count + " UNITÉS";
     }}
     init();
 </script>
