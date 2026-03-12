@@ -116,7 +116,6 @@ with tab2:
         with col1:
             comm_selected = st.selectbox("2. Commune", data_fwb[prov_selected])
         with col2:
-            # Remplacement des termes par les versions longues
             pay_val = st.radio("3. Mode de paiement", ["Prépaiement", "Post-paiement"], horizontal=True)
             serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
         
@@ -130,13 +129,13 @@ with tab2:
             new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
             df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
             conn.update(data=df_final)
-            st.success(f"Mise à jour réussie pour {comm_selected}")
+            st.success("Enregistré avec succès !")
             st.rerun()
             
         if btn_del:
             df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
             conn.update(data=df_final)
-            st.warning(f"{comm_selected} a été supprimé.")
+            st.warning(f"{comm_selected} supprimé.")
             st.rerun()
 
     st.divider()
@@ -144,26 +143,23 @@ with tab2:
     # --- SECTION FILTRES ---
     st.subheader("🔍 Filtres du tableau")
     
-    # Utilisation du session_state pour pouvoir effacer les filtres
-    if 'f_reset' not in st.session_state:
-        st.session_state.f_reset = False
+    # Initialisation d'un compteur de réinitialisation dans le session_state
+    if 'reset_counter' not in st.session_state:
+        st.session_state.reset_counter = 0
 
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
     
     with f_col1:
-        f_prov = st.multiselect("Filtrer par Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key="f_prov")
+        # On ajoute le suffixe du compteur à la clé pour forcer le widget à se recréer au reset
+        f_prov = st.multiselect("Filtrer par Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"f_prov_{st.session_state.reset_counter}")
     with f_col2:
-        # On définit les options explicitement pour éviter les soucis de données anciennes
-        f_pay = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key="f_pay")
+        f_pay = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"f_pay_{st.session_state.reset_counter}")
     with f_col3:
-        f_serv = st.multiselect("Contient le service", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key="f_serv")
+        f_serv = st.multiselect("Contient le service", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"f_serv_{st.session_state.reset_counter}")
     with f_col4:
         st.write(" ")
-        if st.button("❌ Effacer tous les filtres"):
-            # Pour effacer les filtres, on réinitialise les clés du multiselect
-            for key in ["f_prov", "f_pay", "f_serv"]:
-                if key in st.session_state:
-                    st.session_state[key] = []
+        if st.button("❌ Effacer les filtres"):
+            st.session_state.reset_counter += 1
             st.rerun()
 
     # --- LOGIQUE DE FILTRE ET TRI ---
@@ -177,7 +173,6 @@ with tab2:
         for s in f_serv:
             df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
 
-    # Tri par Province puis par Commune (A-Z)
     if not df_display.empty:
         df_display = df_display.sort_values(by=['Province', 'Commune'])
 
