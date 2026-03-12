@@ -25,7 +25,7 @@ df_gsheets = conn.read(ttl=0).dropna(how="all")
 # --- 4. NAVIGATION ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD (Vue Consultation) ---
+# --- TAB 1 : DASHBOARD (Identique, stable) ---
 with tab1:
     json_records = df_gsheets.to_json(orient='records')
     html_code = f"""
@@ -35,11 +35,7 @@ with tab1:
         <meta charset="UTF-8">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
-            :root {{ 
-                --creos: #4169E1; --dark: #1e293b; --bg: #ffffff;
-                --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; 
-                --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; 
-            }}
+            :root {{ --creos: #4169E1; --dark: #1e293b; --bg: #ffffff; --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; }}
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }}
             #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
             #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
@@ -55,24 +51,18 @@ with tab1:
         </style>
     </head>
     <body>
-    <div id="left">
-        <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
+    <div id="left"><div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
         <div style="background:var(--dark); color:white; padding:15px; border-radius:10px; text-align:center;">
             <div id="total" style="font-size:28px; font-weight:bold; color:#38bdf8;">0</div>
             <div style="font-size:10px; letter-spacing:1px">UNITÉS ENREGISTRÉES</div>
         </div>
     </div>
-    <div id="right">
-        <input type="text" id="search" placeholder="🔍 Rechercher..." onkeyup="doSearch()">
-        <div id="list"></div>
-    </div>
+    <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
         const dbData = {json_records};
         const mapRef = {json.dumps(data_fwb)};
-        let db = new Map();
-        dbData.forEach(r => db.set(r.Commune, r));
+        let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
         const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#fb923c" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#f59e0b" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#d97706" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
-
         function init() {{
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
@@ -91,16 +81,13 @@ with tab1:
             render();
         }}
         function render() {{
-            const listDiv = document.getElementById('list');
-            listDiv.innerHTML = ""; let count = 0;
+            const listDiv = document.getElementById('list'); listDiv.innerHTML = ""; let count = 0;
             const provs = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
             provs.forEach(p => {{
                 const filtered = Array.from(db.values()).filter(x => x.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
                     const h = document.createElement('div'); h.className = 'prov-label'; h.innerText = p; listDiv.appendChild(h);
-                    filtered.forEach(x => {{
-                        count++;
-                        const row = document.createElement('div'); row.className = 'item-row';
+                    filtered.forEach(x => {{ count++; const row = document.createElement('div'); row.className = 'item-row';
                         const badges = (x.Services || "").split('|').filter(s => s).map(s => `<span class="badge" style="background:${{icons[s]?.c || '#ccc'}}"><i class="fa-solid ${{icons[s]?.i || 'fa-tag'}}"></i> ${{s}}</span>`).join('');
                         row.innerHTML = `<span><b>${{x.Commune}}</b> <small>(${{x.Paiement}})</small></span><div>${{badges}}</div>`;
                         listDiv.appendChild(row);
@@ -109,10 +96,7 @@ with tab1:
             }});
             document.getElementById('total').innerText = count;
         }}
-        function doSearch() {{
-            const v = document.getElementById('search').value.toLowerCase();
-            document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }});
-        }}
+        function doSearch() {{ const v = document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }}); }}
         init();
     </script>
     </body>
@@ -120,9 +104,9 @@ with tab1:
     """
     components.html(html_code, height=750)
 
-# --- TAB 2 : GESTION (Modifications & Filtres) ---
+# --- TAB 2 : GESTION (Triage & Filtre Services corrigé) ---
 with tab2:
-    st.header("✏️ Gestion & Suppression")
+    st.header("✏️ Gestion & Filtres")
     
     # --- FORMULAIRE D'EDITION ---
     prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
@@ -145,41 +129,47 @@ with tab2:
             new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
             df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
             conn.update(data=df_final)
-            st.success(f"{comm_selected} enregistré !")
+            st.success(f"Action terminée !")
             st.rerun()
-            
         if btn_del:
             df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
             conn.update(data=df_final)
-            st.warning(f"{comm_selected} supprimé de la base.")
+            st.warning("Supprimé.")
             st.rerun()
 
     st.divider()
 
-    # --- SECTION FILTRES POUR LE TABLEAU ---
+    # --- SECTION FILTRES ---
     st.subheader("🔍 Filtres du tableau")
-    
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
     
     with f_col1:
-        f_prov = st.multiselect("Filtrer par Province", df_gsheets['Province'].unique())
+        options_prov = sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else []
+        f_prov = st.multiselect("Filtrer par Province", options_prov)
     with f_col2:
-        f_pay = st.multiselect("Paiement", df_gsheets['Paiement'].unique())
+        options_pay = sorted(df_gsheets['Paiement'].unique()) if not df_gsheets.empty else []
+        f_pay = st.multiselect("Paiement", options_pay)
     with f_col3:
         f_serv = st.multiselect("Contient le service", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
     with f_col4:
-        st.write(" ") # Espace
-        if st.button("❌ Effacer filtres"):
+        st.write(" ")
+        if st.button("❌ Effacer les filtres"):
             st.rerun()
 
-    # Application des filtres sur le dataframe d'affichage
+    # --- LOGIQUE DE FILTRE ET TRI ---
     df_display = df_gsheets.copy()
+    
     if f_prov:
         df_display = df_display[df_display['Province'].isin(f_prov)]
     if f_pay:
         df_display = df_display[df_display['Paiement'].isin(f_pay)]
     if f_serv:
+        # Correction du point 3 : on cherche le service à l'intérieur de la chaîne texte
         for s in f_serv:
-            df_display = df_display[df_display['Services'].str.contains(s, na=False)]
+            df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
 
-    st.dataframe(df_display, use_container_width=True)
+    # --- TRI PAR PROVINCE PUIS ALPHABÉTIQUE ---
+    if not df_display.empty:
+        df_display = df_display.sort_values(by=['Province', 'Commune'])
+
+    st.dataframe(df_display, use_container_width=True, hide_index=True)
