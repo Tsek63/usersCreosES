@@ -25,12 +25,9 @@ df_gsheets = conn.read(ttl=0).dropna(how="all")
 # --- 4. NAVIGATION ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD ---
+# --- TAB 1 : DASHBOARD (40/60) ---
 with tab1:
-    col_map, col_list = st.columns([0.4, 0.6])
-    
     json_records = df_gsheets.to_json(orient='records')
-    
     html_code = f"""
     <!DOCTYPE html>
     <html>
@@ -44,8 +41,8 @@ with tab1:
                 --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; 
             }}
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }}
-            #left {{ flex: 1; padding: 10px; display: flex; flex-direction: column; }}
-            #right {{ flex: 1.5; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
+            #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
+            #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
             #map-box {{ flex: 0 0 450px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }}
             svg {{ width: 100%; height: 100%; }}
             .commune {{ stroke: #fff; stroke-width: 0.5; }}
@@ -87,13 +84,13 @@ with tab1:
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
             Object.entries(mapRef).forEach(([pName, list]) => {{
-                const cKey = pName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ')[0];
+                const cleanP = pName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ')[0];
                 list.forEach((name, i) => {{
                     const x = anchors[pName][0] + (i % 8 * 23), y = anchors[pName][1] + (Math.floor(i / 8) * 21);
                     const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 20); r.setAttribute("height", 18); r.setAttribute("rx", 3);
                     r.setAttribute("class", "commune" + (db.has(name) ? " active" : ""));
-                    r.style.fill = `var(--c-${{cKey}})`;
+                    r.style.fill = `var(--c-${{cleanP}})`;
                     const t = document.createElementNS("http://www.w3.org/2000/svg", "title"); t.textContent = name;
                     r.appendChild(t); svg.appendChild(r);
                 }});
@@ -132,41 +129,40 @@ with tab1:
     """
     components.html(html_code, height=750)
 
-# --- TAB 2 : GESTION ---
+# --- TAB 2 : GESTION (FILTRE DYNAMIQUE) ---
 with tab2:
-    st.header("📝 Ajouter ou Modifier une Commune")
+    st.header("✏️ Gestion des Communes")
     
-    # Formulaire de saisie natif
+    # ÉTAPE 1 : On choisit la Province (en dehors du form pour l'interactivité)
+    prov_selected = st.selectbox("1. Choisir la Province", list(data_fwb.keys()), key="prov_selector")
+    
+    # ÉTAPE 2 : On affiche le formulaire avec les communes filtrées
     with st.form("gestion_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
         with col1:
-            prov_choice = st.selectbox("Province", list(data_fwb.keys()))
-            comm_choice = st.selectbox("Commune", data_fwb[prov_choice])
+            # Ici, la liste des communes change selon 'prov_selected'
+            comm_selected = st.selectbox("2. Choisir la Commune", data_fwb[prov_selected])
         
         with col2:
-            pay_choice = st.radio("Mode de paiement", ["Pre", "Post"], horizontal=True)
-            serv_choice = st.multiselect("Services disponibles", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
+            pay_val = st.radio("3. Mode de paiement", ["Pre", "Post"], horizontal=True)
+            serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
         
-        submitted = st.form_submit_button("Enregistrer dans la base")
+        btn = st.form_submit_button("Enregistrer les modifications")
         
-        if submitted:
-            # Préparation des données
-            services_str = "|".join(serv_choice)
-            new_row = pd.DataFrame([{
-                "Commune": comm_choice,
-                "Province": prov_choice,
-                "Paiement": pay_choice,
-                "Services": services_str
+        if btn:
+            srv_str = "|".join(serv_val)
+            new_data = pd.DataFrame([{
+                "Commune": comm_selected,
+                "Province": prov_selected,
+                "Paiement": pay_val,
+                "Services": srv_str
             }])
             
-            # Mise à jour (on enlève l'ancienne version si elle existe)
-            df_updated = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_choice], new_row], ignore_index=True)
-            
-            conn.update(data=df_updated)
-            st.success(f"✅ {comm_choice} a été mise à jour avec succès !")
+            df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_data], ignore_index=True)
+            conn.update(data=df_final)
+            st.success(f"Mise à jour réussie pour {comm_selected} !")
             st.rerun()
 
     st.divider()
-    st.subheader("🗑️ Liste actuelle (Aperçu)")
     st.dataframe(df_gsheets, use_container_width=True)
