@@ -25,7 +25,7 @@ df_gsheets = conn.read(ttl=0).dropna(how="all")
 # --- 4. NAVIGATION ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD (40/60) ---
+# --- TAB 1 : DASHBOARD (Vue Consultation) ---
 with tab1:
     json_records = df_gsheets.to_json(orient='records')
     html_code = f"""
@@ -71,14 +71,7 @@ with tab1:
         const mapRef = {json.dumps(data_fwb)};
         let db = new Map();
         dbData.forEach(r => db.set(r.Commune, r));
-
-        const icons = {{
-            "Cantine Jour": {{ i: "fa-utensils", c: "#fb923c" }},
-            "Cantine Semaine": {{ i: "fa-calendar-day", c: "#f59e0b" }},
-            "Cantine Mois": {{ i: "fa-calendar-days", c: "#d97706" }},
-            "Garderie": {{ i: "fa-clock", c: "#38bdf8" }},
-            "Activités": {{ i: "fa-volleyball", c: "#4ade80" }}
-        }};
+        const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#fb923c" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#f59e0b" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#d97706" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
 
         function init() {{
             const svg = document.getElementById('svg');
@@ -97,7 +90,6 @@ with tab1:
             }});
             render();
         }}
-
         function render() {{
             const listDiv = document.getElementById('list');
             listDiv.innerHTML = ""; let count = 0;
@@ -117,7 +109,6 @@ with tab1:
             }});
             document.getElementById('total').innerText = count;
         }}
-
         function doSearch() {{
             const v = document.getElementById('search').value.toLowerCase();
             document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }});
@@ -129,40 +120,66 @@ with tab1:
     """
     components.html(html_code, height=750)
 
-# --- TAB 2 : GESTION (FILTRE DYNAMIQUE) ---
+# --- TAB 2 : GESTION (Modifications & Filtres) ---
 with tab2:
-    st.header("✏️ Gestion des Communes")
+    st.header("✏️ Gestion & Suppression")
     
-    # ÉTAPE 1 : On choisit la Province (en dehors du form pour l'interactivité)
-    prov_selected = st.selectbox("1. Choisir la Province", list(data_fwb.keys()), key="prov_selector")
+    # --- FORMULAIRE D'EDITION ---
+    prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
     
-    # ÉTAPE 2 : On affiche le formulaire avec les communes filtrées
-    with st.form("gestion_form", clear_on_submit=True):
+    with st.form("edit_form"):
         col1, col2 = st.columns(2)
-        
         with col1:
-            # Ici, la liste des communes change selon 'prov_selected'
-            comm_selected = st.selectbox("2. Choisir la Commune", data_fwb[prov_selected])
-        
+            comm_selected = st.selectbox("2. Commune", data_fwb[prov_selected])
         with col2:
-            pay_val = st.radio("3. Mode de paiement", ["Pre", "Post"], horizontal=True)
+            pay_val = st.radio("3. Paiement", ["Pre", "Post"], horizontal=True)
             serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
         
-        btn = st.form_submit_button("Enregistrer les modifications")
-        
-        if btn:
-            srv_str = "|".join(serv_val)
-            new_data = pd.DataFrame([{
-                "Commune": comm_selected,
-                "Province": prov_selected,
-                "Paiement": pay_val,
-                "Services": srv_str
-            }])
-            
-            df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_data], ignore_index=True)
+        c_save, c_del = st.columns([1, 1])
+        with c_save:
+            btn_save = st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True)
+        with c_del:
+            btn_del = st.form_submit_button("🗑️ SUPPRIMER CETTE COMMUNE", use_container_width=True)
+
+        if btn_save:
+            new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
+            df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
             conn.update(data=df_final)
-            st.success(f"Mise à jour réussie pour {comm_selected} !")
+            st.success(f"{comm_selected} enregistré !")
+            st.rerun()
+            
+        if btn_del:
+            df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
+            conn.update(data=df_final)
+            st.warning(f"{comm_selected} supprimé de la base.")
             st.rerun()
 
     st.divider()
-    st.dataframe(df_gsheets, use_container_width=True)
+
+    # --- SECTION FILTRES POUR LE TABLEAU ---
+    st.subheader("🔍 Filtres du tableau")
+    
+    f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
+    
+    with f_col1:
+        f_prov = st.multiselect("Filtrer par Province", df_gsheets['Province'].unique())
+    with f_col2:
+        f_pay = st.multiselect("Paiement", df_gsheets['Paiement'].unique())
+    with f_col3:
+        f_serv = st.multiselect("Contient le service", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
+    with f_col4:
+        st.write(" ") # Espace
+        if st.button("❌ Effacer filtres"):
+            st.rerun()
+
+    # Application des filtres sur le dataframe d'affichage
+    df_display = df_gsheets.copy()
+    if f_prov:
+        df_display = df_display[df_display['Province'].isin(f_prov)]
+    if f_pay:
+        df_display = df_display[df_display['Paiement'].isin(f_pay)]
+    if f_serv:
+        for s in f_serv:
+            df_display = df_display[df_display['Services'].str.contains(s, na=False)]
+
+    st.dataframe(df_display, use_container_width=True)
