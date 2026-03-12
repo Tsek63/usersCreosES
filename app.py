@@ -18,16 +18,31 @@ data_fwb = {
     "Luxembourg": ["Arlon", "Attert", "Aubange", "Bastogne", "Bertogne", "Bertrix", "Bouillon", "Chiny", "Daverdisse", "Durbuy", "Erezée", "Etalle", "Fauvillers", "Florenville", "Gouvy", "Habay", "Herbeumont", "Hotton", "Houffalize", "La Roche-en-Ardenne", "Léglise", "Libin", "Libramont-Chevigny", "Manhay", "Marche-en-Famenne", "Martelange", "Meix-devant-Virton", "Messancy", "Musson", "Nassogne", "Neufchâteau", "Paliseul", "Rendeux", "Rouvroy", "Sainte-Ode", "Saint-Hubert", "Saint-Léger", "Tellin", "Tenneville", "Tintigny", "Vaux-sur-Sûre", "Vielsalm", "Virton", "Wellin"]
 }
 
-# --- 3. CONNEXION GSHEETS ---
+# --- 3. CONNEXION GSHEETS (Version Robustifiée) ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# Préparation du dictionnaire pour le JavaScript
+# Nettoyage profond des données pour éviter les "doublons invisibles"
+df_gsheets['Commune'] = df_gsheets['Commune'].astype(str).str.strip()
+df_gsheets['Province'] = df_gsheets['Province'].astype(str).str.strip()
+
 data_dict = {}
 for _, row in df_gsheets.iterrows():
-    c = str(row['Commune']).strip()
-    s = str(row['Services']).split('|') if pd.notna(row['Services']) else []
-    data_dict[c] = {"prov": str(row['Province']), "pay": str(row['Paiement']), "services": s}
+    c = row['Commune']
+    # On vérifie que la commune n'est pas vide
+    if c and c != "nan":
+        s = str(row['Services']).split('|') if pd.notna(row['Services']) else []
+        data_dict[c] = {
+            "prov": row['Province'], 
+            "pay": str(row['Paiement']) if pd.notna(row['Paiement']) else "Pre", 
+            "services": s
+        }
+
+# Debug rapide dans la sidebar pour vérifier ce que Python voit réellement
+with st.sidebar:
+    st.write(f"📊 Communes détectées dans GSheets : {len(data_dict)}")
+    if len(data_dict) < 6:
+        st.warning("⚠️ Moins de 6 communes trouvées. Vérifiez les noms dans GSheets.")
 
 # --- 4. INTERFACE DE SAUVEGARDE (SIDEBAR) ---
 with st.sidebar:
