@@ -11,11 +11,8 @@ st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
 st.markdown("""
     <style>
-        /* Correction du padding supérieur */
         .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
-        
         #MainMenu, footer, header {visibility: hidden;}
-        
         .main-header {
             background-color: #4169E1;
             padding: 15px 25px;
@@ -146,7 +143,12 @@ with tab1:
 with tab2:
     st.header("✏️ Gestion des Communes")
     
-    # 1. ZONE DU HAUT : FORMULAIRE ET CHIFFRE TOTAL
+    # Préparation des statistiques textuelles pour le bloc bleu canard
+    nt = len(df_gsheets)
+    p_text = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
+    po_text = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
+    
+    # 1. ZONE DU HAUT : FORMULAIRE ET CHIFFRE TOTAL (BLOC BLEU CANARD)
     c_form, c_stat = st.columns([6, 4])
     with c_form:
         p_sel = st.selectbox("1. Province", list(data_fwb.keys()), key="m_p")
@@ -168,11 +170,21 @@ with tab2:
                     conn.update(data=df_u); st.rerun()
 
     with c_stat:
-        nt = len(df_gsheets)
+        # Bloc Bleu Canard avec stats complètes
         st.markdown(f"""
-            <div style="background-color:#008080;padding:40px;border-radius:15px;color:white;text-align:center;">
-                <div style="font-size:14px;text-transform:uppercase;opacity:0.8;">Total des communes actives</div>
-                <div style="font-size:64px;font-weight:bold;">{nt}</div>
+            <div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center;">
+                <div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des communes actives</div>
+                <div style="font-size:54px; font-weight:bold; margin-bottom:15px;">{nt}</div>
+                <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); padding-top:15px; font-size:13px;">
+                    <div><b>{p_text}</b><br><span style="opacity:0.8;">Pré-pay.</span></div>
+                    <div><b>{po_text}</b><br><span style="opacity:0.8;">Post-pay.</span></div>
+                </div>
+                <div style="margin-top:15px; text-align:left; font-size:11px; background:rgba(0,0,0,0.1); padding:10px; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>🍴 Cantine Jour</span> <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>📅 Cantine Sem.</span> <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>🕒 Garderie</span> <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>🏀 Activités</span> <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b></div>
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -206,7 +218,7 @@ with tab2:
             if not df_sorted.empty:
                 # Graphique Paiement
                 p_c = df_sorted['Paiement'].value_counts().reset_index()
-                fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement",
+                fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement (Sélection)",
                                color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
                 fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
                 st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
@@ -215,7 +227,7 @@ with tab2:
                 sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
                 ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
                 df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
-                fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services",
+                fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services (Sélection)",
                                color='Service', color_discrete_map={
                                   "Cantine Jour": "#ec4899", "Cantine Semaine": "#db2777",
                                   "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"})
