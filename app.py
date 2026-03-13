@@ -143,58 +143,76 @@ with tab1:
 # --- TAB 2 : GESTION AVEC GRAPHIQUES ---
 with tab2:
     st.header("✏️ Gestion & Analyses")
-    c_form, c_charts = st.columns([5, 5])
     
-    with c_form:
-        st.subheader("Formulaire d'édition")
-        p_sel = st.selectbox("1. Province", list(data_fwb.keys()), key="m_p")
-        with st.form("edit_form"):
-            f1, f2 = st.columns(2)
-            with f1: com_sel = st.selectbox("2. Commune", data_fwb[p_sel])
-            with f2:
-                pay_v = st.radio("3. Mode", ["Prépaiement", "Post-paiement"], horizontal=True)
-                serv_v = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
+    # On crée deux colonnes principales : Gauche (Formulaire) et Droite (Graphiques)
+    col_form, col_charts = st.columns([1, 1], gap="large")
+    
+    with col_form:
+        st.subheader("📝 Modifier une commune")
+        p_sel = st.selectbox("1. Choisir la Province", list(data_fwb.keys()), key="m_p_tab2")
+        
+        with st.form("edit_form_tab2"):
+            com_sel = st.selectbox("2. Choisir la Commune", data_fwb[p_sel])
+            pay_v = st.radio("3. Mode de Paiement", ["Prépaiement", "Post-paiement"], horizontal=True)
+            serv_v = st.multiselect("4. Services Actifs", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
+            
+            st.write("---")
             sc1, sc2 = st.columns(2)
             with sc1:
-                if st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
+                if st.form_submit_button("💾 ENREGISTRER", use_container_width=True):
                     new_r = pd.DataFrame([{"Commune": com_sel, "Province": p_sel, "Paiement": pay_v, "Services": "|".join(serv_v)}])
                     df_u = pd.concat([df_gsheets[df_gsheets['Commune'] != com_sel], new_r], ignore_index=True)
-                    conn.update(data=df_u); st.rerun()
+                    conn.update(data=df_u)
+                    st.success(f"{com_sel} mis à jour !")
+                    st.rerun()
             with sc2:
                 if st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
                     df_u = df_gsheets[df_gsheets['Commune'] != com_sel]
-                    conn.update(data=df_u); st.rerun()
+                    conn.update(data=df_u)
+                    st.warning(f"{com_sel} supprimé.")
+                    st.rerun()
 
-    with c_charts:
+    with col_charts:
+        st.subheader("📊 Aperçu Global")
         if not df_gsheets.empty:
-            # Graphique 1 : Camembert Paiements
+            # Graphique 1 : Camembert (Paiements)
             pay_counts = df_gsheets['Paiement'].value_counts().reset_index()
             fig_pay = px.pie(pay_counts, values='count', names='Paiement', 
-                             title="Répartition des Paiements",
+                             hole=0.5,
                              color='Paiement',
-                             color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'},
-                             hole=0.4)
-            fig_pay.update_layout(margin=dict(l=20, r=20, t=40, b=20), height=250)
-            st.plotly_chart(fig_pay, use_container_width=True)
+                             color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
+            
+            fig_pay.update_layout(
+                margin=dict(l=0, r=0, t=30, b=0), 
+                height=220,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+            )
+            st.plotly_chart(fig_pay, use_container_width=True, config={'displayModeBar': False})
 
-            # Graphique 2 : Barres Services
+            # Graphique 2 : Barres (Services)
             services_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
             counts = [df_gsheets['Services'].str.contains(s, na=False).sum() for s in services_list]
             df_serv = pd.DataFrame({'Service': services_list, 'Nombre': counts})
             
-            fig_serv = px.bar(df_serv, x='Service', y='Nombre', 
-                              title="Services les plus utilisés",
+            fig_serv = px.bar(df_serv, x='Nombre', y='Service', orientation='h',
                               color='Service',
                               color_discrete_map={
                                   "Cantine Jour": "#ec4899", "Cantine Semaine": "#db2777",
                                   "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"
                               })
-            fig_serv.update_layout(showlegend=False, margin=dict(l=20, r=20, t=40, b=20), height=250)
-            st.plotly_chart(fig_serv, use_container_width=True)
+            
+            fig_serv.update_layout(
+                showlegend=False, 
+                margin=dict(l=0, r=10, t=30, b=0), 
+                height=220,
+                xaxis_title=None, yaxis_title=None
+            )
+            st.plotly_chart(fig_serv, use_container_width=True, config={'displayModeBar': False})
         else:
-            st.info("Aucune donnée disponible pour les graphiques.")
+            st.info("Ajoutez des données pour voir les statistiques.")
 
     st.divider()
+    # Le reste (Filtres et Tableau de données) s'affiche en dessous sur toute la largeur
     # --- FILTRES ET LISTE (Inchangé) ---
     st.subheader("🔍 Filtres & Liste")
     if 'rc' not in st.session_state: st.session_state.rc = 0
