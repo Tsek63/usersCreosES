@@ -168,36 +168,36 @@ with tab2:
                     conn.update(data=df_u); st.rerun()
 
     with c_stat:
-        # Bloc Bleu Canard : AUCUNE INDENTATION POUR ÉVITER LE MODE CODE
+        # BLOC BLEU CANARD : Textes agrandis
         st.markdown(f"""
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">
-<div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des communes actives</div>
-<div style="font-size:60px; font-weight:bold; margin-bottom:15px; line-height:1;">{nt}</div>
-<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">
+<div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+<div style="font-size:14px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des communes actives</div>
+<div style="font-size:72px; font-weight:bold; margin-bottom:20px; line-height:1;">{nt}</div>
+<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:20px 0; margin-bottom:20px;">
 <div style="text-align:center;">
-<span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{p_stat}</span>
-<span style="font-size:11px; opacity:0.9;">Prépaiement</span>
+<span style="display:block; font-size:24px; font-weight:bold; color:#ec4899;">{p_stat}</span>
+<span style="font-size:13px; font-weight:500; opacity:0.9;">Prépaiement</span>
 </div>
 <div style="text-align:center;">
-<span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{po_stat}</span>
-<span style="font-size:11px; opacity:0.9;">Post-paiement</span>
+<span style="display:block; font-size:24px; font-weight:bold; color:#38bdf8;">{po_stat}</span>
+<span style="font-size:13px; font-weight:500; opacity:0.9;">Post-paiement</span>
 </div>
 </div>
-<div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #ec4899;">
+<div style="text-align:left; font-size:14px; display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+<div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; border-left:5px solid #ec4899;">
 <i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b>
 </div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #db2777;">
+<div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; border-left:5px solid #db2777;">
 <i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b>
 </div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #be185d;">
+<div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; border-left:5px solid #be185d;">
 <i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum()}</b>
 </div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;">
+<div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; border-left:5px solid #38bdf8;">
 <i class="fa-solid fa-clock"></i> Garderie : <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b>
 </div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;">
+<div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; border-left:5px solid #4ade80; grid-column: span 2;">
 <i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b>
 </div>
 </div>
