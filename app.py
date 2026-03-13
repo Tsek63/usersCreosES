@@ -204,7 +204,7 @@ with tab2:
 
     st.divider()
 
-    # --- 3. ZONE FILTRES ET LISTE ---
+# --- 3. ZONE DU BAS : FILTRES & EXPORT ---
     if 'rc' not in st.session_state: st.session_state.rc = 0
     
     col_titre, col_reset = st.columns([7, 3])
@@ -221,6 +221,7 @@ with tab2:
     with f2: fl_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
     with f3: fl_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
 
+    # Logique de filtrage
     df_r = df_gsheets.copy()
     if not df_r.empty:
         if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
@@ -229,15 +230,42 @@ with tab2:
             for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
         
         df_sorted = df_r.sort_values(['Province', 'Commune'])
+
+        # --- NOUVEAU : BOUTON EXPORT BLEU CANARD ---
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
+        
+        # Injection CSS pour le bouton bleu canard
+        st.markdown("""
+            <style>
+                div.stDownloadButton > button {
+                    background-color: #008080 !important;
+                    color: white !important;
+                    border: none !important;
+                    width: 100% !important;
+                }
+                div.stDownloadButton > button:hover {
+                    background-color: #006666 !important;
+                    color: white !important;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
+        st.download_button(
+            label="📥 Exporter vers Excel", 
+            data=buffer.getvalue(), 
+            file_name="creos_export.xlsx", 
+            mime="application/vnd.ms-excel",
+            use_container_width=True
+        )
+        # ------------------------------------------
+
         col_list, col_viz = st.columns([6, 4], gap="medium")
 
         with col_list:
             st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=520)
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
-            st.download_button(label="📥 Export Excel", data=buffer.getvalue(), file_name="creos_export.xlsx", mime="application/vnd.ms-excel")
-        
+             
         with col_viz:
             if not df_sorted.empty:
                 p_c = df_sorted['Paiement'].value_counts().reset_index()
