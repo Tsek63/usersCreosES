@@ -88,10 +88,22 @@ def generate_print_html(df_print, fl_p, fl_m, fl_s):
                     </span>
                 </td>
             </tr>"""
+            service_colors = {
+                "Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00",
+                "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"
+            }
             for i, (_, row) in enumerate(prov_df.iterrows()):
                 services_raw = row.get('Services', '') or ''
                 services_list = [s.strip() for s in services_raw.split('|') if s.strip()]
-                services_display = ', '.join(services_list) if services_list else '—'
+                if services_list:
+                    services_display = ' '.join([
+                        f'<span style="background:{service_colors.get(s,"#ccc")};color:white;padding:2px 7px;'
+                        f'border-radius:4px;font-size:10px;font-weight:bold;display:inline-block;margin:1px;'
+                        f'-webkit-print-color-adjust:exact;print-color-adjust:exact;">{s}</span>'
+                        for s in services_list
+                    ])
+                else:
+                    services_display = '—'
                 paiement = row.get('Paiement', '—') or '—'
                 paiement_color = "#ec4899" if paiement == "Prépaiement" else "#38bdf8"
                 row_bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
@@ -182,8 +194,12 @@ def generate_print_html(df_print, fl_p, fl_m, fl_s):
         border-top: 1px solid #e2e8f0;
         padding-top: 8px;
     }}
+    @page {{
+        margin: 0;
+        size: A4;
+    }}
     @media print {{
-        body {{ padding: 10px; }}
+        body {{ margin: 10mm 12mm; padding: 0; }}
         .no-print {{ display: none !important; }}
         thead {{ display: table-header-group; }}
         tr {{ page-break-inside: avoid; }}
