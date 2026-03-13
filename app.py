@@ -63,7 +63,7 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. FONCTION RAPPORT HTML (Rose pour Cantines) ---
+# --- 4. FONCTION RAPPORT HTML ---
 def get_print_html(df, filters_desc):
     icons_styles = {
         "Cantine Jour": "background:#ec4899; color:white;", "Cantine Semaine": "background:#db2777; color:white;",
@@ -95,9 +95,9 @@ def get_print_html(df, filters_desc):
     return html + "</body></html>"
 
 # --- 5. TABS ---
-tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
+tab1, tab2 = st.tabs(["📊 Tableau de bord & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD (Rose pour Cantines) ---
+# --- TAB 1 : TABLEAU DE BORD ---
 with tab1:
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
@@ -162,7 +162,7 @@ with tab1:
 # --- TAB 2 : GESTION ---
 with tab2:
     st.header("✏️ Gestion des données")
-    c_form, c_stat = st.columns([6, 4])
+    c_form, c_stat = st.columns([55, 45]) # Ajustement léger des colonnes
     with c_form:
         p_sel = st.selectbox("1. Province", list(data_fwb.keys()), key="m_p")
         with st.form("edit_form"):
@@ -184,9 +184,8 @@ with tab2:
 
     with c_stat:
         nt = len(df_gsheets); npr = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement']); npo = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
-        pct = (npr / nt * 100) if nt > 0 else 0
         
-        # Définition des services avec Rose
+        # HTML des services (Vertical)
         s_defs = [
             ("Cantine Jour", "#ec4899", "fa-utensils"), 
             ("Cantine Semaine", "#db2777", "fa-calendar-day"), 
@@ -194,30 +193,36 @@ with tab2:
             ("Garderie", "#38bdf8", "fa-clock"), 
             ("Activités", "#4ade80", "fa-volleyball")
         ]
-        
         b_html = ""
         for n, c, i in s_defs:
             cnt = df_gsheets['Services'].str.contains(n, na=False).sum()
-            b_html += f'<div style="background:{c};padding:6px 12px;border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;color:white;font-weight:bold;font-size:13px;"><span><i class="fa-solid {i}"></i> &nbsp; {n}</span><span style="background:rgba(0,0,0,0.2);padding:2px 8px;border-radius:5px;">{cnt}</span></div>'
+            b_html += f'<div style="background:{c};padding:8px 12px;border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;color:white;font-weight:bold;font-size:14px;"><span><i class="fa-solid {i}"></i> &nbsp; {n}</span><span style="background:rgba(0,0,0,0.2);padding:2px 8px;border-radius:5px;">{cnt}</span></div>'
         
-        # UI Bloc Bleu Canard Mis à jour
+        # UI Bloc Bleu Canard avec 2 Colonnes internes
         st.markdown(f"""
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-            <div style="background-color:#008080;padding:20px;border-radius:15px;color:white;font-family:sans-serif;">
-                <div style="text-align:center;margin-bottom:20px;">
-                    <div style="font-size:11px;text-transform:uppercase;opacity:0.8;">Total des communes actives</div>
-                    <div style="font-size:48px;font-weight:bold;">{nt}</div>
+            <div style="background-color:#008080;padding:25px;border-radius:15px;color:white;font-family:sans-serif;">
+                <div style="text-align:center;margin-bottom:25px;">
+                    <div style="font-size:14px;text-transform:uppercase;opacity:0.9;letter-spacing:1px;">Total des communes actives</div>
+                    <div style="font-size:56px;font-weight:bold;line-height:1;">{nt}</div>
                 </div>
-                <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;margin-bottom:5px;">
-                    <span style="color:#ec4899;">PRÉPAIEMENT: {npr}</span>
-                    <span style="color:#38bdf8;">POST-PAIEMENT: {npo}</span>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div style="border-right: 1px solid rgba(255,255,255,0.2); padding-right: 15px;">
+                        <div style="font-size:11px;text-transform:uppercase;opacity:0.7;margin-bottom:12px;">Paiement</div>
+                        <div style="background:#ec4899;padding:10px;border-radius:8px;margin-bottom:10px;text-align:center;">
+                            <div style="font-size:10px;opacity:0.9;">PRÉPAIEMENT</div>
+                            <div style="font-size:22px;font-weight:bold;">{npr}</div>
+                        </div>
+                        <div style="background:#38bdf8;padding:10px;border-radius:8px;text-align:center;">
+                            <div style="font-size:10px;opacity:0.9;">POST-PAIEMENT</div>
+                            <div style="font-size:22px;font-weight:bold;">{npo}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;text-transform:uppercase;opacity:0.7;margin-bottom:12px;">Services</div>
+                        {b_html}
+                    </div>
                 </div>
-                <div style="width:100%;background:rgba(255,255,255,0.2);height:8px;border-radius:10px;margin-bottom:20px;display:flex;overflow:hidden;">
-                    <div style="width:{pct}%;background:#ec4899;"></div>
-                    <div style="width:{100-pct}%;background:#38bdf8;"></div>
-                </div>
-                <div style="font-size:11px;text-transform:uppercase;opacity:0.8;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;">Répartition par Service</div>
-                {b_html}
             </div>
         """, unsafe_allow_html=True)
 
@@ -242,15 +247,12 @@ with tab2:
     
     if not df_r.empty:
         df_sorted = df_r.sort_values(['Province', 'Commune'])
-        # Préparation HTML
         h_rep = get_print_html(df_sorted, " | ".join(f_d) if f_d else "Tous")
-        # Préparation EXCEL
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
             df_sorted.to_excel(wr, index=False, sheet_name='Data')
         ex_data = buf.getvalue()
 
-        # Boutons d'export
         bcol1, bcol2 = st.columns(2)
         with bcol1:
             st.download_button("🖨️ GÉNÉRER RAPPORT HTML", data=h_rep, file_name="creos_rapport.html", mime="text/html", use_container_width=True)
