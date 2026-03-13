@@ -184,13 +184,25 @@ with tab2:
     
     filters_desc = " | ".join(f_list) if f_list else "Aucun filtre (Liste complète)"
 
-    # --- BOUTON IMPRIMER ---
+# Remplacer la section "--- BOUTON IMPRIMER ---" par celle-ci :
+
+    # --- BOUTON IMPRIMER (Version Fiable) ---
     if not df_display.empty:
         df_display = df_display.sort_values(by=['Province', 'Commune'])
         print_html = get_print_html(df_display, filters_desc)
-        b64 = base64.b64encode(print_html.encode()).decode()
-        href = f'<a href="data:text/html;base64,{b64}" target="_blank" style="text-decoration:none;"><div style="text-align:center; padding:10px; background-color:#4169E1; color:white; border-radius:5px; font-weight:bold;">🖨️ GÉNÉRER LE RAPPORT POUR IMPRESSION</div></a>'
-        st.markdown(href, unsafe_allow_html=True)
+        
+        st.write("")
+        # Utilisation d'un bouton de téléchargement (Download Button)
+        # C'est la méthode la plus stable sur tous les navigateurs
+        st.download_button(
+            label="🖨️ PRÉPARER LE RAPPORT D'IMPRESSION",
+            data=print_html,
+            file_name="rapport_creos.html",
+            mime="text/html",
+            use_container_width=True,
+            help="Cliquez pour télécharger le fichier, puis ouvrez-le pour imprimer."
+        )
+        st.info("💡 Une fois le fichier 'rapport_creos.html' téléchargé, ouvrez-le : il s'imprimera automatiquement.")
     
     st.write("")
     st.dataframe(df_display, use_container_width=True, hide_index=True)
