@@ -102,9 +102,9 @@ with tab1:
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
     s_dash = {
-        "Cantine J": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#ec4899"),
-        "Cantine S": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#db2777"),
-        "Cantine M": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#be185d"),
+        "Cantine Jour": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#ec4899"),
+        "Cantine Semaine": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#db2777"),
+        "Cantine Mois": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#be185d"),
         "Garderie": (df_gsheets['Services'].str.contains("Garderie", na=False).sum(), "#38bdf8"),
         "Activités": (df_gsheets['Services'].str.contains("Activités", na=False).sum(), "#4ade80")
     }
@@ -121,18 +121,23 @@ with tab1:
             .active {{ stroke: #000 !important; stroke-width: 1.5px !important; }}
             #search {{ width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px; box-sizing: border-box; }}
             #list {{ flex: 1; overflow-y: auto; }}
-            .stats-panel {{ background: var(--dark); color: white; padding: 12px; border-radius: 12px; }}
-            .panel-header {{ text-align: center; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 8px; }}
-            .panel-title {{ font-size: 12px; text-transform: uppercase; opacity: 0.7; }}
-            .main-count {{ font-size: 44px; font-weight: bold; color: #ffffff; line-height: 1; margin-top: 4px; }}
+            
+            .stats-panel {{ background: var(--dark); color: white; padding: 10px 12px; border-radius: 12px; }}
+            .panel-header {{ text-align: center; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; }}
+            .panel-title {{ font-size: 11px; text-transform: uppercase; opacity: 0.7; letter-spacing: 0.5px; }}
+            .main-count {{ font-size: 40px; font-weight: bold; color: #ffffff; line-height: 1; margin-top: 2px; }}
+            
             .cols-container {{ display: flex; gap: 15px; }}
             .col-half {{ flex: 1; }}
-            .stat-header {{ font-size: 10px; text-transform: uppercase; opacity: 0.5; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 2px; text-align: center; }}
-            .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }}
-            .v-label {{ font-size: 13px; font-weight: 500; }}
-            .v-val {{ font-size: 14px; font-weight: bold; padding: 1px 8px; border-radius: 4px; min-width: 22px; text-align: center; }}
+            .stat-header {{ font-size: 10px; text-transform: uppercase; opacity: 0.5; margin-bottom: 6px; border-bottom: 1px solid #334155; padding-bottom: 2px; text-align: center; }}
+            
+            .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }}
+            .v-label {{ font-size: 12px; font-weight: 500; }}
+            .v-val {{ font-size: 13px; font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
+            
             .item-row {{ display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
-            .badge {{ padding: 2px 5px; border-radius: 4px; color: white; font-size: 9px; font-weight: bold; display: inline-flex; align-items: center; gap: 3px; }}
+            .badge-container {{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 60%; }}
+            .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }}
         </style></head><body onload="init()">
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
@@ -152,6 +157,7 @@ with tab1:
         </div>
     </div>
     <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
+
     <script>
         const dbData = {json_recs}; const mapRef = {json.dumps(data_fwb)}; let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
         const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#ec4899" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#db2777" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#be185d" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
@@ -174,8 +180,8 @@ with tab1:
                 if(filtered.length > 0) {{
                     const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='4px'; h.style.fontSize='10px'; h.innerText = p; listDiv.appendChild(h);
                     filtered.forEach(x => {{ const row = document.createElement('div'); row.className = 'item-row';
-                        const badges = (x.Services || "").split('|').filter(s => s).map(s => `<span class="badge" style="background:${{icons[s]?.c || '#ccc'}}"><i class="fa-solid ${{icons[s]?.i || 'fa-tag'}}"></i></span>`).join(' ');
-                        row.innerHTML = `<span><b>${{x.Commune}}</b></span><div>${{badges}}</div>`; listDiv.appendChild(row);
+                        const badges = (x.Services || "").split('|').filter(s => s).map(s => `<span class="badge" style="background:${{icons[s]?.c || '#ccc'}}"><i class="fa-solid ${{icons[s]?.i || 'fa-tag'}}"></i> ${{s}}</span>`).join('');
+                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span><div class="badge-container">${{badges}}</div>`; listDiv.appendChild(row);
                     }});
                 }}
             }});
@@ -215,8 +221,8 @@ with tab2:
         st.markdown(f"""
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
             <div style="background-color:#008080;padding:20px;border-radius:15px;color:white;">
-                <div style="text-align:center;margin-bottom:20px;"><div style="font-size:11px;text-transform:uppercase;opacity:0.8;">Total des communes</div><div style="font-size:48px;font-weight:bold;">{nt}</div></div>
-                <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;margin-bottom:5px;"><span style="color:#ec4899;">PRÉ: {npr}</span><span style="color:#38bdf8;">POST: {npo}</span></div>
+                <div style="text-align:center;margin-bottom:20px;"><div style="font-size:11px;text-transform:uppercase;opacity:0.8;">Total des communes actives</div><div style="font-size:48px;font-weight:bold;">{nt}</div></div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;margin-bottom:5px;"><span style="color:#ec4899;">PRÉPAIEMENT: {npr}</span><span style="color:#38bdf8;">POST-PAIEMENT: {npo}</span></div>
                 <div style="width:100%;background:rgba(255,255,255,0.2);height:8px;border-radius:10px;margin-bottom:20px;display:flex;overflow:hidden;"><div style="width:{pct}%;background:#ec4899;"></div><div style="width:{100-pct}%;background:#38bdf8;"></div></div>
                 {b_html}
             </div>
