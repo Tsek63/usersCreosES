@@ -7,17 +7,6 @@ import plotly.express as px
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
-# Définition de la charte chromatique pour une réutilisation facile
-COLORS = {
-    "Cantine Jour": "#FFD700",    # Jaune
-    "Cantine Semaine": "#FF8C00", # Orange
-    "Cantine Mois": "#FF0000",    # Rouge
-    "Garderie": "#38bdf8",        # Bleu ciel
-    "Activités": "#4ade80",       # Vert
-    "Prépaiement": "#ec4899",     # Rose
-    "Post-paiement": "#38bdf8"    # Bleu
-}
-
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem !important; }
@@ -51,7 +40,7 @@ st.markdown("""
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# Sécurité : Si le DF est vide ou colonnes manquantes
+# Sécurité : Si le DF est vide, on crée les colonnes pour éviter le KeyError
 if df_gsheets.empty or 'Paiement' not in df_gsheets.columns:
     df_gsheets = pd.DataFrame(columns=['Commune', 'Province', 'Paiement', 'Services'])
 
@@ -92,6 +81,7 @@ with tab_mgt:
                 conn.update(data=df_u); st.rerun()
 
     with col_s:
+        # Bloc Bleu Canard Statistique
         nt = len(df_gsheets)
         p_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement']) if nt > 0 else 0
         po_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement']) if nt > 0 else 0
@@ -100,13 +90,14 @@ with tab_mgt:
                 <div style="font-size:14px; opacity:0.8; margin-bottom:5px;">TOTAL COMMUNES ACTIVES</div>
                 <div style="font-size:64px; font-weight:bold; line-height:1;">{nt}</div>
                 <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); margin-top:20px; padding-top:15px;">
-                    <div><b style="color:{COLORS['Prépaiement']}; font-size:24px;">{p_stat}</b><br><small>Pré</small></div>
-                    <div><b style="color:{COLORS['Post-paiement']}; font-size:24px;">{po_stat}</b><br><small>Post</small></div>
+                    <div><b style="color:#ec4899; font-size:24px;">{p_stat}</b><br><small>Pré</small></div>
+                    <div><b style="color:#38bdf8; font-size:24px;">{po_stat}</b><br><small>Post</small></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
 with tab_dash:
+    # --- FILTRES ALIGNÉS ---
     if 'rc' not in st.session_state: st.session_state.rc = 0
     f1, f2, f3, f4 = st.columns([2, 1.5, 2, 0.8])
     with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if nt > 0 else [], key=f"p_{st.session_state.rc}")
@@ -122,6 +113,7 @@ with tab_dash:
     for s in fl_s: df_filt = df_filt[df_filt['Services'].str.contains(s, na=False)]
     df_sorted = df_filt.sort_values(['Province', 'Commune'])
 
+    # --- BOUTONS ACTIONS BLEU CANARD ---
     b_ex, b_pr, _ = st.columns([1.5, 1.5, 5])
     with b_ex:
         buf = io.BytesIO()
@@ -133,7 +125,7 @@ with tab_dash:
             f_txt = f"Province: {', '.join(fl_p) if fl_p else 'Toutes'} | Paiement: {', '.join(fl_m) if fl_m else 'Tous'}"
             rows = ""
             for _, r in df_sorted.iterrows():
-                p_c = COLORS['Prépaiement'] if r.Paiement == "Prépaiement" else COLORS['Post-paiement']
+                p_c = "#ec4899" if r.Paiement == "Prépaiement" else "#38bdf8"
                 rows += f"<tr><td><b>{r.Province}</b></td><td>{r.Commune}</td><td><b style='color:{p_c}'>{r.Paiement}</b></td><td>{r.Services.replace('|', ' • ')}</td></tr>"
             
             st.session_state.print_html = f"""
@@ -161,6 +153,7 @@ with tab_dash:
 
     st.divider()
     
+    # --- LISTE ET GRAPHIQUES ---
     c_l, c_v = st.columns([6, 4])
     with c_l:
         st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=500)
@@ -168,19 +161,11 @@ with tab_dash:
     with c_v:
         if not df_sorted.empty:
             fig_p = px.pie(df_sorted, names='Paiement', hole=0.4, title="Modes de Paiement",
-                           color='Paiement', color_discrete_map={'Prépaiement': COLORS['Prépaiement'], 'Post-paiement': COLORS['Post-paiement']})
+                           color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
             st.plotly_chart(fig_p, use_container_width=True)
 
-            all_s_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-            counts = [df_sorted['Services'].str.contains(s, na=False).sum() for s in all_s_list]
-            
-            fig_s = px.bar(x=all_s_list, y=counts, color=all_s_list, title="Services Actifs",
-                           color_discrete_map={
-                               "Cantine Jour": COLORS["Cantine Jour"],
-                               "Cantine Semaine": COLORS["Cantine Semaine"],
-                               "Cantine Mois": COLORS["Cantine Mois"],
-                               "Garderie": COLORS["Garderie"],
-                               "Activités": COLORS["Activités"]
-                           })
-            fig_s.update_layout(showlegend=False, xaxis_title=None, yaxis_title="Nombre")
+            all_s = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+            counts = [df_sorted['Services'].str.contains(s, na=False).sum() for s in all_s]
+            fig_s = px.bar(x=all_s, y=counts, color=all_s, title="Services",
+                           color_discrete_map={"Cantine Jour":"#ec4899","Cantine Semaine":"#db2777","Cantine Mois":"#be185d","Garderie":"#38bdf8","Activités":"#4ade80"})
             st.plotly_chart(fig_s, use_container_width=True)
