@@ -11,8 +11,11 @@ st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
 st.markdown("""
     <style>
+        /* Correction du padding supérieur */
         .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
+        
         #MainMenu, footer, header {visibility: hidden;}
+        
         .main-header {
             background-color: #4169E1;
             padding: 15px 25px;
@@ -53,7 +56,7 @@ df_gsheets = conn.read(ttl=0).dropna(how="all")
 # --- 4. TABS ---
 tab1, tab2 = st.tabs(["📊 Tableau de bord et Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 (Inchangé) ---
+# --- TAB 1 : DASHBOARD & CARTE ---
 with tab1:
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
@@ -68,22 +71,22 @@ with tab1:
     json_recs = df_gsheets.to_json(orient='records')
     
     html_map = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
-            :root {{ --creos: #4169E1; --dark: #1e293b; --bg: #ffffff; --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; }}
+            :root {{ --dark: #1e293b; --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; }}
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }}
             #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
             #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
-            #map-box {{ flex: 0 0 280px; }}
+            #map-box {{ flex: 0 0 300px; background: #262730; border-radius: 8px; margin-bottom: 8px; }}
             svg {{ width: 100%; height: 100%; }}
-            .commune {{ stroke: #fff; stroke-width: 0.5; }}
-            .active {{ stroke: #000 !important; stroke-width: 1.5px !important; }}
+            .commune {{ stroke: rgba(255,255,255,0.1); stroke-width: 0.5; opacity: 0.3; }}
+            .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
             #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; }}
             #list {{ flex: 1; overflow-y: auto; }}
-            .stats-panel {{ background: var(--dark); color: white; padding: 10px 12px; border-radius: 12px; }}
-            .panel-header {{ text-align: center; margin-bottom: 8px; border-bottom: 1px solid #334155; }}
+            .stats-panel {{ background: var(--dark); color: white; padding: 12px; border-radius: 12px; }}
+            .panel-header {{ text-align: center; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 10px; }}
             .main-count {{ font-size: 40px; font-weight: bold; }}
             .cols-container {{ display: flex; gap: 15px; }}
             .col-half {{ flex: 1; }}
-            .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 12px; }}
+            .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 11px; }}
             .v-val {{ font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
             .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
             .badge-container {{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }}
@@ -143,7 +146,7 @@ with tab1:
 with tab2:
     st.header("✏️ Gestion des Communes")
     
-    # 1. ZONE DU HAUT : FORMULAIRE ET TOTAL (Inchangé)
+    # 1. ZONE DU HAUT : FORMULAIRE ET CHIFFRE TOTAL
     c_form, c_stat = st.columns([6, 4])
     with c_form:
         p_sel = st.selectbox("1. Province", list(data_fwb.keys()), key="m_p")
@@ -175,8 +178,8 @@ with tab2:
 
     st.divider()
 
-    # 2. ZONE FILTRES (Toute la largeur)
-    st.subheader("🔍 Filtres de recherche")
+    # 2. ZONE FILTRES
+    st.subheader("🔍 Filtres & Liste")
     if 'rc' not in st.session_state: st.session_state.rc = 0
     f1, f2, f3, f4 = st.columns([2, 1, 2, 1])
     with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
@@ -185,44 +188,36 @@ with tab2:
     with f4: 
         if st.button("❌ Reset", use_container_width=True): st.session_state.rc += 1; st.rerun()
 
-    # 3. ZONE DU BAS : LISTE À GAUCHE | GRAPHIQUES À DROITE
+    # 3. ZONE DU BAS : LISTE À GAUCHE | GRAPHES À DROITE
     df_r = df_gsheets.copy()
     if not df_r.empty:
-        # Application des filtres
         if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
         if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]
         if fl_s:
             for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
         
         df_sorted = df_r.sort_values(['Province', 'Commune'])
-
-        # Mise en page Colonne Liste | Colonne Graphiques
         col_list, col_viz = st.columns([6, 4], gap="medium")
 
         with col_list:
-            st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=500)
+            st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=520)
         
         with col_viz:
-            # Graphique 1 : Camembert
-            pay_counts = df_sorted['Paiement'].value_counts().reset_index()
-            fig_pay = px.pie(pay_counts, values='count', names='Paiement', 
-                             title="Paiements (sélection)",
-                             hole=0.4,
-                             color='Paiement',
-                             color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
-            fig_pay.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
-            st.plotly_chart(fig_pay, use_container_width=True, config={'displayModeBar': False})
+            if not df_sorted.empty:
+                # Graphique Paiement
+                p_c = df_sorted['Paiement'].value_counts().reset_index()
+                fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement",
+                               color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
+                fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
+                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
 
-            # Graphique 2 : Barres
-            services_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-            counts = [df_sorted['Services'].str.contains(s, na=False).sum() for s in services_list]
-            df_serv = pd.DataFrame({'Service': services_list, 'Nombre': counts})
-            fig_serv = px.bar(df_serv, x='Nombre', y='Service', orientation='h',
-                              title="Services (sélection)",
-                              color='Service',
-                              color_discrete_map={
+                # Graphique Services
+                sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+                ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
+                df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
+                fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services",
+                               color='Service', color_discrete_map={
                                   "Cantine Jour": "#ec4899", "Cantine Semaine": "#db2777",
-                                  "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"
-                              })
-            fig_serv.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
-            st.plotly_chart(fig_serv, use_container_width=True, config={'displayModeBar': False})
+                                  "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"})
+                fig_s.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
+                st.plotly_chart(fig_s, use_container_width=True, config={'displayModeBar': False})
