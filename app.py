@@ -143,10 +143,10 @@ with tab1:
 with tab2:
     st.header("✏️ Gestion des Communes")
     
-    # Préparation des statistiques textuelles pour le bloc bleu canard
+    # Statistiques globales pour le bloc bleu canard
     nt = len(df_gsheets)
-    p_text = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
-    po_text = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
+    p_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
+    po_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
     
     # 1. ZONE DU HAUT : FORMULAIRE ET CHIFFRE TOTAL (BLOC BLEU CANARD)
     c_form, c_stat = st.columns([6, 4])
@@ -170,20 +170,40 @@ with tab2:
                     conn.update(data=df_u); st.rerun()
 
     with c_stat:
-        # Bloc Bleu Canard avec stats complètes
+        # Bloc Bleu Canard riche
         st.markdown(f"""
-            <div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center;">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+            <div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
                 <div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des communes actives</div>
-                <div style="font-size:54px; font-weight:bold; margin-bottom:15px;">{nt}</div>
-                <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); padding-top:15px; font-size:13px;">
-                    <div><b>{p_text}</b><br><span style="opacity:0.8;">Pré-pay.</span></div>
-                    <div><b>{po_text}</b><br><span style="opacity:0.8;">Post-pay.</span></div>
+                <div style="font-size:60px; font-weight:bold; margin-bottom:15px; line-height:1;">{nt}</div>
+                
+                <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">
+                    <div style="text-align:center;">
+                        <span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{p_stat}</span>
+                        <span style="font-size:11px; opacity:0.9;">Prépaiement</span>
+                    </div>
+                    <div style="text-align:center;">
+                        <span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{po_stat}</span>
+                        <span style="font-size:11px; opacity:0.9;">Post-paiement</span>
+                    </div>
                 </div>
-                <div style="margin-top:15px; text-align:left; font-size:11px; background:rgba(0,0,0,0.1); padding:10px; border-radius:8px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>🍴 Cantine Jour</span> <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b></div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>📅 Cantine Sem.</span> <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b></div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><span>🕒 Garderie</span> <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>🏀 Activités</span> <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b></div>
+                
+                <div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                    <div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #ec4899;">
+                        <i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #db2777;">
+                        <i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #be185d;">
+                        <i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum()}</b>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;">
+                        <i class="fa-solid fa-clock"></i> Garderie : <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;">
+                        <i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b>
+                    </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -191,7 +211,7 @@ with tab2:
     st.divider()
 
     # 2. ZONE FILTRES
-    st.subheader("🔍 Filtres & Liste")
+    st.subheader("🔍 Filtres & Liste filtrée")
     if 'rc' not in st.session_state: st.session_state.rc = 0
     f1, f2, f3, f4 = st.columns([2, 1, 2, 1])
     with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
@@ -213,6 +233,17 @@ with tab2:
 
         with col_list:
             st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=520)
+            
+            # Bouton d'export Excel pour la sélection filtrée
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
+            st.download_button(
+                label="📥 Exporter la liste filtrée vers Excel",
+                data=buffer.getvalue(),
+                file_name="creos_communes_filtrees.xlsx",
+                mime="application/vnd.ms-excel"
+            )
         
         with col_viz:
             if not df_sorted.empty:
