@@ -5,8 +5,40 @@ import json
 import streamlit.components.v1 as components
 
 # --- 1. CONFIGURATION ---
-st.set_page_config(layout="wide", page_title="Creos Manager")
-st.markdown("<style>#MainMenu, footer, header {visibility: hidden;}</style>", unsafe_allow_html=True)
+st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
+
+# Style pour l'en-tête et masquer les menus Streamlit
+st.markdown("""
+    <style>
+        #MainMenu, footer, header {visibility: hidden;}
+        .main-header {
+            background-color: #4169E1;
+            padding: 15px 25px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header-title { font-size: 24px; font-weight: bold; margin: 0; }
+        .tt-button {
+            background-color: white;
+            color: #4169E1;
+            padding: 8px 18px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .tt-button:hover { background-color: #f0f2f6; color: #1e293b; }
+    </style>
+    <div class="main-header">
+        <div class="header-title">Utilisateurs de Creos Extrascolaire</div>
+        <a href="https://timetracking-az7ibzngb3zrfbgmrgygn8.streamlit.app" target="_blank" class="tt-button">⏱️ Time Tracking</a>
+    </div>
+""", unsafe_allow_html=True)
 
 # --- 2. DONNÉES DE RÉFÉRENCE ---
 data_fwb = {
@@ -24,40 +56,54 @@ df_gsheets = conn.read(ttl=0).dropna(how="all")
 
 # --- 4. FONCTION RAPPORT HTML ---
 def get_print_html(df, filters_desc):
+    # Couleurs identiques au Dashboard
+    icons_styles = {
+        "Cantine Jour": "background:#fb923c; color:white;",
+        "Cantine Semaine": "background:#f59e0b; color:white;",
+        "Cantine Mois": "background:#d97706; color:white;",
+        "Garderie": "background:#38bdf8; color:white;",
+        "Activités": "background:#4ade80; color:white;"
+    }
+    
     html = f"""
     <html>
     <head>
         <meta charset="UTF-8">
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }}
+            body {{ font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e3a8a; }}
             .header {{ border-bottom: 3px solid #4169E1; margin-bottom: 20px; }}
-            h1 {{ color: #4169E1; margin-bottom: 5px; }}
-            .filters {{ background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0; }}
+            h1 {{ color: #4169E1; margin: 0; padding-bottom: 10px; }}
+            .filters {{ background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #cbd5e1; font-size: 0.9em; }}
             .province-block {{ margin-top: 30px; page-break-inside: avoid; }}
-            .province-title {{ background: #1e293b; color: white; padding: 10px 15px; border-radius: 5px; font-size: 1.2em; }}
+            .province-title {{ background: #4169E1; color: white; padding: 10px 15px; border-radius: 5px; font-size: 1.1em; font-weight: bold; }}
             table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-            th {{ background-color: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 0.8em; letter-spacing: 1px; }}
-            th, td {{ border: 1px solid #e2e8f0; padding: 12px; text-align: left; }}
-            tr:nth-child(even) {{ background-color: #fcfcfc; }}
-            @media print {{ .no-print {{ display: none; }} }}
+            th {{ background-color: #eff6ff; color: #1e3a8a; text-transform: uppercase; font-size: 0.75em; }}
+            th, td {{ border: 1px solid #bfdbfe; padding: 10px; text-align: left; }}
+            .badge {{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 4px; font-weight: bold; }}
+            .pay-badge {{ color: #4169E1; font-weight: bold; border-bottom: 1px dotted #4169E1; }}
         </style>
     </head>
     <body onload="window.print()">
         <div class="header">
-            <h1>Rapport Creos - Communes FWB</h1>
-            <p>Généré le {pd.Timestamp.now().strftime('%d/%m/%Y à %H:%M')}</p>
+            <h1>Utilisateurs de Creos Extrascolaire</h1>
+            <p>Rapport généré le {pd.Timestamp.now().strftime('%d/%m/%Y à %H:%M')}</p>
         </div>
-        <div class="filters">
-            <strong>Filtres appliqués :</strong><br>{filters_desc}
-        </div>
+        <div class="filters"><strong>Filtres :</strong> {filters_desc}</div>
     """
+    
     provinces = sorted(df['Province'].unique())
     for p in provinces:
         html += f"<div class='province-block'><div class='province-title'>{p}</div>"
-        html += "<table><thead><tr><th style='width:35%'>Commune</th><th style='width:25%'>Paiement</th><th>Services</th></tr></thead><tbody>"
+        html += "<table><thead><tr><th style='width:30%'>Commune</th><th style='width:20%'>Paiement</th><th>Services actifs</th></tr></thead><tbody>"
         sub_df = df[df['Province'] == p].sort_values('Commune')
         for _, row in sub_df.iterrows():
-            html += f"<tr><td><strong>{row['Commune']}</strong></td><td>{row['Paiement']}</td><td>{row['Services']}</td></tr>"
+            services = row['Services'].split('|') if row['Services'] else []
+            serv_html = "".join([f'<span class="badge" style="{icons_styles.get(s, "background:#ccc;")}">{s}</span>' for s in services if s])
+            html += f"""<tr>
+                <td><strong style="color:#1e40af;">{row['Commune']}</strong></td>
+                <td><span class="pay-badge">{row['Paiement']}</span></td>
+                <td>{serv_html}</td>
+            </tr>"""
         html += "</tbody></table></div>"
     html += "</body></html>"
     return html
@@ -65,7 +111,7 @@ def get_print_html(df, filters_desc):
 # --- 5. TABS ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD ---
+# --- TAB 1 : DASHBOARD (40/60) ---
 with tab1:
     json_records = df_gsheets.to_json(orient='records')
     html_code = f"""
@@ -145,7 +191,7 @@ with tab1:
 
 # --- TAB 2 : GESTION ---
 with tab2:
-    st.header("✏️ Gestion & Filtres")
+    st.header("✏️ Gestion des données")
     
     # Formulaire de saisie
     prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
@@ -157,17 +203,18 @@ with tab2:
             serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
         
         c_save, c_del = st.columns(2)
-        if c_save.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
+        if c_save.form_submit_button("💾 ENREGISTRER", use_container_width=True):
             new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
             df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
             conn.update(data=df_final); st.rerun()
-        if c_del.form_submit_button("🗑️ SUPPRIMER CETTE COMMUNE", use_container_width=True):
+        if c_del.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
             df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
             conn.update(data=df_final); st.rerun()
 
     st.divider()
 
-    # Filtres interactifs
+    # Filtres
+    st.subheader("🔍 Filtres & Impression")
     if 'reset_counter' not in st.session_state: st.session_state.reset_counter = 0
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
     with f_col1: f_prov = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"f_prov_{st.session_state.reset_counter}")
@@ -187,16 +234,16 @@ with tab2:
         for s in f_serv: df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
         f_list.append(f"Services: {', '.join(f_serv)}")
     
-    filters_text = " | ".join(f_list) if f_list else "Liste complète (aucun filtre)"
+    filters_text = " | ".join(f_list) if f_list else "Tous les utilisateurs (Liste complète)"
 
     # Bouton Impression
     if not df_display.empty:
         df_display = df_display.sort_values(by=['Province', 'Commune'])
         html_report = get_print_html(df_display, filters_text)
         st.download_button(
-            label="🖨️ PRÉPARER LE RAPPORT D'IMPRESSION",
+            label="🖨️ PRÉPARER LE RAPPORT D'IMPRESSION COLORÉ",
             data=html_report,
-            file_name="rapport_creos_communes.html",
+            file_name="rapport_utilisateurs_creos.html",
             mime="text/html",
             use_container_width=True
         )
