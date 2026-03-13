@@ -10,7 +10,16 @@ st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
 st.markdown("""
     <style>
+        /* Supprime l'espace blanc en haut de la page */
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 0rem !important;
+            padding-left: 5rem !important;
+            padding-right: 5rem !important;
+        }
+        
         #MainMenu, footer, header {visibility: hidden;}
+        
         .main-header {
             background-color: #4169E1;
             padding: 15px 25px;
@@ -18,10 +27,14 @@ st.markdown("""
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 10px; /* Réduit pour gagner de l'espace */
             color: white;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
+        /* ... reste de vos styles ... */
+    </style>
+""", unsafe_allow_html=True)
+
         .header-title { font-size: 24px; font-weight: bold; margin: 0; }
         .tt-button {
             background-color: white;
