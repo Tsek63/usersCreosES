@@ -205,6 +205,42 @@ with tab1:
 # --- TAB 2 : GESTION ---
 with tab2:
     st.header("✏️ Gestion des données")
+    # --- BLOC STATISTIQUES BLEU CANARD ---
+    total_com = len(df_gsheets)
+    pre_count = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
+    post_count = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
+    services_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+    s_stats = {s: df_gsheets['Services'].str.contains(s, na=False).sum() for s in services_list}
+    
+    # Couleurs correspondantes à ton dictionnaire JS pour la cohérence
+    colors = {"Cantine Jour": "#fb923c", "Cantine Semaine": "#f59e0b", "Cantine Mois": "#d97706", "Garderie": "#38bdf8", "Activités": "#4ade80"}
+
+    st.markdown(f"""
+        <div style="background-color: #008080; padding: 20px; border-radius: 10px; color: white; margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; margin-bottom: 15px;">
+                <span style="font-size: 18px; font-weight: bold;">📊 Vue d'ensemble</span>
+                <span style="font-size: 24px; font-weight: bold;">{total_com} <small style="font-size: 14px;">communes</small></span>
+            </div>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 150px;">
+                    <div style="font-size: 12px; opacity: 0.8; text-transform: uppercase;">Paiements</div>
+                    <div style="margin-top: 5px;">
+                        <span style="background: #fb923c; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; color: white;">Prépaiement: {pre_count}</span>
+                        <span style="background: #38bdf8; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; color: white; margin-left: 5px;">Post-paiement: {post_count}</span>
+                    </div>
+                </div>
+                <div style="flex: 2; min-width: 300px;">
+                    <div style="font-size: 12px; opacity: 0.8; text-transform: uppercase;">Services actifs</div>
+                    <div style="margin-top: 5px; display: flex; flex-wrap: wrap; gap: 5px;">
+                        {" ".join([f'<span style="background: {colors[s]}; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white;">{s}: {s_stats[s]}</span>' for s in services_list])}
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    # --- FIN DU BLOC STATISTIQUES ---
+
+    
     prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
     with st.form("edit_form"):
         col1, col2 = st.columns(2)
