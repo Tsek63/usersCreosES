@@ -29,25 +29,17 @@ st.markdown("""
             background-color: white; color: #4169E1; padding: 8px 18px;
             border-radius: 5px; text-decoration: none; font-weight: bold;
         }
-        /* Style pour la zone de filtres */
+        /* Style pour la zone de filtres rose */
         .filter-box {
             background-color: #fff0f6;
             padding: 20px;
             border-radius: 12px;
-            border: 1px solid #fcc2d7;
+            border: 2px solid #fcc2d7;
             margin-bottom: 20px;
         }
-        /* Aligner le bouton Reset verticalement avec les selects */
-        div.stButton > button:first-child {
-            margin-top: 28px;
-            background-color: white;
-            color: #e03131;
-            border: 1px solid #e03131;
-        }
-        div.stButton > button:hover {
-            background-color: #fff5f5;
-            color: #c92a2a;
-            border: 1px solid #c92a2a;
+        /* Style spécifique pour aligner les boutons d'action */
+        .stButton > button {
+            width: 100%;
         }
     </style>
     <div class="main-header">
@@ -217,7 +209,7 @@ with tab2:
 <i class="fa-solid fa-clock"></i> Garderie : <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b>
 </div>
 <div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; border-left:5px solid #4ade80; grid-column: span 2;">
-<i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b>
+<i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{df_gsheets['Services'].str.contains("Activities", na=False).sum()}</b>
 </div>
 </div>
 </div>
@@ -225,53 +217,65 @@ with tab2:
 
     st.divider()
 
-    # --- ZONE FILTRES STYLISÉE ---
+    # --- ZONE FILTRES ET BOUTONS ENCADRÉS ---
     st.markdown('<div class="filter-box">', unsafe_allow_html=True)
-    st.subheader("🔍 Filtres de recherche")
+    st.subheader("🔍 Filtres & Actions")
     
     if 'rc' not in st.session_state: st.session_state.rc = 0
-    f1, f2, f3, f4 = st.columns([2, 1, 2, 0.8])
+    
+    # Ligne 1 : Filtres
+    f1, f2, f3 = st.columns([2, 1, 2])
     with f1: fl_p = st.multiselect("Par Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
     with f2: fl_m = st.multiselect("Par Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
     with f3: fl_s = st.multiselect("Par Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
-    with f4: 
+    
+    # Ligne 2 : Boutons d'action (Reset, Excel, HTML)
+    b1, b2, b3, b4 = st.columns([1, 1, 1, 1])
+    
+    df_r = df_gsheets.copy()
+    if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
+    if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]
+    if fl_s:
+        for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
+    df_sorted = df_r.sort_values(['Province', 'Commune'])
+
+    with b1:
         if st.button("❌ RESET", use_container_width=True): 
             st.session_state.rc += 1
             st.rerun()
+    
+    with b2:
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_sorted.to_excel(writer, index=False, sheet_name='Export')
+        st.download_button(label="📥 EXCEL", data=buffer.getvalue(), file_name="export_creos.xlsx", use_container_width=True)
+        
+    with b3:
+        if st.button("📄 GÉNÉRER HTML", use_container_width=True):
+            html_table = df_sorted.to_html(index=False, classes='table')
+            st.session_state.html_print = f"""<html><head><style>body{{font-family:sans-serif;}} table{{width:100%; border-collapse:collapse;}} th,td{{border:1px solid #ddd; padding:8px; text-align:left;}} th{{background:#4169E1; color:white;}}</style></head>
+            <body><h2>Liste des Communes Creos</h2>{html_table}</body></html>"""
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- LISTE ET GRAPHES ---
-    df_r = df_gsheets.copy()
-    if not df_r.empty:
-        if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
-        if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]
-        if fl_s:
-            for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
-        
-        df_sorted = df_r.sort_values(['Province', 'Commune'])
-        col_list, col_viz = st.columns([6, 4], gap="medium")
+    # --- AFFICHAGE RESULTATS ---
+    if not df_sorted.empty:
+        if 'html_print' in st.session_state:
+            st.download_button("💾 Télécharger l'HTML pour impression", st.session_state.html_print, "impression_creos.html", "text/html")
+            del st.session_state.html_print
 
+        col_list, col_viz = st.columns([6, 4], gap="medium")
         with col_list:
             st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=520)
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
-            st.download_button(label="📥 Export Excel", data=buffer.getvalue(), file_name="creos_export.xlsx", mime="application/vnd.ms-excel")
         
         with col_viz:
-            if not df_sorted.empty:
-                p_c = df_sorted['Paiement'].value_counts().reset_index()
-                fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement (Sélection)",
-                               color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
-                fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
-                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
+            p_c = df_sorted['Paiement'].value_counts().reset_index()
+            fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Répartition Paiement")
+            fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0))
+            st.plotly_chart(fig_p, use_container_width=True)
 
-                sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-                ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
-                df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
-                fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services (Sélection)",
-                               color='Service', color_discrete_map={
-                                  "Cantine Jour": "#ec4899", "Cantine Semaine": "#db2777",
-                                  "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"})
-                fig_s.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
-                st.plotly_chart(fig_s, use_container_width=True, config={'displayModeBar': False})
+            sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+            ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
+            fig_s = px.bar(x=sl, y=ct, title="Services Actifs")
+            fig_s.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
+            st.plotly_chart(fig_s, use_container_width=True)
