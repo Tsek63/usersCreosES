@@ -223,12 +223,13 @@ with tab2:
                     conn.update(data=df_final); st.rerun()
 
     with col_stats:
-        # Calcul des stats pour le bloc bleu canard
+        # 1. Calcul des chiffres
         total_com = len(df_gsheets)
         pre_count = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
         post_count = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
         prog_val = (pre_count / total_com * 100) if total_com > 0 else 0
 
+        # 2. Préparation des badges de services
         services_info = {
             "Cantine Jour": {"color": "#fb923c", "icon": "fa-utensils"},
             "Cantine Semaine": {"color": "#f59e0b", "icon": "fa-calendar-day"},
@@ -237,58 +238,45 @@ with tab2:
             "Activités": {"color": "#4ade80", "icon": "fa-volleyball"}
         }
 
-        badges_html = ""
+        badges_list = []
         for s, info in services_info.items():
             count = df_gsheets['Services'].str.contains(s, na=False).sum()
-            badges_html += f"""
-                <div style="background: {info['color']}; padding: 6px 12px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; color: white; font-weight: 500; font-size: 13px;">
+            # On crée chaque badge individuellement
+            badge = f"""
+                <div style="background: {info['color']}; padding: 6px 12px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; color: white; font-weight: bold; font-size: 13px;">
                     <span><i class="fa-solid {info['icon']}"></i> &nbsp; {s}</span>
-                    <span style="background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 5px; font-weight: bold;">{count}</span>
+                    <span style="background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 5px;">{count}</span>
                 </div>
             """
+            badges_list.append(badge)
+        
+        # On joint tous les badges en une seule chaîne
+        all_services_html = "".join(badges_list)
 
-        st.markdown(f"""
+        # 3. Assemblage du bloc final
+        final_block = f"""
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-            <div style="background-color: #008080; padding: 20px; border-radius: 15px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="background-color: #008080; padding: 20px; border-radius: 15px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-family: sans-serif;">
                 <div style="text-align: center; margin-bottom: 20px;">
                     <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;">Total Communes Actives</div>
                     <div style="font-size: 48px; font-weight: bold; line-height: 1;">{total_com}</div>
                 </div>
+                
                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; font-weight: bold;">
                     <span style="color: #fb923c;">PRÉ: {pre_count}</span>
                     <span style="color: #38bdf8;">POST: {post_count}</span>
                 </div>
+                
                 <div style="width: 100%; background-color: rgba(255,255,255,0.2); height: 8px; border-radius: 10px; margin-bottom: 25px; overflow: hidden; display: flex;">
                     <div style="width: {prog_val}%; background-color: #fb923c; height: 100%;"></div>
                     <div style="width: {100 - prog_val}%; background-color: #38bdf8; height: 100%;"></div>
                 </div>
+
                 <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">Répartition par Service</div>
-                {badges_html}
+                
+                {all_services_html}
             </div>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-    st.subheader("🔍 Filtres & Impression")
-    if 'reset_counter' not in st.session_state: st.session_state.reset_counter = 0
-    f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
-    with f_col1: f_prov = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"f_prov_{st.session_state.reset_counter}")
-    with f_col2: f_pay = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"f_pay_{st.session_state.reset_counter}")
-    with f_col3: f_serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"f_serv_{st.session_state.reset_counter}")
-    with f_col4:
-        st.write("")
-        if st.button("❌ Effacer filtres", use_container_width=True): st.session_state.reset_counter += 1; st.rerun()
-
-    df_display = df_gsheets.copy()
-    f_list = []
-    if f_prov: df_display = df_display[df_display['Province'].isin(f_prov)]; f_list.append(f"Provinces: {', '.join(f_prov)}")
-    if f_pay: df_display = df_display[df_display['Paiement'].isin(f_pay)]; f_list.append(f"Paiement: {', '.join(f_pay)}")
-    if f_serv:
-        for s in f_serv: df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
-        f_list.append(f"Services: {', '.join(f_serv)}")
-    
-    if not df_display.empty:
-        df_display = df_display.sort_values(by=['Province', 'Commune'])
-        html_report = get_print_html(df_display, " | ".join(f_list) if f_list else "Tous les utilisateurs")
-        st.download_button("🖨️ GÉNÉRER LE RAPPORT D'IMPRESSION COLORÉ", data=html_report, file_name="rapport_creos.html", mime="text/html", use_container_width=True)
-
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
+        """
+        
+        # Un seul appel markdown à la fin
+        st.markdown(final_block, unsafe_allow_html=True)
