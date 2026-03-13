@@ -3,7 +3,6 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import json
 import streamlit.components.v1 as components
-import base64
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Manager")
@@ -23,43 +22,50 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. FONCTION IMPRESSION ---
+# --- 4. FONCTION RAPPORT HTML ---
 def get_print_html(df, filters_desc):
     html = f"""
     <html>
     <head>
+        <meta charset="UTF-8">
         <style>
-            body {{ font-family: Arial, sans-serif; color: #333; }}
-            h1 {{ color: #4169E1; border-bottom: 2px solid #4169E1; }}
-            .filter-info {{ background: #f0f2f6; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 0.9em; }}
-            .province-title {{ background: #1e293b; color: white; padding: 8px; margin-top: 20px; border-radius: 3px; }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; }}
+            .header {{ border-bottom: 3px solid #4169E1; margin-bottom: 20px; }}
+            h1 {{ color: #4169E1; margin-bottom: 5px; }}
+            .filters {{ background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0; }}
+            .province-block {{ margin-top: 30px; page-break-inside: avoid; }}
+            .province-title {{ background: #1e293b; color: white; padding: 10px 15px; border-radius: 5px; font-size: 1.2em; }}
             table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-            th {{ background-color: #f8fafc; }}
+            th {{ background-color: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 0.8em; letter-spacing: 1px; }}
+            th, td {{ border: 1px solid #e2e8f0; padding: 12px; text-align: left; }}
+            tr:nth-child(even) {{ background-color: #fcfcfc; }}
             @media print {{ .no-print {{ display: none; }} }}
         </style>
     </head>
     <body onload="window.print()">
-        <h1>Rapport Creos - Liste des Communes</h1>
-        <div class="filter-info"><strong>Filtres appliqués :</strong> {filters_desc}</div>
+        <div class="header">
+            <h1>Rapport Creos - Communes FWB</h1>
+            <p>Généré le {pd.Timestamp.now().strftime('%d/%m/%Y à %H:%M')}</p>
+        </div>
+        <div class="filters">
+            <strong>Filtres appliqués :</strong><br>{filters_desc}
+        </div>
     """
-    
-    provinces = df['Province'].unique()
-    for p in sorted(provinces):
-        html += f"<h3 class='province-title'>{p}</h3>"
-        html += "<table><tr><th>Commune</th><th>Paiement</th><th>Services</th></tr>"
+    provinces = sorted(df['Province'].unique())
+    for p in provinces:
+        html += f"<div class='province-block'><div class='province-title'>{p}</div>"
+        html += "<table><thead><tr><th style='width:35%'>Commune</th><th style='width:25%'>Paiement</th><th>Services</th></tr></thead><tbody>"
         sub_df = df[df['Province'] == p].sort_values('Commune')
         for _, row in sub_df.iterrows():
-            html += f"<tr><td>{row['Commune']}</td><td>{row['Paiement']}</td><td>{row['Services']}</td></tr>"
-        html += "</table>"
-    
+            html += f"<tr><td><strong>{row['Commune']}</strong></td><td>{row['Paiement']}</td><td>{row['Services']}</td></tr>"
+        html += "</tbody></table></div>"
     html += "</body></html>"
     return html
 
-# --- 5. NAVIGATION ---
+# --- 5. TABS ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 (Vue Carte/Liste) ---
+# --- TAB 1 : DASHBOARD ---
 with tab1:
     json_records = df_gsheets.to_json(orient='records')
     html_code = f"""
@@ -137,11 +143,11 @@ with tab1:
     """
     components.html(html_code, height=750)
 
-# --- TAB 2 (Gestion & Impression) ---
+# --- TAB 2 : GESTION ---
 with tab2:
     st.header("✏️ Gestion & Filtres")
     
-    # --- FORMULAIRE ---
+    # Formulaire de saisie
     prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
     with st.form("edit_form"):
         col1, col2 = st.columns(2)
@@ -151,20 +157,19 @@ with tab2:
             serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
         
         c_save, c_del = st.columns(2)
-        if c_save.form_submit_button("💾 ENREGISTRER", use_container_width=True):
+        if c_save.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
             new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
             df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
             conn.update(data=df_final); st.rerun()
-        if c_del.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
+        if c_del.form_submit_button("🗑️ SUPPRIMER CETTE COMMUNE", use_container_width=True):
             df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
             conn.update(data=df_final); st.rerun()
 
     st.divider()
 
-    # --- FILTRES ---
+    # Filtres interactifs
     if 'reset_counter' not in st.session_state: st.session_state.reset_counter = 0
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
-    
     with f_col1: f_prov = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"f_prov_{st.session_state.reset_counter}")
     with f_col2: f_pay = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"f_pay_{st.session_state.reset_counter}")
     with f_col3: f_serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"f_serv_{st.session_state.reset_counter}")
@@ -173,7 +178,7 @@ with tab2:
         if st.button("❌ Effacer filtres", use_container_width=True):
             st.session_state.reset_counter += 1; st.rerun()
 
-    # --- LOGIQUE FILTRE ---
+    # Application des filtres
     df_display = df_gsheets.copy()
     f_list = []
     if f_prov: df_display = df_display[df_display['Province'].isin(f_prov)]; f_list.append(f"Provinces: {', '.join(f_prov)}")
@@ -182,27 +187,18 @@ with tab2:
         for s in f_serv: df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
         f_list.append(f"Services: {', '.join(f_serv)}")
     
-    filters_desc = " | ".join(f_list) if f_list else "Aucun filtre (Liste complète)"
+    filters_text = " | ".join(f_list) if f_list else "Liste complète (aucun filtre)"
 
-# Remplacer la section "--- BOUTON IMPRIMER ---" par celle-ci :
-
-    # --- BOUTON IMPRIMER (Version Fiable) ---
+    # Bouton Impression
     if not df_display.empty:
         df_display = df_display.sort_values(by=['Province', 'Commune'])
-        print_html = get_print_html(df_display, filters_desc)
-        
-        st.write("")
-        # Utilisation d'un bouton de téléchargement (Download Button)
-        # C'est la méthode la plus stable sur tous les navigateurs
+        html_report = get_print_html(df_display, filters_text)
         st.download_button(
             label="🖨️ PRÉPARER LE RAPPORT D'IMPRESSION",
-            data=print_html,
-            file_name="rapport_creos.html",
+            data=html_report,
+            file_name="rapport_creos_communes.html",
             mime="text/html",
-            use_container_width=True,
-            help="Cliquez pour télécharger le fichier, puis ouvrez-le pour imprimer."
+            use_container_width=True
         )
-        st.info("💡 Une fois le fichier 'rapport_creos.html' téléchargé, ouvrez-le : il s'imprimera automatiquement.")
-    
-    st.write("")
+
     st.dataframe(df_display, use_container_width=True, hide_index=True)
