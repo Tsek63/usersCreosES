@@ -531,3 +531,19 @@ with tab2:
                                   "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
                 fig_s.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
                 st.plotly_chart(fig_s, use_container_width=True, config={'displayModeBar': False})
+
+st.markdown("""
+    <div style="
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        background-color: #1e293b;
+        color: rgba(255,255,255,0.45);
+        text-align: center;
+        font-size: 11px;
+        padding: 5px 0;
+        letter-spacing: 1px;
+        z-index: 9999;
+    ">
+        © AJH 2026 — Creos Extrascolaire
+    </div>
+""", unsafe_allow_html=True)
