@@ -1,107 +1,91 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import json
-import streamlit.components.v1 as components
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
-COLORS = {
-    "Cantine Jour": "#fb923c",
-    "Cantine Semaine": "#f59e0b",
-    "Cantine Mois": "#d97706",
-    "Garderie": "#38bdf8",
-    "Activités": "#4ade80",
-    "Prépaiement": "#fb923c",
-    "Post-paiement": "#38bdf8",
-    "Bleu-Creos": "#4169E1",
-    "Bleu-Canard": "#008080"
-}
+# Couleurs
+color_creos = "#4169E1"
+color_canard = "#008080"
 
 st.markdown(f"""
     <style>
         #MainMenu, footer, header {{visibility: hidden;}}
         .main-header {{
-            background-color: {COLORS['Bleu-Creos']};
-            padding: 15px 25px;
+            background-color: {color_creos};
+            padding: 15px;
             border-radius: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
             color: white;
+            margin-bottom: 20px;
         }}
-        .header-title {{ font-size: 24px; font-weight: bold; margin: 0; }}
         .stats-duck-blue {{
-            background-color: {COLORS['Bleu-Canard']};
+            background-color: {color_canard};
             color: white;
             border-radius: 10px;
             padding: 20px;
         }}
         .stat-badge {{
             display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 3px;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
             margin-right: 8px;
-            border: 1px solid rgba(255,255,255,0.3);
         }}
     </style>
     <div class="main-header">
-        <div class="header-title">Utilisateurs de Creos Extrascolaire</div>
+        <h2 style="margin:0;">Utilisateurs de Creos Extrascolaire</h2>
     </div>
 """, unsafe_allow_html=True)
 
-# --- 2. CONNEXION ---
+# --- 2. DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
-df_gsheets = conn.read(ttl=0).dropna(how="all")
+df = conn.read(ttl=0).dropna(how="all")
 
 # --- 3. ONGLETS ---
 tab1, tab2 = st.tabs(["📊 Tableau de bord", "✏️ Gestion des Communes"])
 
-# (Partie Dashboard omise ici pour rester focalisé sur votre demande de stats)
-
 with tab2:
-    # --- CALCULS DYNAMIQUES (Les chiffres se mettent à jour ici) ---
-    total_com = len(df_gsheets)
-    pre_count = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
-    post_count = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
+    # --- CALCULS DYNAMIQUES ---
+    total = len(df)
+    pre = len(df[df['Paiement'] == 'Prépaiement'])
+    post = len(df[df['Paiement'] == 'Post-paiement'])
     
-    # Comptage automatique des services
-    c_jour = df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()
-    c_sem = df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()
-    c_mois = df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum()
-    garderie = df_gsheets['Services'].str.contains("Garderie", na=False).sum()
-    activites = df_gsheets['Services'].str.contains("Activités", na=False).sum()
+    # On compte les services dans la colonne 'Services'
+    s_c_jour = df['Services'].str.contains("Cantine Jour", na=False).sum()
+    s_c_sem = df['Services'].str.contains("Cantine Semaine", na=False).sum()
+    s_c_mois = df['Services'].str.contains("Cantine Mois", na=False).sum()
+    s_gard = df['Services'].str.contains("Garderie", na=False).sum()
+    s_act = df['Services'].str.contains("Activités", na=False).sum()
 
     col_form, col_stats = st.columns([1.5, 1])
 
     with col_form:
         st.subheader("✏️ Gestion des données")
-        # ... (Votre formulaire habituel ici) ...
-        st.info("Utilisez le formulaire pour ajouter ou modifier une commune.")
+        st.write("Le formulaire de modification s'affiche ici.")
+        # (Votre code de formulaire habituel peut être placé ici)
 
     with col_stats:
-        # Affichage du bloc avec les variables dynamiques {total_com}, {pre_count}, etc.
+        # L'utilisation de f-string avec st.markdown(..., unsafe_allow_html=True) 
+        # est cruciale pour que le code HTML soit "dessiné" et non "écrit".
         st.markdown(f"""
             <div class="stats-duck-blue">
-                <div style="font-size: 0.85em; opacity: 0.9; text-transform: uppercase; letter-spacing:1px; margin-bottom: 5px;">Total des communes actives</div>
-                <div style="font-size: 3.5em; font-weight: bold; margin-bottom: 20px;">{total_com}</div>
+                <div style="font-size: 0.9em; opacity: 0.8; text-transform: uppercase;">Total des communes actives</div>
+                <div style="font-size: 3em; font-weight: bold; margin-bottom: 15px;">{total}</div>
                 
-                <div style="display: flex; gap: 20px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px;">
+                <div style="display: flex; gap: 20px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px;">
                     <div style="flex: 1;">
-                        <div style="font-size: 0.75em; font-weight: bold; margin-bottom: 12px; opacity: 0.8;">PAIEMENT</div>
-                        <div style="font-size: 0.95em; margin-bottom: 8px;"><span class="stat-badge" style="background:#fb923c"></span>Pré : <b>{pre_count}</b></div>
-                        <div style="font-size: 0.95em;"><span class="stat-badge" style="background:#38bdf8"></span>Post : <b>{post_count}</b></div>
+                        <div style="font-size: 0.8em; font-weight: bold; margin-bottom: 10px;">PAIEMENT</div>
+                        <div style="margin-bottom: 5px;"><span class="stat-badge" style="background:#fb923c"></span>Pré : <b>{pre}</b></div>
+                        <div><span class="stat-badge" style="background:#38bdf8"></span>Post : <b>{post}</b></div>
                     </div>
                     <div style="flex: 1.2;">
-                        <div style="font-size: 0.75em; font-weight: bold; margin-bottom: 12px; opacity: 0.8;">SERVICES</div>
-                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#fb923c"></span>Cantine Jour : <b>{c_jour}</b></div>
-                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#f59e0b"></span>Cantine Semaine : <b>{c_sem}</b></div>
-                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#d97706"></span>Cantine Mois : <b>{c_mois}</b></div>
-                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#38bdf8"></span>Garderie : <b>{garderie}</b></div>
-                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#4ade80"></span>Activités : <b>{activites}</b></div>
+                        <div style="font-size: 0.8em; font-weight: bold; margin-bottom: 10px;">SERVICES</div>
+                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#fb923c"></span>Cantine Jour : <b>{s_c_jour}</b></div>
+                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#f59e0b"></span>Cantine Semaine : <b>{s_c_sem}</b></div>
+                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#d97706"></span>Cantine Mois : <b>{s_c_mois}</b></div>
+                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#38bdf8"></span>Garderie : <b>{s_gard}</b></div>
+                        <div style="font-size: 0.9em; margin-bottom: 4px;"><span class="stat-badge" style="background:#4ade80"></span>Activités : <b>{s_act}</b></div>
                     </div>
                 </div>
             </div>
