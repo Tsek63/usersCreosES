@@ -29,6 +29,26 @@ st.markdown("""
             background-color: white; color: #4169E1; padding: 8px 18px;
             border-radius: 5px; text-decoration: none; font-weight: bold;
         }
+        /* Style pour la zone de filtres */
+        .filter-box {
+            background-color: #fff0f6;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #fcc2d7;
+            margin-bottom: 20px;
+        }
+        /* Aligner le bouton Reset verticalement avec les selects */
+        div.stButton > button:first-child {
+            margin-top: 28px;
+            background-color: white;
+            color: #e03131;
+            border: 1px solid #e03131;
+        }
+        div.stButton > button:hover {
+            background-color: #fff5f5;
+            color: #c92a2a;
+            border: 1px solid #c92a2a;
+        }
     </style>
     <div class="main-header">
         <div class="header-title">Utilisateurs de Creos Extrascolaire</div>
@@ -168,7 +188,6 @@ with tab2:
                     conn.update(data=df_u); st.rerun()
 
     with c_stat:
-        # BLOC BLEU CANARD : Textes agrandis
         st.markdown(f"""
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
@@ -206,17 +225,22 @@ with tab2:
 
     st.divider()
 
-    # 2. ZONE FILTRES
-    st.subheader("🔍 Filtres & Liste filtrée")
+    # --- ZONE FILTRES STYLISÉE ---
+    st.markdown('<div class="filter-box">', unsafe_allow_html=True)
+    st.subheader("🔍 Filtres de recherche")
+    
     if 'rc' not in st.session_state: st.session_state.rc = 0
-    f1, f2, f3, f4 = st.columns([2, 1, 2, 1])
-    with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
-    with f2: fl_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
-    with f3: fl_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
+    f1, f2, f3, f4 = st.columns([2, 1, 2, 0.8])
+    with f1: fl_p = st.multiselect("Par Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
+    with f2: fl_m = st.multiselect("Par Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
+    with f3: fl_s = st.multiselect("Par Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
     with f4: 
-        if st.button("❌ Reset", use_container_width=True): st.session_state.rc += 1; st.rerun()
+        if st.button("❌ RESET", use_container_width=True): 
+            st.session_state.rc += 1
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. ZONE DU BAS : LISTE À GAUCHE | GRAPHES À DROITE
+    # --- LISTE ET GRAPHES ---
     df_r = df_gsheets.copy()
     if not df_r.empty:
         if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
