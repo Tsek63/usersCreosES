@@ -53,9 +53,8 @@ df_gsheets = conn.read(ttl=0).dropna(how="all")
 # --- 4. TABS ---
 tab1, tab2 = st.tabs(["📊 Tableau de bord et Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 (Inchangé pour la partie carte) ---
+# --- TAB 1 (Inchangé) ---
 with tab1:
-    # On garde votre logique de carte ici (pour gagner de la place j'abrège la répétition)
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
@@ -86,7 +85,7 @@ with tab1:
             .col-half {{ flex: 1; }}
             .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 12px; }}
             .v-val {{ font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
-            .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }}
+            .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
             .badge-container {{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }}
             .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; }}
         </style></head><body onload="init()">
@@ -140,81 +139,44 @@ with tab1:
     </script></body></html>"""
     components.html(html_map, height=750)
 
-# --- TAB 2 : GESTION AVEC GRAPHIQUES ---
+# --- TAB 2 : GESTION ---
 with tab2:
-    st.header("✏️ Gestion & Analyses")
+    st.header("✏️ Gestion des Communes")
     
-    # On crée deux colonnes principales : Gauche (Formulaire) et Droite (Graphiques)
-    col_form, col_charts = st.columns([1, 1], gap="large")
-    
-    with col_form:
-        st.subheader("📝 Modifier une commune")
-        p_sel = st.selectbox("1. Choisir la Province", list(data_fwb.keys()), key="m_p_tab2")
-        
-        with st.form("edit_form_tab2"):
-            com_sel = st.selectbox("2. Choisir la Commune", data_fwb[p_sel])
-            pay_v = st.radio("3. Mode de Paiement", ["Prépaiement", "Post-paiement"], horizontal=True)
-            serv_v = st.multiselect("4. Services Actifs", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
-            
-            st.write("---")
+    # 1. ZONE DU HAUT : FORMULAIRE ET TOTAL (Inchangé)
+    c_form, c_stat = st.columns([6, 4])
+    with c_form:
+        p_sel = st.selectbox("1. Province", list(data_fwb.keys()), key="m_p")
+        with st.form("edit_form"):
+            f1, f2 = st.columns(2)
+            with f1: com_sel = st.selectbox("2. Commune", data_fwb[p_sel])
+            with f2:
+                pay_v = st.radio("3. Mode", ["Prépaiement", "Post-paiement"], horizontal=True)
+                serv_v = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
             sc1, sc2 = st.columns(2)
             with sc1:
-                if st.form_submit_button("💾 ENREGISTRER", use_container_width=True):
+                if st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
                     new_r = pd.DataFrame([{"Commune": com_sel, "Province": p_sel, "Paiement": pay_v, "Services": "|".join(serv_v)}])
                     df_u = pd.concat([df_gsheets[df_gsheets['Commune'] != com_sel], new_r], ignore_index=True)
-                    conn.update(data=df_u)
-                    st.success(f"{com_sel} mis à jour !")
-                    st.rerun()
+                    conn.update(data=df_u); st.rerun()
             with sc2:
                 if st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
                     df_u = df_gsheets[df_gsheets['Commune'] != com_sel]
-                    conn.update(data=df_u)
-                    st.warning(f"{com_sel} supprimé.")
-                    st.rerun()
+                    conn.update(data=df_u); st.rerun()
 
-    with col_charts:
-        st.subheader("📊 Aperçu Global")
-        if not df_gsheets.empty:
-            # Graphique 1 : Camembert (Paiements)
-            pay_counts = df_gsheets['Paiement'].value_counts().reset_index()
-            fig_pay = px.pie(pay_counts, values='count', names='Paiement', 
-                             hole=0.5,
-                             color='Paiement',
-                             color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
-            
-            fig_pay.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0), 
-                height=220,
-                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-            )
-            st.plotly_chart(fig_pay, use_container_width=True, config={'displayModeBar': False})
-
-            # Graphique 2 : Barres (Services)
-            services_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-            counts = [df_gsheets['Services'].str.contains(s, na=False).sum() for s in services_list]
-            df_serv = pd.DataFrame({'Service': services_list, 'Nombre': counts})
-            
-            fig_serv = px.bar(df_serv, x='Nombre', y='Service', orientation='h',
-                              color='Service',
-                              color_discrete_map={
-                                  "Cantine Jour": "#ec4899", "Cantine Semaine": "#db2777",
-                                  "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"
-                              })
-            
-            fig_serv.update_layout(
-                showlegend=False, 
-                margin=dict(l=0, r=10, t=30, b=0), 
-                height=220,
-                xaxis_title=None, yaxis_title=None
-            )
-            st.plotly_chart(fig_serv, use_container_width=True, config={'displayModeBar': False})
-        else:
-            st.info("Ajoutez des données pour voir les statistiques.")
+    with c_stat:
+        nt = len(df_gsheets)
+        st.markdown(f"""
+            <div style="background-color:#008080;padding:40px;border-radius:15px;color:white;text-align:center;">
+                <div style="font-size:14px;text-transform:uppercase;opacity:0.8;">Total des communes actives</div>
+                <div style="font-size:64px;font-weight:bold;">{nt}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
-    # Le reste (Filtres et Tableau de données) s'affiche en dessous sur toute la largeur
-    # --- FILTRES ET LISTE (Inchangé) ---
-    st.subheader("🔍 Filtres & Liste")
+
+    # 2. ZONE FILTRES (Toute la largeur)
+    st.subheader("🔍 Filtres de recherche")
     if 'rc' not in st.session_state: st.session_state.rc = 0
     f1, f2, f3, f4 = st.columns([2, 1, 2, 1])
     with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
@@ -223,11 +185,44 @@ with tab2:
     with f4: 
         if st.button("❌ Reset", use_container_width=True): st.session_state.rc += 1; st.rerun()
 
+    # 3. ZONE DU BAS : LISTE À GAUCHE | GRAPHIQUES À DROITE
     df_r = df_gsheets.copy()
     if not df_r.empty:
+        # Application des filtres
         if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
         if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]
         if fl_s:
             for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
+        
         df_sorted = df_r.sort_values(['Province', 'Commune'])
-        st.dataframe(df_sorted, use_container_width=True, hide_index=True)
+
+        # Mise en page Colonne Liste | Colonne Graphiques
+        col_list, col_viz = st.columns([6, 4], gap="medium")
+
+        with col_list:
+            st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=500)
+        
+        with col_viz:
+            # Graphique 1 : Camembert
+            pay_counts = df_sorted['Paiement'].value_counts().reset_index()
+            fig_pay = px.pie(pay_counts, values='count', names='Paiement', 
+                             title="Paiements (sélection)",
+                             hole=0.4,
+                             color='Paiement',
+                             color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
+            fig_pay.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
+            st.plotly_chart(fig_pay, use_container_width=True, config={'displayModeBar': False})
+
+            # Graphique 2 : Barres
+            services_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+            counts = [df_sorted['Services'].str.contains(s, na=False).sum() for s in services_list]
+            df_serv = pd.DataFrame({'Service': services_list, 'Nombre': counts})
+            fig_serv = px.bar(df_serv, x='Nombre', y='Service', orientation='h',
+                              title="Services (sélection)",
+                              color='Service',
+                              color_discrete_map={
+                                  "Cantine Jour": "#ec4899", "Cantine Semaine": "#db2777",
+                                  "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"
+                              })
+            fig_serv.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
+            st.plotly_chart(fig_serv, use_container_width=True, config={'displayModeBar': False})
