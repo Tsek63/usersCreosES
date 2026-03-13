@@ -58,13 +58,16 @@ with tab1:
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
+    
+    # --- MODIFICATION COULEURS ICI ---
     s_dash = {
-        "Cantine Jour": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#ec4899"),
-        "Cantine Semaine": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#db2777"),
-        "Cantine Mois": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#be185d"),
+        "Cantine Jour": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#FFD700"),    # Jaune
+        "Cantine Semaine": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#FF8C00"), # Orange
+        "Cantine Mois": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#FF0000"),    # Rouge
         "Garderie": (df_gsheets['Services'].str.contains("Garderie", na=False).sum(), "#38bdf8"),
         "Activités": (df_gsheets['Services'].str.contains("Activités", na=False).sum(), "#4ade80")
     }
+    
     json_recs = df_gsheets.to_json(orient='records')
     
     html_map = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
@@ -109,7 +112,16 @@ with tab1:
     <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
         const dbData = {json_recs}; const mapRef = {json.dumps(data_fwb)}; let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
-        const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#ec4899" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#db2777" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#be185d" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
+        
+        // --- MODIFICATION COULEURS ICI ---
+        const icons = {{ 
+            "Cantine Jour": {{ i: "fa-utensils", c: "#FFD700" }}, 
+            "Cantine Semaine": {{ i: "fa-calendar-day", c: "#FF8C00" }}, 
+            "Cantine Mois": {{ i: "fa-calendar-days", c: "#FF0000" }}, 
+            "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, 
+            "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} 
+        }};
+
         function init() {{
             const svg = document.getElementById('svg'); const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
             Object.entries(mapRef).forEach(([pName, list]) => {{
@@ -168,7 +180,7 @@ with tab2:
                     conn.update(data=df_u); st.rerun()
 
     with c_stat:
-        # Bloc Bleu Canard : AUCUNE INDENTATION POUR ÉVITER LE MODE CODE
+        # Bloc Statistique : MODIFICATION COULEURS BORDURES ICI
         st.markdown(f"""
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">
@@ -185,13 +197,13 @@ with tab2:
 </div>
 </div>
 <div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #ec4899;">
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;">
 <i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b>
 </div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #db2777;">
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;">
 <i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b>
 </div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #be185d;">
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;">
 <i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum()}</b>
 </div>
 <div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;">
@@ -206,7 +218,7 @@ with tab2:
 
     st.divider()
 
-    # 2. ZONE FILTRES
+    # 3. ZONE FILTRES ET GRAPHIQUES
     st.subheader("🔍 Filtres & Liste filtrée")
     if 'rc' not in st.session_state: st.session_state.rc = 0
     f1, f2, f3, f4 = st.columns([2, 1, 2, 1])
@@ -216,7 +228,6 @@ with tab2:
     with f4: 
         if st.button("❌ Reset", use_container_width=True): st.session_state.rc += 1; st.rerun()
 
-    # 3. ZONE DU BAS : LISTE À GAUCHE | GRAPHES À DROITE
     df_r = df_gsheets.copy()
     if not df_r.empty:
         if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
@@ -236,18 +247,20 @@ with tab2:
         
         with col_viz:
             if not df_sorted.empty:
+                # Graphique Paiement
                 p_c = df_sorted['Paiement'].value_counts().reset_index()
                 fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement (Sélection)",
                                color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
                 fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
                 st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
 
+                # --- MODIFICATION COULEURS GRAPHIQUE BARRES ICI ---
                 sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
                 ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
                 df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
                 fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services (Sélection)",
                                color='Service', color_discrete_map={
-                                  "Cantine Jour": "#ec4899", "Cantine Semaine": "#db2777",
-                                  "Cantine Mois": "#be185d", "Garderie": "#38bdf8", "Activités": "#4ade80"})
+                                  "Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00",
+                                  "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
                 fig_s.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
                 st.plotly_chart(fig_s, use_container_width=True, config={'displayModeBar': False})
