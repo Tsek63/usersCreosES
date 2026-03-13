@@ -222,8 +222,8 @@ with tab2:
                     df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
                     conn.update(data=df_final); st.rerun()
 
-    with col_right:
-        # Calcul des stats pour le bloc bleu canard
+with col_right:
+        # Calcul des stats
         t_com = len(df_gsheets)
         t_pre = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
         t_post = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
@@ -237,17 +237,16 @@ with tab2:
             "Activités": {"color": "#4ade80", "icon": "fa-volleyball"}
         }
 
+        # --- CORRECTION ICI : Construction propre sans retours à la ligne parasites ---
         b_html = ""
         for s, info in s_info.items():
             count = df_gsheets['Services'].str.contains(s, na=False).sum()
-            b_html += f"""
-                <div style="background: {info['color']}; padding: 6px 12px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; color: white; font-weight: bold; font-size: 13px;">
-                    <span><i class="fa-solid {info['icon']}"></i> &nbsp; {s}</span>
-                    <span style="background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 5px;">{count}</span>
-                </div>
-            """
+            b_html += f'<div style="background:{info["color"]};padding:6px 12px;border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;color:white;font-weight:bold;font-size:13px;">'
+            b_html += f'<span><i class="fa-solid {info["icon"]}"></i> &nbsp; {s}</span>'
+            b_html += f'<span style="background:rgba(0,0,0,0.2);padding:2px 8px;border-radius:5px;">{count}</span></div>'
 
-        final_st_block = f"""
+        # On assemble le tout dans une seule string finale
+        final_ui = f"""
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
             <div style="background-color: #008080; padding: 20px; border-radius: 15px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-family: sans-serif;">
                 <div style="text-align: center; margin-bottom: 20px;">
@@ -266,7 +265,7 @@ with tab2:
                 {b_html}
             </div>
         """
-        st.markdown(final_st_block, unsafe_allow_html=True)
+        st.markdown(final_ui, unsafe_allow_html=True)
 
     # --- RESTE DU CODE (FILTRES ET TABLEAU) ---
     st.divider()
