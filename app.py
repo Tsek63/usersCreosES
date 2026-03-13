@@ -9,10 +9,13 @@ import plotly.express as px
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
+# CSS : Gestion de l'affichage Écran vs Impression
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
         #MainMenu, footer, header {visibility: hidden;}
+        
+        /* Style Header */
         .main-header {
             background-color: #4169E1;
             padding: 15px 25px;
@@ -29,8 +32,29 @@ st.markdown("""
             background-color: white; color: #4169E1; padding: 8px 18px;
             border-radius: 5px; text-decoration: none; font-weight: bold;
         }
+
+        /* Classes pour l'impression */
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; visibility: visible !important; }
+            .stApp { background-color: white !important; }
+            @page { margin: 1.5cm; }
+        }
+        
+        /* Cacher la zone d'impression sur l'écran */
+        .print-only { display: none; }
+        
+        /* Design du tableau d'impression */
+        .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .print-table th, .print-table td { border: 1px solid #000; padding: 6px; text-align: left; font-size: 11px; }
+        .print-table th { background-color: #f0f0f0; }
+        .province-title { 
+            background-color: #4169E1; color: white; padding: 5px 10px; 
+            margin-top: 15px; font-weight: bold; border-radius: 3px;
+        }
     </style>
-    <div class="main-header">
+    
+    <div class="main-header no-print">
         <div class="header-title">Utilisateurs de Creos Extrascolaire</div>
         <a href="https://timetracking-az7ibzngb3zrfbgmrgygn8.streamlit.app" target="_blank" class="tt-button">⏱️ Time Tracking</a>
     </div>
@@ -55,6 +79,7 @@ tab1, tab2 = st.tabs(["📊 Tableau de bord et Carte", "✏️ Gestion des Commu
 
 # --- TAB 1 : DASHBOARD & CARTE ---
 with tab1:
+    st.markdown('<div class="no-print">', unsafe_allow_html=True)
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
@@ -138,9 +163,11 @@ with tab1:
         function doSearch() {{ const v = document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }}); }}
     </script></body></html>"""
     components.html(html_map, height=750)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- TAB 2 : GESTION ---
 with tab2:
+    st.markdown('<div class="no-print">', unsafe_allow_html=True)
     st.header("✏️ Gestion des Communes")
     nt = len(df_gsheets)
     p_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
@@ -201,15 +228,22 @@ with tab2:
 </div>
 </div>
 """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
 
-# --- 3. ZONE DU BAS : FILTRES & EXPORT ---
+# --- 5. ZONE FILTRES, EXPORT & IMPRESSION ---
     if 'rc' not in st.session_state: st.session_state.rc = 0
     
-    col_titre, col_reset = st.columns([7, 3])
+    col_titre, col_print, col_reset = st.columns([5, 2, 3])
     with col_titre:
         st.subheader("🔍 Filtres & Liste filtrée")
+    
+    with col_print:
+        st.write("##")
+        if st.button("🖨️ IMPRESSION", use_container_width=True):
+            components.html("<script>window.print();</script>", height=0)
+
     with col_reset:
         st.write("##")
         if st.button("❌ Effacer les filtres", use_container_width=True):
@@ -221,7 +255,7 @@ with tab2:
     with f2: fl_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
     with f3: fl_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
 
-    # Logique de filtrage
+    # --- LOGIQUE DE FILTRAGE ---
     df_r = df_gsheets.copy()
     if not df_r.empty:
         if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
@@ -229,47 +263,26 @@ with tab2:
         if fl_s:
             for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
         
+        # TRI : Province (Alpha) puis Commune (Alpha)
         df_sorted = df_r.sort_values(['Province', 'Commune'])
 
-        # --- NOUVEAU : BOUTON EXPORT BLEU CANARD ---
+        # --- EXPORT EXCEL (Bouton Bleu Canard) ---
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
+            df_sorted.to_excel(writer, index=False, sheet_name='Export_Creos')
         
-        # Injection CSS pour le bouton bleu canard
-        st.markdown("""
-            <style>
-                div.stDownloadButton > button {
-                    background-color: #008080 !important;
-                    color: white !important;
-                    border: none !important;
-                    width: 100% !important;
-                }
-                div.stDownloadButton > button:hover {
-                    background-color: #006666 !important;
-                    color: white !important;
-                }
-            </style>
-        """, unsafe_allow_html=True)
+        st.markdown("""<style>div.stDownloadButton > button { background-color: #008080 !important; color: white !important; width: 100% !important; }</style>""", unsafe_allow_html=True)
+        st.download_button(label="📥 Exporter vers Excel", data=buffer.getvalue(), file_name="creos_export.xlsx", mime="application/vnd.ms-excel", use_container_width=True)
 
-        st.download_button(
-            label="📥 Exporter vers Excel", 
-            data=buffer.getvalue(), 
-            file_name="creos_export.xlsx", 
-            mime="application/vnd.ms-excel",
-            use_container_width=True
-        )
-        # ------------------------------------------
-
+        # --- AFFICHAGE ÉCRAN (Colonnes) ---
+        st.markdown('<div class="no-print">', unsafe_allow_html=True)
         col_list, col_viz = st.columns([6, 4], gap="medium")
-
         with col_list:
             st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=520)
-             
         with col_viz:
             if not df_sorted.empty:
                 p_c = df_sorted['Paiement'].value_counts().reset_index()
-                fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement (Sélection)",
+                fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement",
                                color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
                 fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
                 st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
@@ -277,9 +290,29 @@ with tab2:
                 sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
                 ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
                 df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
-                fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services (Sélection)",
-                               color='Service', color_discrete_map={
-                                  "Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00",
-                                  "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
+                fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services",
+                               color='Service', color_discrete_map={"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
                 fig_s.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
                 st.plotly_chart(fig_s, use_container_width=True, config={'displayModeBar': False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # --- GÉNÉRATION DU DOCUMENT D'IMPRESSION (HTML) ---
+        print_html = f"""
+        <div class="print-only">
+            <h1 style='text-align:center;'>Rapport des Communes - Creos Extrascolaire</h1>
+            <p style='text-align:center;'>Filtres : <b>{' / '.join(fl_p) if fl_p else 'Toutes les Provinces'}</b> | <b>{' / '.join(fl_m) if fl_m else 'Tous les Modes'}</b></p>
+        """
+        for prov in sorted(df_sorted['Province'].unique()):
+            print_html += f'<div class="province-title">{prov}</div>'
+            print_html += '<table class="print-table"><thead><tr><th>Commune</th><th>Paiement</th><th>Services actifs</th></tr></thead><tbody>'
+            prov_df = df_sorted[df_sorted['Province'] == prov]
+            for _, row in prov_df.iterrows():
+                # On remplace les barres verticales par des virgules pour la lecture
+                clean_services = row['Services'].replace('|', ', ')
+                print_html += f"<tr><td>{row['Commune']}</td><td>{row['Paiement']}</td><td>{clean_services}</td></tr>"
+            print_html += "</tbody></table>"
+        print_html += "</div>"
+        
+        st.markdown(print_html, unsafe_allow_html=True)
+
+# Fin du code
