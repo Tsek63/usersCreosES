@@ -52,7 +52,7 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. FONCTION RAPPORT HTML (Identique à la précédente) ---
+# --- 4. FONCTION RAPPORT HTML ---
 def get_print_html(df, filters_desc):
     icons_styles = {
         "Cantine Jour": "background:#fb923c; color:white;", "Cantine Semaine": "background:#f59e0b; color:white;",
@@ -93,13 +93,11 @@ def get_print_html(df, filters_desc):
 # --- 5. TABS ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD (40/60) ---
+# --- TAB 1 : DASHBOARD ---
 with tab1:
-    # Calcul des stats pour le JS
     total_com = len(df_gsheets)
     pre_count = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     post_count = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
-    
     services_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
     s_stats = {s: df_gsheets['Services'].str.contains(s, na=False).sum() for s in services_list}
     
@@ -121,14 +119,11 @@ with tab1:
             .active {{ stroke: #000 !important; stroke-width: 1.5px !important; }}
             #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }}
             #list {{ flex: 1; overflow-y: auto; }}
-            
-            /* Stats Panel */
             .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 10px; overflow-y: auto; }}
             .stats-title {{ font-size: 11px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }}
             .main-count {{ font-size: 32px; font-weight: bold; color: #38bdf8; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 5px; }}
             .sub-stat {{ display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; padding: 2px 0; }}
             .serv-stat {{ display: inline-block; font-size: 10px; padding: 3px 8px; border-radius: 4px; margin: 2px; background: #334155; }}
-            
             .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; align-items: center; }}
             .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 9px; font-weight: bold; margin-left: 2px; display: inline-flex; align-items: center; gap: 3px; }}
             .prov-label {{ background: #f8fafc; padding: 6px 10px; font-weight: bold; font-size: 11px; color: #64748b; text-transform: uppercase; }}
@@ -140,12 +135,10 @@ with tab1:
         <div class="stats-panel">
             <div class="stats-title">Total des communes actives</div>
             <div class="main-count">{total_com}</div>
-            
             <div style="margin-bottom: 15px;">
                 <div class="sub-stat"><span>Prépaiement</span> <b style="color:#fb923c">{pre_count}</b></div>
                 <div class="sub-stat"><span>Post-paiement</span> <b style="color:#38bdf8">{post_count}</b></div>
             </div>
-            
             <div class="stats-title" style="margin-top:10px">Par Service</div>
             <div style="margin-top:5px;">
                 <div class="serv-stat">Cantine Jour: {s_stats['Cantine Jour']}</div>
@@ -157,7 +150,6 @@ with tab1:
         </div>
     </div>
     <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
-    
     <script>
         const dbData = {json_records};
         const mapRef = {json.dumps(data_fwb)};
@@ -205,8 +197,8 @@ with tab1:
 # --- TAB 2 : GESTION ---
 with tab2:
     st.header("✏️ Gestion des données")
-
-    # Création de deux colonnes : 60% pour le formulaire, 40% pour les stats
+    
+    # Mise en page Colonne Formulaire (60) | Colonne Stats (40)
     col_form, col_stats = st.columns([6, 4])
 
     with col_form:
@@ -221,27 +213,22 @@ with tab2:
             
             btn_col1, btn_col2 = st.columns(2)
             with btn_col1:
-                submit = st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True)
+                if st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
+                    new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
+                    df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
+                    conn.update(data=df_final); st.rerun()
             with btn_col2:
-                delete = st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True)
-
-            if submit:
-                new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
-                df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
-                conn.update(data=df_final)
-                st.rerun()
-            
-            if delete:
-                df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
-                conn.update(data=df_final)
-                st.rerun()
+                if st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
+                    df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
+                    conn.update(data=df_final); st.rerun()
 
     with col_stats:
-        # Calcul des stats
+        # Calcul des stats pour le bloc bleu canard
         total_com = len(df_gsheets)
         pre_count = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
         post_count = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
-        
+        prog_val = (pre_count / total_com * 100) if total_com > 0 else 0
+
         services_info = {
             "Cantine Jour": {"color": "#fb923c", "icon": "fa-utensils"},
             "Cantine Semaine": {"color": "#f59e0b", "icon": "fa-calendar-day"},
@@ -250,52 +237,35 @@ with tab2:
             "Activités": {"color": "#4ade80", "icon": "fa-volleyball"}
         }
 
-        # Génération des badges HTML
         badges_html = ""
         for s, info in services_info.items():
             count = df_gsheets['Services'].str.contains(s, na=False).sum()
             badges_html += f"""
-                <div style="background: {info['color']}; padding: 5px 10px; border-radius: 6px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="background: {info['color']}; padding: 6px 12px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; color: white; font-weight: 500; font-size: 13px;">
                     <span><i class="fa-solid {info['icon']}"></i> &nbsp; {s}</span>
-                    <span style="font-weight: bold; background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px;">{count}</span>
+                    <span style="background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 5px; font-weight: bold;">{count}</span>
                 </div>
             """
 
         st.markdown(f"""
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-            <div style="background-color: #008080; padding: 20px; border-radius: 12px; color: white; min-height: 380px;">
-                <div style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px; margin-bottom: 15px;">
-                    <div style="font-size: 12px; text-transform: uppercase; opacity: 0.8;">Total Communes</div>
-                    <div style="font-size: 42px; font-weight: bold;">{total_com}</div>
+            <div style="background-color: #008080; padding: 20px; border-radius: 15px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;">Total Communes Actives</div>
+                    <div style="font-size: 48px; font-weight: bold; line-height: 1;">{total_com}</div>
                 </div>
-                <div style="display: flex; justify-content: space-around; margin-bottom: 20px; text-align: center; font-size: 13px;">
-                    <div><div style="color: #fb923c; font-weight: bold; font-size: 18px;">{pre_count}</div>Prépaiement</div>
-                    <div style="width: 1px; background: rgba(255,255,255,0.2);"></div>
-                    <div><div style="color: #38bdf8; font-weight: bold; font-size: 18px;">{post_count}</div>Post-paiement</div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; font-weight: bold;">
+                    <span style="color: #fb923c;">PRÉ: {pre_count}</span>
+                    <span style="color: #38bdf8;">POST: {post_count}</span>
                 </div>
-                <div style="font-size: 12px; text-transform: uppercase; opacity: 0.8; margin-bottom: 10px;">Répartition Services</div>
+                <div style="width: 100%; background-color: rgba(255,255,255,0.2); height: 8px; border-radius: 10px; margin-bottom: 25px; overflow: hidden; display: flex;">
+                    <div style="width: {prog_val}%; background-color: #fb923c; height: 100%;"></div>
+                    <div style="width: {100 - prog_val}%; background-color: #38bdf8; height: 100%;"></div>
+                </div>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">Répartition par Service</div>
                 {badges_html}
             </div>
         """, unsafe_allow_html=True)
-
-    st.divider()
-    # ... (Le reste de ton code pour les filtres et le dataframe d'affichage)
-
-    
-    prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
-    with st.form("edit_form"):
-        col1, col2 = st.columns(2)
-        with col1: comm_selected = st.selectbox("2. Commune", data_fwb[prov_selected])
-        with col2:
-            pay_val = st.radio("3. Mode de paiement", ["Prépaiement", "Post-paiement"], horizontal=True)
-            serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
-        if st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
-            new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
-            df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
-            conn.update(data=df_final); st.rerun()
-        if st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
-            df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
-            conn.update(data=df_final); st.rerun()
 
     st.divider()
     st.subheader("🔍 Filtres & Impression")
