@@ -3,6 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import json
 import streamlit.components.v1 as components
+import base64
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Manager")
@@ -22,10 +23,43 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. NAVIGATION ---
+# --- 4. FONCTION IMPRESSION ---
+def get_print_html(df, filters_desc):
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; color: #333; }}
+            h1 {{ color: #4169E1; border-bottom: 2px solid #4169E1; }}
+            .filter-info {{ background: #f0f2f6; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 0.9em; }}
+            .province-title {{ background: #1e293b; color: white; padding: 8px; margin-top: 20px; border-radius: 3px; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #f8fafc; }}
+            @media print {{ .no-print {{ display: none; }} }}
+        </style>
+    </head>
+    <body onload="window.print()">
+        <h1>Rapport Creos - Liste des Communes</h1>
+        <div class="filter-info"><strong>Filtres appliqués :</strong> {filters_desc}</div>
+    """
+    
+    provinces = df['Province'].unique()
+    for p in sorted(provinces):
+        html += f"<h3 class='province-title'>{p}</h3>"
+        html += "<table><tr><th>Commune</th><th>Paiement</th><th>Services</th></tr>"
+        sub_df = df[df['Province'] == p].sort_values('Commune')
+        for _, row in sub_df.iterrows():
+            html += f"<tr><td>{row['Commune']}</td><td>{row['Paiement']}</td><td>{row['Services']}</td></tr>"
+        html += "</table>"
+    
+    html += "</body></html>"
+    return html
+
+# --- 5. NAVIGATION ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD (40/60) ---
+# --- TAB 1 (Vue Carte/Liste) ---
 with tab1:
     json_records = df_gsheets.to_json(orient='records')
     html_code = f"""
@@ -50,7 +84,7 @@ with tab1:
             .prov-label {{ background: #f8fafc; padding: 6px 10px; font-weight: bold; font-size: 11px; color: #64748b; text-transform: uppercase; }}
         </style>
     </head>
-    <body>
+    <body onload="init()">
     <div id="left"><div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
         <div style="background:var(--dark); color:white; padding:15px; border-radius:10px; text-align:center;">
             <div id="total" style="font-size:28px; font-weight:bold; color:#38bdf8;">0</div>
@@ -97,83 +131,66 @@ with tab1:
             document.getElementById('total').innerText = count;
         }}
         function doSearch() {{ const v = document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }}); }}
-        init();
     </script>
     </body>
     </html>
     """
     components.html(html_code, height=750)
 
-# --- TAB 2 : GESTION ---
+# --- TAB 2 (Gestion & Impression) ---
 with tab2:
     st.header("✏️ Gestion & Filtres")
     
-    # --- FORMULAIRE D'EDITION ---
+    # --- FORMULAIRE ---
     prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
-    
     with st.form("edit_form"):
         col1, col2 = st.columns(2)
-        with col1:
-            comm_selected = st.selectbox("2. Commune", data_fwb[prov_selected])
+        with col1: comm_selected = st.selectbox("2. Commune", data_fwb[prov_selected])
         with col2:
             pay_val = st.radio("3. Mode de paiement", ["Prépaiement", "Post-paiement"], horizontal=True)
             serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
         
-        c_save, c_del = st.columns([1, 1])
-        with c_save:
-            btn_save = st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True)
-        with c_del:
-            btn_del = st.form_submit_button("🗑️ SUPPRIMER CETTE COMMUNE", use_container_width=True)
-
-        if btn_save:
+        c_save, c_del = st.columns(2)
+        if c_save.form_submit_button("💾 ENREGISTRER", use_container_width=True):
             new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
             df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
-            conn.update(data=df_final)
-            st.success("Enregistré avec succès !")
-            st.rerun()
-            
-        if btn_del:
+            conn.update(data=df_final); st.rerun()
+        if c_del.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
             df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
-            conn.update(data=df_final)
-            st.warning(f"{comm_selected} supprimé.")
-            st.rerun()
+            conn.update(data=df_final); st.rerun()
 
     st.divider()
 
-    # --- SECTION FILTRES ---
-    st.subheader("🔍 Filtres du tableau")
-    
-    # Initialisation d'un compteur de réinitialisation dans le session_state
-    if 'reset_counter' not in st.session_state:
-        st.session_state.reset_counter = 0
-
+    # --- FILTRES ---
+    if 'reset_counter' not in st.session_state: st.session_state.reset_counter = 0
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
     
-    with f_col1:
-        # On ajoute le suffixe du compteur à la clé pour forcer le widget à se recréer au reset
-        f_prov = st.multiselect("Filtrer par Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"f_prov_{st.session_state.reset_counter}")
-    with f_col2:
-        f_pay = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"f_pay_{st.session_state.reset_counter}")
-    with f_col3:
-        f_serv = st.multiselect("Contient le service", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"f_serv_{st.session_state.reset_counter}")
+    with f_col1: f_prov = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"f_prov_{st.session_state.reset_counter}")
+    with f_col2: f_pay = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"f_pay_{st.session_state.reset_counter}")
+    with f_col3: f_serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"f_serv_{st.session_state.reset_counter}")
     with f_col4:
-        st.write(" ")
-        if st.button("❌ Effacer les filtres"):
-            st.session_state.reset_counter += 1
-            st.rerun()
+        st.write("")
+        if st.button("❌ Effacer filtres", use_container_width=True):
+            st.session_state.reset_counter += 1; st.rerun()
 
-    # --- LOGIQUE DE FILTRE ET TRI ---
+    # --- LOGIQUE FILTRE ---
     df_display = df_gsheets.copy()
-    
-    if f_prov:
-        df_display = df_display[df_display['Province'].isin(f_prov)]
-    if f_pay:
-        df_display = df_display[df_display['Paiement'].isin(f_pay)]
+    f_list = []
+    if f_prov: df_display = df_display[df_display['Province'].isin(f_prov)]; f_list.append(f"Provinces: {', '.join(f_prov)}")
+    if f_pay: df_display = df_display[df_display['Paiement'].isin(f_pay)]; f_list.append(f"Paiement: {', '.join(f_pay)}")
     if f_serv:
-        for s in f_serv:
-            df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
+        for s in f_serv: df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
+        f_list.append(f"Services: {', '.join(f_serv)}")
+    
+    filters_desc = " | ".join(f_list) if f_list else "Aucun filtre (Liste complète)"
 
+    # --- BOUTON IMPRIMER ---
     if not df_display.empty:
         df_display = df_display.sort_values(by=['Province', 'Commune'])
-
+        print_html = get_print_html(df_display, filters_desc)
+        b64 = base64.b64encode(print_html.encode()).decode()
+        href = f'<a href="data:text/html;base64,{b64}" target="_blank" style="text-decoration:none;"><div style="text-align:center; padding:10px; background-color:#4169E1; color:white; border-radius:5px; font-weight:bold;">🖨️ GÉNÉRER LE RAPPORT POUR IMPRESSION</div></a>'
+        st.markdown(href, unsafe_allow_html=True)
+    
+    st.write("")
     st.dataframe(df_display, use_container_width=True, hide_index=True)
