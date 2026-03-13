@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import streamlit.components.v1 as components
 import io
+import base64
 import plotly.express as px
 
 # --- 1. CONFIGURATION ---
@@ -45,6 +46,186 @@ data_fwb = {
     "Namur": ["Andenne", "Anhee", "Assesse", "Beauraing", "Bièvre", "Cerfontaine", "Ciney", "Couvin", "Dinant", "Doische", "Eghezée", "Fernelmont", "Floreffe", "Florennes", "Fosses-la-Ville", "Gedinne", "Gembloux", "Gesves", "Hamois", "Hastiere", "Havelange", "Houyet", "Jemeppe-sur-Sambre", "Mettet", "Namur", "Ohey", "Onhaye", "Philippeville", "Profondeville", "Rochefort", "Sambreville", "Sombreffe", "Somme-Leuze", "Viroinval", "Vresse-sur-Semois", "Walcourt", "Yvoir"],
     "Luxembourg": ["Arlon", "Attert", "Aubange", "Bastogne", "Bertogne", "Bertrix", "Bouillon", "Chiny", "Daverdisse", "Durbuy", "Erezée", "Etalle", "Fauvillers", "Florenville", "Gouvy", "Habay", "Herbeumont", "Hotton", "Houffalize", "La Roche-en-Ardenne", "Léglise", "Libin", "Libramont-Chevigny", "Manhay", "Marche-en-Famenne", "Martelange", "Meix-devant-Virton", "Messancy", "Musson", "Nassogne", "Neufchâteau", "Paliseul", "Rendeux", "Rouvroy", "Sainte-Ode", "Saint-Hubert", "Saint-Léger", "Tellin", "Tenneville", "Tintigny", "Vaux-sur-Sûre", "Vielsalm", "Virton", "Wellin"]
 }
+
+# --- FONCTION GÉNÉRATION HTML IMPRESSION ---
+def generate_print_html(df_print, fl_p, fl_m, fl_s):
+    date_str = pd.Timestamp.now().strftime("%d/%m/%Y à %H:%M")
+
+    # Description des filtres appliqués
+    filter_parts = []
+    if fl_p:
+        filter_parts.append(f"Province(s) : {', '.join(fl_p)}")
+    if fl_m:
+        filter_parts.append(f"Paiement : {', '.join(fl_m)}")
+    if fl_s:
+        filter_parts.append(f"Services : {', '.join(fl_s)}")
+    filter_text = " &nbsp;|&nbsp; ".join(filter_parts) if filter_parts else "Aucun filtre appliqué — Liste complète par province"
+
+    province_colors = {
+        "Bruxelles":      "#ffeaa7",
+        "Brabant Wallon": "#81ecec",
+        "Hainaut":        "#a29bfe",
+        "Liège":          "#74b9ff",
+        "Namur":          "#fab1a0",
+        "Luxembourg":     "#FF43D0",
+    }
+
+    # Construction des lignes du tableau, groupées par province
+    rows_html = ""
+    total = len(df_print)
+    province_order = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"]
+    for province in province_order:
+        prov_df = df_print[df_print['Province'] == province].sort_values('Commune')
+        if not prov_df.empty:
+            bg_color = province_colors.get(province, "#e8f0fe")
+            count = len(prov_df)
+            rows_html += f"""
+            <tr class="province-header">
+                <td colspan="3" style="background-color:{bg_color}; border-left:4px solid #4169E1;">
+                    📍 {province}
+                    <span style="margin-left:10px; font-weight:normal; font-size:11px; opacity:0.7;">
+                        ({count} commune{"s" if count > 1 else ""})
+                    </span>
+                </td>
+            </tr>"""
+            for i, (_, row) in enumerate(prov_df.iterrows()):
+                services_raw = row.get('Services', '') or ''
+                services_list = [s.strip() for s in services_raw.split('|') if s.strip()]
+                services_display = ', '.join(services_list) if services_list else '—'
+                paiement = row.get('Paiement', '—') or '—'
+                paiement_color = "#ec4899" if paiement == "Prépaiement" else "#38bdf8"
+                row_bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
+                rows_html += f"""
+                <tr style="background-color:{row_bg};">
+                    <td style="font-weight:600; color:#4169E1;">{row['Commune']}</td>
+                    <td>
+                        <span style="background:{paiement_color}; color:white; padding:2px 8px;
+                                     border-radius:4px; font-size:11px; font-weight:bold;">
+                            {paiement}
+                        </span>
+                    </td>
+                    <td style="font-size:11px; color:#475569;">{services_display}</td>
+                </tr>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Creos Extrascolaire — Impression</title>
+<style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{ font-family: Arial, sans-serif; font-size: 12px; color: #333; padding: 20px; }}
+    .header {{
+        background-color: #4169E1;
+        color: white;
+        padding: 14px 20px;
+        border-radius: 8px;
+        margin-bottom: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }}
+    .header h1 {{ font-size: 18px; margin: 0; }}
+    .header .date {{ font-size: 11px; opacity: 0.85; }}
+    .filters {{
+        background: #f0f7ff;
+        border-left: 4px solid #4169E1;
+        padding: 8px 14px;
+        margin-bottom: 12px;
+        border-radius: 0 6px 6px 0;
+        font-size: 11px;
+        color: #334155;
+    }}
+    .filters strong {{ color: #4169E1; }}
+    .summary {{
+        background: #008080;
+        color: white;
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 6px;
+        margin-bottom: 14px;
+        font-size: 12px;
+    }}
+    table {{
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11.5px;
+    }}
+    thead th {{
+        background-color: #4169E1;
+        color: white;
+        padding: 8px 10px;
+        text-align: left;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }}
+    tr.province-header td {{
+        padding: 7px 10px;
+        font-weight: bold;
+        font-size: 12px;
+        color: #1e293b;
+        border-top: 2px solid #4169E1;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }}
+    tr:not(.province-header) td {{
+        padding: 6px 10px;
+        border-bottom: 1px solid #e2e8f0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }}
+    .footer {{
+        margin-top: 20px;
+        text-align: center;
+        font-size: 10px;
+        color: #94a3b8;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 8px;
+    }}
+    @media print {{
+        body {{ padding: 10px; }}
+        .no-print {{ display: none !important; }}
+        thead {{ display: table-header-group; }}
+        tr {{ page-break-inside: avoid; }}
+    }}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🏫 Creos Extrascolaire — Liste des Communes</h1>
+    <span class="date">Imprimé le {date_str}</span>
+</div>
+
+<div class="filters">
+    <strong>Filtres appliqués :</strong>&nbsp; {filter_text}
+</div>
+
+<div class="summary">
+    📍 Total : <strong>{total}</strong> commune{"s" if total > 1 else ""}
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:35%">Commune</th>
+            <th style="width:22%">Mode de Paiement</th>
+            <th style="width:43%">Services</th>
+        </tr>
+    </thead>
+    <tbody>
+        {rows_html}
+    </tbody>
+</table>
+
+<div class="footer">
+    Creos Extrascolaire &mdash; Document généré automatiquement le {date_str}
+</div>
+
+</body>
+</html>"""
+    return html
+
 
 # --- 3. CONNEXION GSHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -231,12 +412,7 @@ with tab2:
         
         df_sorted = df_r.sort_values(['Province', 'Commune'])
 
-        # --- NOUVEAU : BOUTON EXPORT BLEU CANARD ---
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
-        
-        # Injection CSS pour le bouton bleu canard
+        # --- CSS COMMUN POUR LES BOUTONS ---
         st.markdown("""
             <style>
                 div.stDownloadButton > button {
@@ -252,14 +428,70 @@ with tab2:
             </style>
         """, unsafe_allow_html=True)
 
-        st.download_button(
-            label="📥 Exporter vers Excel", 
-            data=buffer.getvalue(), 
-            file_name="creos_export.xlsx", 
-            mime="application/vnd.ms-excel",
-            use_container_width=True
-        )
-        # ------------------------------------------
+        # --- BOUTONS EXCEL + IMPRESSION côte à côte ---
+        col_excel, col_print = st.columns(2)
+
+        with col_excel:
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
+            st.download_button(
+                label="📥 Exporter vers Excel",
+                data=buffer.getvalue(),
+                file_name="creos_export.xlsx",
+                mime="application/vnd.ms-excel",
+                use_container_width=True
+            )
+
+        with col_print:
+            # Génération du HTML d'impression encodé en base64 (UTF-8 safe)
+            print_html = generate_print_html(df_sorted, fl_p, fl_m, fl_s)
+            b64_print = base64.b64encode(print_html.encode('utf-8')).decode('ascii')
+
+            components.html(f"""
+            <style>
+                * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+                body {{ margin: 0; padding: 0; }}
+                button {{
+                    background-color: #008080;
+                    color: white;
+                    border: none;
+                    padding: 0 16px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    width: 100%;
+                    height: 38px;
+                    font-size: 14px;
+                    font-weight: bold;
+                    font-family: sans-serif;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    margin-top: 2px;
+                }}
+                button:hover {{ background-color: #006666; }}
+            </style>
+            <button onclick="openPrint()">🖨️ IMPRESSION</button>
+            <script>
+            function b64ToUtf8(str) {{
+                return decodeURIComponent(
+                    atob(str).split('').map(function(c) {{
+                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                    }}).join('')
+                );
+            }}
+            function openPrint() {{
+                var htmlContent = b64ToUtf8('{b64_print}');
+                var w = window.open('', '_blank');
+                w.document.open();
+                w.document.write(htmlContent);
+                w.document.close();
+                setTimeout(function() {{ w.focus(); w.print(); }}, 600);
+            }}
+            </script>
+            """, height=50)
+        # -----------------------------------------------
 
         col_list, col_viz = st.columns([6, 4], gap="medium")
 
