@@ -32,7 +32,6 @@ st.markdown("""
             font-weight: bold;
             transition: 0.3s;
         }
-        /* Style spécial pour le bouton Excel vert */
         div.stDownloadButton > button:last-child {
             background-color: #2e7d32;
             color: white;
@@ -63,7 +62,7 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. FONCTION RAPPORT HTML (Rose pour Cantines) ---
+# --- 4. FONCTION RAPPORT HTML ---
 def get_print_html(df, filters_desc):
     icons_styles = {
         "Cantine Jour": "background:#ec4899; color:white;", "Cantine Semaine": "background:#db2777; color:white;",
@@ -95,15 +94,20 @@ def get_print_html(df, filters_desc):
     return html + "</body></html>"
 
 # --- 5. TABS ---
-# --- TITRE MODIFIÉ ICI ---
 tab1, tab2 = st.tabs(["📊 Tableau de bord et Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD (Rose pour Cantines) ---
+# --- TAB 1 : DASHBOARD ---
 with tab1:
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
-    s_dash = {s: df_gsheets['Services'].str.contains(s, na=False).sum() for s in ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]}
+    s_dash = {
+        "Cantine Jour": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#ec4899"),
+        "Cantine Semaine": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#db2777"),
+        "Cantine Mois": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#be185d"),
+        "Garderie": (df_gsheets['Services'].str.contains("Garderie", na=False).sum(), "#38bdf8"),
+        "Activités": (df_gsheets['Services'].str.contains("Activités", na=False).sum(), "#4ade80")
+    }
     json_recs = df_gsheets.to_json(orient='records')
     
     html_map = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
@@ -111,23 +115,60 @@ with tab1:
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }}
             #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
             #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
-            #map-box {{ flex: 0 0 400px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }}
+            #map-box {{ flex: 0 0 350px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }}
             svg {{ width: 100%; height: 100%; }}
             .commune {{ stroke: #fff; stroke-width: 0.5; }}
             .active {{ stroke: #000 !important; stroke-width: 1.5px !important; }}
             #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }}
             #list {{ flex: 1; overflow-y: auto; }}
-            .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 10px; overflow-y: auto; }}
-            .main-count {{ font-size: 32px; font-weight: bold; color: #38bdf8; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 5px; }}
-            .sub-stat {{ display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }}
-            .serv-stat {{ display: inline-block; font-size: 10px; padding: 3px 8px; border-radius: 4px; margin: 2px; background: #334155; }}
+            
+            .stats-panel {{ background: var(--dark); color: white; padding: 20px; border-radius: 12px; overflow-y: auto; }}
+            .panel-title {{ font-size: 13px; text-transform: uppercase; opacity: 0.7; margin-bottom: 5px; }}
+            .main-count {{ font-size: 42px; font-weight: bold; color: #ffffff; margin-bottom: 20px; border-bottom: 2px solid #334155; padding-bottom: 10px; }}
+            
+            .cols-container {{ display: flex; gap: 20px; }}
+            .col-half {{ flex: 1; }}
+            .stat-header {{ font-size: 11px; text-transform: uppercase; opacity: 0.6; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 3px; }}
+            
+            .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 5px 0; }}
+            .v-label {{ font-size: 14px; font-weight: 500; }}
+            .v-val {{ font-size: 16px; font-weight: bold; padding: 2px 8px; border-radius: 4px; }}
+            
             .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; align-items: center; }}
             .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 9px; font-weight: bold; display: inline-flex; align-items: center; gap: 3px; }}
         </style></head><body onload="init()">
-    <div id="left"><div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div><div class="stats-panel"><div class="main-count">{t_dash}</div>
-            <div class="sub-stat"><span>Prépaiement</span> <b style="color:#ec4899">{p_dash}</b></div><div class="sub-stat"><span>Post-paiement</span> <b style="color:#38bdf8">{po_dash}</b></div>
-            <div style="margin-top:10px;">{ "".join([f'<div class="serv-stat">{k}: {v}</div>' for k,v in s_dash.items()]) }</div></div></div>
-    <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher..." onkeyup="doSearch()"><div id="list"></div></div>
+    <div id="left">
+        <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
+        <div class="stats-panel">
+            <div class="panel-title">Total des communes actives</div>
+            <div class="main-count">{t_dash}</div>
+            
+            <div class="cols-container">
+                <div class="col-half">
+                    <div class="stat-header">Modes de Paiement</div>
+                    <div class="v-item">
+                        <span class="v-label">Prépaiement</span>
+                        <span class="v-val" style="background:#ec4899">{p_dash}</span>
+                    </div>
+                    <div class="v-item">
+                        <span class="v-label">Post-paiement</span>
+                        <span class="v-val" style="background:#38bdf8">{po_dash}</span>
+                    </div>
+                </div>
+                
+                <div class="col-half">
+                    <div class="stat-header">Services</div>
+                    { "".join([f'<div class="v-item"><span class="v-label">{k}</span><span class="v-val" style="background:{v[1]}">{v[0]}</span></div>' for k,v in s_dash.items()]) }
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="right">
+        <input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()">
+        <div id="list"></div>
+    </div>
+
     <script>
         const dbData = {json_recs}; const mapRef = {json.dumps(data_fwb)}; let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
         const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#ec4899" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#db2777" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#be185d" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
@@ -186,22 +227,12 @@ with tab2:
     with c_stat:
         nt = len(df_gsheets); npr = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement']); npo = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
         pct = (npr / nt * 100) if nt > 0 else 0
-        
-        # Définition des services avec Rose
-        s_defs = [
-            ("Cantine Jour", "#ec4899", "fa-utensils"), 
-            ("Cantine Semaine", "#db2777", "fa-calendar-day"), 
-            ("Cantine Mois", "#be185d", "fa-calendar-days"), 
-            ("Garderie", "#38bdf8", "fa-clock"), 
-            ("Activités", "#4ade80", "fa-volleyball")
-        ]
-        
+        s_defs = [("Cantine Jour", "#ec4899", "fa-utensils"), ("Cantine Semaine", "#db2777", "fa-calendar-day"), ("Cantine Mois", "#be185d", "fa-calendar-days"), ("Garderie", "#38bdf8", "fa-clock"), ("Activités", "#4ade80", "fa-volleyball")]
         b_html = ""
         for n, c, i in s_defs:
             cnt = df_gsheets['Services'].str.contains(n, na=False).sum()
             b_html += f'<div style="background:{c};padding:6px 12px;border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;color:white;font-weight:bold;font-size:13px;"><span><i class="fa-solid {i}"></i> &nbsp; {n}</span><span style="background:rgba(0,0,0,0.2);padding:2px 8px;border-radius:5px;">{cnt}</span></div>'
         
-        # UI Bloc Bleu Canard Mis à jour
         st.markdown(f"""
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
             <div style="background-color:#008080;padding:20px;border-radius:15px;color:white;font-family:sans-serif;">
@@ -230,7 +261,6 @@ with tab2:
     with f2: fl_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
     with f3: fl_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
     with f4: 
-        st.write("")
         if st.button("❌ Reset", use_container_width=True): st.session_state.rc += 1; st.rerun()
 
     df_r = df_gsheets.copy()
@@ -243,19 +273,14 @@ with tab2:
     
     if not df_r.empty:
         df_sorted = df_r.sort_values(['Province', 'Commune'])
-        # Préparation HTML
         h_rep = get_print_html(df_sorted, " | ".join(f_d) if f_d else "Tous")
-        # Préparation EXCEL
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
             df_sorted.to_excel(wr, index=False, sheet_name='Data')
         ex_data = buf.getvalue()
 
-        # Boutons d'export
         bcol1, bcol2 = st.columns(2)
-        with bcol1:
-            st.download_button("🖨️ GÉNÉRER RAPPORT HTML", data=h_rep, file_name="creos_rapport.html", mime="text/html", use_container_width=True)
-        with bcol2:
-            st.download_button("📊 EXPORTER VERS EXCEL", data=ex_data, file_name="creos_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        with bcol1: st.download_button("🖨️ GÉNÉRER RAPPORT HTML", data=h_rep, file_name="creos_rapport.html", mime="text/html", use_container_width=True)
+        with bcol2: st.download_button("📊 EXPORTER VERS EXCEL", data=ex_data, file_name="creos_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
     
     st.dataframe(df_r.sort_values(['Province', 'Commune']), use_container_width=True, hide_index=True)
