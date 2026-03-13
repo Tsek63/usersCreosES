@@ -10,12 +10,10 @@ st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
 st.markdown("""
     <style>
-        /* Supprime l'espace blanc en haut de la page */
+        /* Suppression de l'espace blanc massif en haut de page */
         .block-container {
             padding-top: 1rem !important;
             padding-bottom: 0rem !important;
-            padding-left: 5rem !important;
-            padding-right: 5rem !important;
         }
         
         #MainMenu, footer, header {visibility: hidden;}
@@ -27,14 +25,10 @@ st.markdown("""
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px; /* Réduit pour gagner de l'espace */
+            margin-bottom: 15px;
             color: white;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        /* ... reste de vos styles ... */
-    </style>
-""", unsafe_allow_html=True)
-
         .header-title { font-size: 24px; font-weight: bold; margin: 0; }
         .tt-button {
             background-color: white;
@@ -49,10 +43,6 @@ st.markdown("""
             background-color: #2e7d32;
             color: white;
             border: none;
-        }
-        div.stDownloadButton > button:last-child:hover {
-            background-color: #1b5e20;
-            color: white;
         }
     </style>
     <div class="main-header">
@@ -128,16 +118,18 @@ with tab1:
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }}
             #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
             #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
+            
             #map-box {{ flex: 0 0 280px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; }}
             svg {{ width: 100%; height: 100%; }}
             .commune {{ stroke: #fff; stroke-width: 0.5; }}
             .active {{ stroke: #000 !important; stroke-width: 1.5px !important; }}
-            #search {{ width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px; box-sizing: border-box; }}
+            
+            #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }}
             #list {{ flex: 1; overflow-y: auto; }}
             
             .stats-panel {{ background: var(--dark); color: white; padding: 10px 12px; border-radius: 12px; }}
             .panel-header {{ text-align: center; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; }}
-            .panel-title {{ font-size: 11px; text-transform: uppercase; opacity: 0.7; letter-spacing: 0.5px; }}
+            .panel-title {{ font-size: 11px; text-transform: uppercase; opacity: 0.7; }}
             .main-count {{ font-size: 40px; font-weight: bold; color: #ffffff; line-height: 1; margin-top: 2px; }}
             
             .cols-container {{ display: flex; gap: 15px; }}
@@ -148,9 +140,9 @@ with tab1:
             .v-label {{ font-size: 12px; font-weight: 500; }}
             .v-val {{ font-size: 13px; font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
             
-            .item-row {{ display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
-            .badge-container {{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 60%; }}
-            .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }}
+            .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
+            .badge-container {{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 65%; }}
+            .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; }}
         </style></head><body onload="init()">
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
@@ -169,7 +161,11 @@ with tab1:
             </div>
         </div>
     </div>
-    <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
+    
+    <div id="right">
+        <input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()">
+        <div id="list"></div>
+    </div>
 
     <script>
         const dbData = {json_recs}; const mapRef = {json.dumps(data_fwb)}; let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
@@ -191,7 +187,7 @@ with tab1:
             ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"].forEach(p => {{
                 const filtered = Array.from(db.values()).filter(x => x.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
-                    const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='4px'; h.style.fontSize='10px'; h.innerText = p; listDiv.appendChild(h);
+                    const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px'; h.style.fontSize='11px'; h.innerText = p; listDiv.appendChild(h);
                     filtered.forEach(x => {{ const row = document.createElement('div'); row.className = 'item-row';
                         const badges = (x.Services || "").split('|').filter(s => s).map(s => `<span class="badge" style="background:${{icons[s]?.c || '#ccc'}}"><i class="fa-solid ${{icons[s]?.i || 'fa-tag'}}"></i> ${{s}}</span>`).join('');
                         row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span><div class="badge-container">${{badges}}</div>`; listDiv.appendChild(row);
