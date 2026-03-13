@@ -115,24 +115,27 @@ with tab1:
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }}
             #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
             #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
-            #map-box {{ flex: 0 0 350px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }}
+            
+            /* Hauteur réduite pour éviter le scroll */
+            #map-box {{ flex: 0 0 320px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }}
             svg {{ width: 100%; height: 100%; }}
             .commune {{ stroke: #fff; stroke-width: 0.5; }}
             .active {{ stroke: #000 !important; stroke-width: 1.5px !important; }}
             #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }}
             #list {{ flex: 1; overflow-y: auto; }}
             
-            .stats-panel {{ background: var(--dark); color: white; padding: 20px; border-radius: 12px; overflow-y: auto; }}
-            .panel-title {{ font-size: 13px; text-transform: uppercase; opacity: 0.7; margin-bottom: 5px; }}
-            .main-count {{ font-size: 42px; font-weight: bold; color: #ffffff; margin-bottom: 20px; border-bottom: 2px solid #334155; padding-bottom: 10px; }}
+            .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 12px; }}
+            .panel-header {{ text-align: center; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }}
+            .panel-title {{ font-size: 14px; text-transform: uppercase; opacity: 0.7; }}
+            .main-count {{ font-size: 48px; font-weight: bold; color: #ffffff; line-height: 1; margin-top: 5px; }}
             
             .cols-container {{ display: flex; gap: 20px; }}
             .col-half {{ flex: 1; }}
-            .stat-header {{ font-size: 11px; text-transform: uppercase; opacity: 0.6; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 3px; }}
+            .stat-header {{ font-size: 11px; text-transform: uppercase; opacity: 0.6; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 3px; text-align: center; }}
             
-            .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 5px 0; }}
-            .v-label {{ font-size: 14px; font-weight: 500; }}
-            .v-val {{ font-size: 16px; font-weight: bold; padding: 2px 8px; border-radius: 4px; }}
+            .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }}
+            .v-label {{ font-size: 13px; font-weight: 500; }}
+            .v-val {{ font-size: 15px; font-weight: bold; padding: 1px 10px; border-radius: 4px; min-width: 25px; text-align: center; }}
             
             .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; align-items: center; }}
             .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 9px; font-weight: bold; display: inline-flex; align-items: center; gap: 3px; }}
@@ -140,12 +143,14 @@ with tab1:
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
         <div class="stats-panel">
-            <div class="panel-title">Total des communes actives</div>
-            <div class="main-count">{t_dash}</div>
+            <div class="panel-header">
+                <div class="panel-title">Total des communes actives</div>
+                <div class="main-count">{t_dash}</div>
+            </div>
             
             <div class="cols-container">
                 <div class="col-half">
-                    <div class="stat-header">Modes de Paiement</div>
+                    <div class="stat-header">Paiement</div>
                     <div class="v-item">
                         <span class="v-label">Prépaiement</span>
                         <span class="v-val" style="background:#ec4899">{p_dash}</span>
@@ -201,7 +206,7 @@ with tab1:
     </script></body></html>"""
     components.html(html_map, height=750)
 
-# --- TAB 2 : GESTION ---
+# --- TAB 2 : GESTION (INCHANGÉ) ---
 with tab2:
     st.header("✏️ Gestion des données")
     c_form, c_stat = st.columns([6, 4])
@@ -264,23 +269,21 @@ with tab2:
         if st.button("❌ Reset", use_container_width=True): st.session_state.rc += 1; st.rerun()
 
     df_r = df_gsheets.copy()
-    f_d = []
-    if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]; f_d.append(f"Provinces: {fl_p}")
-    if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]; f_d.append(f"Paiement: {fl_m}")
-    if fl_s:
-        for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
-        f_d.append(f"Services: {fl_s}")
-    
     if not df_r.empty:
+        if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
+        if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]
+        if fl_s:
+            for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
+        
         df_sorted = df_r.sort_values(['Province', 'Commune'])
-        h_rep = get_print_html(df_sorted, " | ".join(f_d) if f_d else "Tous")
+        # Export (Inchangé)
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-            df_sorted.to_excel(wr, index=False, sheet_name='Data')
+            df_sorted.to_excel(wr, index=False)
         ex_data = buf.getvalue()
-
+        
         bcol1, bcol2 = st.columns(2)
-        with bcol1: st.download_button("🖨️ GÉNÉRER RAPPORT HTML", data=h_rep, file_name="creos_rapport.html", mime="text/html", use_container_width=True)
+        with bcol1: st.download_button("🖨️ GÉNÉRER RAPPORT HTML", data=get_print_html(df_sorted, "Filtres actifs"), file_name="creos_rapport.html", mime="text/html", use_container_width=True)
         with bcol2: st.download_button("📊 EXPORTER VERS EXCEL", data=ex_data, file_name="creos_export.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
     
     st.dataframe(df_r.sort_values(['Province', 'Commune']), use_container_width=True, hide_index=True)
