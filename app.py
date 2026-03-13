@@ -63,11 +63,11 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. FONCTION RAPPORT HTML ---
+# --- 4. FONCTION RAPPORT HTML (Rose pour Cantines) ---
 def get_print_html(df, filters_desc):
     icons_styles = {
-        "Cantine Jour": "background:#fb923c; color:white;", "Cantine Semaine": "background:#f59e0b; color:white;",
-        "Cantine Mois": "background:#d97706; color:white;", "Garderie": "background:#38bdf8; color:white;",
+        "Cantine Jour": "background:#ec4899; color:white;", "Cantine Semaine": "background:#db2777; color:white;",
+        "Cantine Mois": "background:#be185d; color:white;", "Garderie": "background:#38bdf8; color:white;",
         "Activités": "background:#4ade80; color:white;"
     }
     html = f"""<html><head><meta charset="UTF-8"><style>
@@ -97,7 +97,7 @@ def get_print_html(df, filters_desc):
 # --- 5. TABS ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
-# --- TAB 1 : DASHBOARD ---
+# --- TAB 1 : DASHBOARD (Rose pour Cantines) ---
 with tab1:
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
@@ -124,12 +124,12 @@ with tab1:
             .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 9px; font-weight: bold; display: inline-flex; align-items: center; gap: 3px; }}
         </style></head><body onload="init()">
     <div id="left"><div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div><div class="stats-panel"><div class="main-count">{t_dash}</div>
-            <div class="sub-stat"><span>Prépaiement</span> <b style="color:#fb923c">{p_dash}</b></div><div class="sub-stat"><span>Post-paiement</span> <b style="color:#38bdf8">{po_dash}</b></div>
+            <div class="sub-stat"><span>Prépaiement</span> <b style="color:#ec4899">{p_dash}</b></div><div class="sub-stat"><span>Post-paiement</span> <b style="color:#38bdf8">{po_dash}</b></div>
             <div style="margin-top:10px;">{ "".join([f'<div class="serv-stat">{k}: {v}</div>' for k,v in s_dash.items()]) }</div></div></div>
     <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
         const dbData = {json_recs}; const mapRef = {json.dumps(data_fwb)}; let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
-        const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#fb923c" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#f59e0b" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#d97706" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
+        const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#ec4899" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#db2777" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#be185d" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
         function init() {{
             const svg = document.getElementById('svg'); const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
             Object.entries(mapRef).forEach(([pName, list]) => {{
@@ -185,12 +185,41 @@ with tab2:
     with c_stat:
         nt = len(df_gsheets); npr = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement']); npo = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
         pct = (npr / nt * 100) if nt > 0 else 0
-        s_defs = [("Cantine Jour", "#fb923c", "fa-utensils"), ("Cantine Semaine", "#f59e0b", "fa-calendar-day"), ("Cantine Mois", "#d97706", "fa-calendar-days"), ("Garderie", "#38bdf8", "fa-clock"), ("Activités", "#4ade80", "fa-volleyball")]
+        
+        # Définition des services avec Rose
+        s_defs = [
+            ("Cantine Jour", "#ec4899", "fa-utensils"), 
+            ("Cantine Semaine", "#db2777", "fa-calendar-day"), 
+            ("Cantine Mois", "#be185d", "fa-calendar-days"), 
+            ("Garderie", "#38bdf8", "fa-clock"), 
+            ("Activités", "#4ade80", "fa-volleyball")
+        ]
+        
         b_html = ""
         for n, c, i in s_defs:
             cnt = df_gsheets['Services'].str.contains(n, na=False).sum()
             b_html += f'<div style="background:{c};padding:6px 12px;border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;color:white;font-weight:bold;font-size:13px;"><span><i class="fa-solid {i}"></i> &nbsp; {n}</span><span style="background:rgba(0,0,0,0.2);padding:2px 8px;border-radius:5px;">{cnt}</span></div>'
-        st.markdown(f'<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><div style="background-color:#008080;padding:20px;border-radius:15px;color:white;font-family:sans-serif;"><div style="text-align:center;margin-bottom:20px;"><div style="font-size:11px;text-transform:uppercase;opacity:0.8;">Total Actives</div><div style="font-size:48px;font-weight:bold;">{nt}</div></div><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;margin-bottom:5px;"><span style="color:#fb923c;">PRÉ: {npr}</span><span style="color:#38bdf8;">POST: {npo}</span></div><div style="width:100%;background:rgba(255,255,255,0.2);height:8px;border-radius:10px;margin-bottom:20px;display:flex;overflow:hidden;"><div style="width:{pct}%;background:#fb923c;"></div><div style="width:{100-pct}%;background:#38bdf8;"></div></div>{b_html}</div>', unsafe_allow_html=True)
+        
+        # UI Bloc Bleu Canard Mis à jour
+        st.markdown(f"""
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+            <div style="background-color:#008080;padding:20px;border-radius:15px;color:white;font-family:sans-serif;">
+                <div style="text-align:center;margin-bottom:20px;">
+                    <div style="font-size:11px;text-transform:uppercase;opacity:0.8;">Total des communes actives</div>
+                    <div style="font-size:48px;font-weight:bold;">{nt}</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;margin-bottom:5px;">
+                    <span style="color:#ec4899;">PRÉPAIEMENT: {npr}</span>
+                    <span style="color:#38bdf8;">POST-PAIEMENT: {npo}</span>
+                </div>
+                <div style="width:100%;background:rgba(255,255,255,0.2);height:8px;border-radius:10px;margin-bottom:20px;display:flex;overflow:hidden;">
+                    <div style="width:{pct}%;background:#ec4899;"></div>
+                    <div style="width:{100-pct}%;background:#38bdf8;"></div>
+                </div>
+                <div style="font-size:11px;text-transform:uppercase;opacity:0.8;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;">Répartition par Service</div>
+                {b_html}
+            </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
     st.subheader("🔍 Filtres & Liste")
