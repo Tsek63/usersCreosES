@@ -58,16 +58,13 @@ with tab1:
     t_dash = len(df_gsheets)
     p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
-    
-    # --- MODIFICATION COULEURS ICI ---
     s_dash = {
-        "Cantine Jour": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#FFD700"),    # Jaune
-        "Cantine Semaine": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#FF8C00"), # Orange
-        "Cantine Mois": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#FF0000"),    # Rouge
+        "Cantine Jour": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#FFD700"),
+        "Cantine Semaine": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#FF8C00"),
+        "Cantine Mois": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#FF0000"),
         "Garderie": (df_gsheets['Services'].str.contains("Garderie", na=False).sum(), "#38bdf8"),
         "Activités": (df_gsheets['Services'].str.contains("Activités", na=False).sum(), "#4ade80")
     }
-    
     json_recs = df_gsheets.to_json(orient='records')
     
     html_map = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
@@ -112,16 +109,7 @@ with tab1:
     <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
         const dbData = {json_recs}; const mapRef = {json.dumps(data_fwb)}; let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
-        
-        // --- MODIFICATION COULEURS ICI ---
-        const icons = {{ 
-            "Cantine Jour": {{ i: "fa-utensils", c: "#FFD700" }}, 
-            "Cantine Semaine": {{ i: "fa-calendar-day", c: "#FF8C00" }}, 
-            "Cantine Mois": {{ i: "fa-calendar-days", c: "#FF0000" }}, 
-            "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, 
-            "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} 
-        }};
-
+        const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#FFD700" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#FF8C00" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#FF0000" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
         function init() {{
             const svg = document.getElementById('svg'); const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
             Object.entries(mapRef).forEach(([pName, list]) => {{
@@ -154,7 +142,6 @@ with tab1:
 # --- TAB 2 : GESTION ---
 with tab2:
     st.header("✏️ Gestion des Communes")
-    
     nt = len(df_gsheets)
     p_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
@@ -180,7 +167,6 @@ with tab2:
                     conn.update(data=df_u); st.rerun()
 
     with c_stat:
-        # Bloc Statistique : MODIFICATION COULEURS BORDURES ICI
         st.markdown(f"""
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">
@@ -218,15 +204,22 @@ with tab2:
 
     st.divider()
 
-    # 3. ZONE FILTRES ET GRAPHIQUES
-    st.subheader("🔍 Filtres & Liste filtrée")
+    # --- 3. ZONE FILTRES ET LISTE ---
     if 'rc' not in st.session_state: st.session_state.rc = 0
-    f1, f2, f3, f4 = st.columns([2, 1, 2, 1])
+    
+    col_titre, col_reset = st.columns([7, 3])
+    with col_titre:
+        st.subheader("🔍 Filtres & Liste filtrée")
+    with col_reset:
+        st.write("##")
+        if st.button("❌ Effacer les filtres", use_container_width=True):
+            st.session_state.rc += 1
+            st.rerun()
+
+    f1, f2, f3 = st.columns([2, 1, 2])
     with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
     with f2: fl_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
     with f3: fl_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
-    with f4: 
-        if st.button("❌ Reset", use_container_width=True): st.session_state.rc += 1; st.rerun()
 
     df_r = df_gsheets.copy()
     if not df_r.empty:
@@ -247,14 +240,12 @@ with tab2:
         
         with col_viz:
             if not df_sorted.empty:
-                # Graphique Paiement
                 p_c = df_sorted['Paiement'].value_counts().reset_index()
                 fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement (Sélection)",
                                color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
                 fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
                 st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
 
-                # --- MODIFICATION COULEURS GRAPHIQUE BARRES ICI ---
                 sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
                 ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
                 df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
