@@ -7,7 +7,6 @@ import streamlit.components.v1 as components
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
-# Style pour l'en-tête et masquer les menus Streamlit
 st.markdown("""
     <style>
         #MainMenu, footer, header {visibility: hidden;}
@@ -32,7 +31,6 @@ st.markdown("""
             font-weight: bold;
             transition: 0.3s;
         }
-        .tt-button:hover { background-color: #f0f2f6; color: #1e293b; }
     </style>
     <div class="main-header">
         <div class="header-title">Utilisateurs de Creos Extrascolaire</div>
@@ -54,17 +52,13 @@ data_fwb = {
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. FONCTION RAPPORT HTML ---
+# --- 4. FONCTION RAPPORT HTML (Identique à la précédente) ---
 def get_print_html(df, filters_desc):
-    # Couleurs identiques au Dashboard
     icons_styles = {
-        "Cantine Jour": "background:#fb923c; color:white;",
-        "Cantine Semaine": "background:#f59e0b; color:white;",
-        "Cantine Mois": "background:#d97706; color:white;",
-        "Garderie": "background:#38bdf8; color:white;",
+        "Cantine Jour": "background:#fb923c; color:white;", "Cantine Semaine": "background:#f59e0b; color:white;",
+        "Cantine Mois": "background:#d97706; color:white;", "Garderie": "background:#38bdf8; color:white;",
         "Activités": "background:#4ade80; color:white;"
     }
-    
     html = f"""
     <html>
     <head>
@@ -84,35 +78,31 @@ def get_print_html(df, filters_desc):
         </style>
     </head>
     <body onload="window.print()">
-        <div class="header">
-            <h1>Utilisateurs de Creos Extrascolaire</h1>
-            <p>Rapport généré le {pd.Timestamp.now().strftime('%d/%m/%Y à %H:%M')}</p>
-        </div>
+        <div class="header"><h1>Utilisateurs de Creos Extrascolaire</h1><p>Rapport du {pd.Timestamp.now().strftime('%d/%m/%Y')}</p></div>
         <div class="filters"><strong>Filtres :</strong> {filters_desc}</div>
     """
-    
-    provinces = sorted(df['Province'].unique())
-    for p in provinces:
-        html += f"<div class='province-block'><div class='province-title'>{p}</div>"
-        html += "<table><thead><tr><th style='width:30%'>Commune</th><th style='width:20%'>Paiement</th><th>Services actifs</th></tr></thead><tbody>"
-        sub_df = df[df['Province'] == p].sort_values('Commune')
-        for _, row in sub_df.iterrows():
-            services = row['Services'].split('|') if row['Services'] else []
-            serv_html = "".join([f'<span class="badge" style="{icons_styles.get(s, "background:#ccc;")}">{s}</span>' for s in services if s])
-            html += f"""<tr>
-                <td><strong style="color:#1e40af;">{row['Commune']}</strong></td>
-                <td><span class="pay-badge">{row['Paiement']}</span></td>
-                <td>{serv_html}</td>
-            </tr>"""
+    for p in sorted(df['Province'].unique()):
+        html += f"<div class='province-block'><div class='province-title'>{p}</div><table><thead><tr><th>Commune</th><th>Paiement</th><th>Services actifs</th></tr></thead><tbody>"
+        for _, row in df[df['Province'] == p].sort_values('Commune').iterrows():
+            servs = row['Services'].split('|') if row['Services'] else []
+            s_html = "".join([f'<span class="badge" style="{icons_styles.get(s, "background:#ccc;")}">{s}</span>' for s in servs if s])
+            html += f"<tr><td><strong style='color:#1e40af;'>{row['Commune']}</strong></td><td><span class='pay-badge'>{row['Paiement']}</span></td><td>{s_html}</td></tr>"
         html += "</tbody></table></div>"
-    html += "</body></html>"
-    return html
+    return html + "</body></html>"
 
 # --- 5. TABS ---
 tab1, tab2 = st.tabs(["📊 Dashboard & Carte", "✏️ Gestion des Communes"])
 
 # --- TAB 1 : DASHBOARD (40/60) ---
 with tab1:
+    # Calcul des stats pour le JS
+    total_com = len(df_gsheets)
+    pre_count = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
+    post_count = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
+    
+    services_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+    s_stats = {s: df_gsheets['Services'].str.contains(s, na=False).sum() for s in services_list}
+    
     json_records = df_gsheets.to_json(orient='records')
     html_code = f"""
     <!DOCTYPE html>
@@ -125,25 +115,49 @@ with tab1:
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: var(--bg); }}
             #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
             #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
-            #map-box {{ flex: 0 0 450px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }}
+            #map-box {{ flex: 0 0 400px; background: white; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }}
             svg {{ width: 100%; height: 100%; }}
             .commune {{ stroke: #fff; stroke-width: 0.5; }}
             .active {{ stroke: #000 !important; stroke-width: 1.5px !important; }}
             #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }}
-            #list {{ flex: 1; overflow-y: auto; border: 1px solid #f9f9f9; }}
+            #list {{ flex: 1; overflow-y: auto; }}
+            
+            /* Stats Panel */
+            .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 10px; overflow-y: auto; }}
+            .stats-title {{ font-size: 11px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }}
+            .main-count {{ font-size: 32px; font-weight: bold; color: #38bdf8; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 5px; }}
+            .sub-stat {{ display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; padding: 2px 0; }}
+            .serv-stat {{ display: inline-block; font-size: 10px; padding: 3px 8px; border-radius: 4px; margin: 2px; background: #334155; }}
+            
             .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; align-items: center; }}
             .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 9px; font-weight: bold; margin-left: 2px; display: inline-flex; align-items: center; gap: 3px; }}
             .prov-label {{ background: #f8fafc; padding: 6px 10px; font-weight: bold; font-size: 11px; color: #64748b; text-transform: uppercase; }}
         </style>
     </head>
     <body onload="init()">
-    <div id="left"><div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
-        <div style="background:var(--dark); color:white; padding:15px; border-radius:10px; text-align:center;">
-            <div id="total" style="font-size:28px; font-weight:bold; color:#38bdf8;">0</div>
-            <div style="font-size:10px; letter-spacing:1px">UNITÉS ENREGISTRÉES</div>
+    <div id="left">
+        <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
+        <div class="stats-panel">
+            <div class="stats-title">Total des communes actives</div>
+            <div class="main-count">{total_com}</div>
+            
+            <div style="margin-bottom: 15px;">
+                <div class="sub-stat"><span>Prépaiement</span> <b style="color:#fb923c">{pre_count}</b></div>
+                <div class="sub-stat"><span>Post-paiement</span> <b style="color:#38bdf8">{post_count}</b></div>
+            </div>
+            
+            <div class="stats-title" style="margin-top:10px">Par Service</div>
+            <div style="margin-top:5px;">
+                <div class="serv-stat">Cantine Jour: {s_stats['Cantine Jour']}</div>
+                <div class="serv-stat">Cantine Sem.: {s_stats['Cantine Semaine']}</div>
+                <div class="serv-stat">Cantine Mois: {s_stats['Cantine Mois']}</div>
+                <div class="serv-stat">Garderie: {s_stats['Garderie']}</div>
+                <div class="serv-stat">Activités: {s_stats['Activités']}</div>
+            </div>
         </div>
     </div>
-    <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher..." onkeyup="doSearch()"><div id="list"></div></div>
+    <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
+    
     <script>
         const dbData = {json_records};
         const mapRef = {json.dumps(data_fwb)};
@@ -167,20 +181,19 @@ with tab1:
             render();
         }}
         function render() {{
-            const listDiv = document.getElementById('list'); listDiv.innerHTML = ""; let count = 0;
+            const listDiv = document.getElementById('list'); listDiv.innerHTML = "";
             const provs = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
             provs.forEach(p => {{
                 const filtered = Array.from(db.values()).filter(x => x.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
                     const h = document.createElement('div'); h.className = 'prov-label'; h.innerText = p; listDiv.appendChild(h);
-                    filtered.forEach(x => {{ count++; const row = document.createElement('div'); row.className = 'item-row';
+                    filtered.forEach(x => {{ const row = document.createElement('div'); row.className = 'item-row';
                         const badges = (x.Services || "").split('|').filter(s => s).map(s => `<span class="badge" style="background:${{icons[s]?.c || '#ccc'}}"><i class="fa-solid ${{icons[s]?.i || 'fa-tag'}}"></i> ${{s}}</span>`).join('');
                         row.innerHTML = `<span><b>${{x.Commune}}</b> <small>(${{x.Paiement}})</small></span><div>${{badges}}</div>`;
                         listDiv.appendChild(row);
                     }});
                 }}
             }});
-            document.getElementById('total').innerText = count;
         }}
         function doSearch() {{ const v = document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }}); }}
     </script>
@@ -192,8 +205,6 @@ with tab1:
 # --- TAB 2 : GESTION ---
 with tab2:
     st.header("✏️ Gestion des données")
-    
-    # Formulaire de saisie
     prov_selected = st.selectbox("1. Province", list(data_fwb.keys()), key="mgr_prov")
     with st.form("edit_form"):
         col1, col2 = st.columns(2)
@@ -201,19 +212,15 @@ with tab2:
         with col2:
             pay_val = st.radio("3. Mode de paiement", ["Prépaiement", "Post-paiement"], horizontal=True)
             serv_val = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
-        
-        c_save, c_del = st.columns(2)
-        if c_save.form_submit_button("💾 ENREGISTRER", use_container_width=True):
+        if st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
             new_row = pd.DataFrame([{"Commune": comm_selected, "Province": prov_selected, "Paiement": pay_val, "Services": "|".join(serv_val)}])
             df_final = pd.concat([df_gsheets[df_gsheets['Commune'] != comm_selected], new_row], ignore_index=True)
             conn.update(data=df_final); st.rerun()
-        if c_del.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
+        if st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
             df_final = df_gsheets[df_gsheets['Commune'] != comm_selected]
             conn.update(data=df_final); st.rerun()
 
     st.divider()
-
-    # Filtres
     st.subheader("🔍 Filtres & Impression")
     if 'reset_counter' not in st.session_state: st.session_state.reset_counter = 0
     f_col1, f_col2, f_col3, f_col4 = st.columns([2, 1, 2, 1])
@@ -222,10 +229,8 @@ with tab2:
     with f_col3: f_serv = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"f_serv_{st.session_state.reset_counter}")
     with f_col4:
         st.write("")
-        if st.button("❌ Effacer filtres", use_container_width=True):
-            st.session_state.reset_counter += 1; st.rerun()
+        if st.button("❌ Effacer filtres", use_container_width=True): st.session_state.reset_counter += 1; st.rerun()
 
-    # Application des filtres
     df_display = df_gsheets.copy()
     f_list = []
     if f_prov: df_display = df_display[df_display['Province'].isin(f_prov)]; f_list.append(f"Provinces: {', '.join(f_prov)}")
@@ -234,18 +239,9 @@ with tab2:
         for s in f_serv: df_display = df_display[df_display['Services'].str.contains(s, na=False, regex=False)]
         f_list.append(f"Services: {', '.join(f_serv)}")
     
-    filters_text = " | ".join(f_list) if f_list else "Tous les utilisateurs (Liste complète)"
-
-    # Bouton Impression
     if not df_display.empty:
         df_display = df_display.sort_values(by=['Province', 'Commune'])
-        html_report = get_print_html(df_display, filters_text)
-        st.download_button(
-            label="🖨️ PRÉPARER LE RAPPORT D'IMPRESSION COLORÉ",
-            data=html_report,
-            file_name="rapport_utilisateurs_creos.html",
-            mime="text/html",
-            use_container_width=True
-        )
+        html_report = get_print_html(df_display, " | ".join(f_list) if f_list else "Tous les utilisateurs")
+        st.download_button("🖨️ GÉNÉRER LE RAPPORT D'IMPRESSION COLORÉ", data=html_report, file_name="rapport_creos.html", mime="text/html", use_container_width=True)
 
     st.dataframe(df_display, use_container_width=True, hide_index=True)
