@@ -402,40 +402,73 @@ with tab3:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Sélecteurs Province / Commune / Recherche ---
-    col_p3, col_c3, col_s3 = st.columns([2, 3, 3])
+    # --- Session state pour reset des filtres ---
+    if 't3_rc' not in st.session_state:
+        st.session_state.t3_rc = 0
+
+    # --- Sélecteurs Province / Commune / Recherche + Bouton reset ---
+    col_p3, col_c3, col_s3, col_btn3 = st.columns([2, 3, 3, 1.5])
 
     with col_p3:
         prov_tab3 = st.selectbox(
             "🗺️ Province",
             ["Toutes les provinces"] + list(data_fwb.keys()),
-            key="t3_prov"
+            key=f"t3_prov_{st.session_state.t3_rc}"
         )
 
     # Filtrer les communes disponibles selon la province choisie
     if prov_tab3 == "Toutes les provinces":
-        communes_dispo = all_po
+        communes_dispo = [""] + all_po
     else:
         communes_prov = data_fwb.get(prov_tab3, [])
-        communes_dispo = sorted([c for c in communes_prov if c in df_ecoles['Nom PO'].values])
+        communes_dispo = [""] + sorted([c for c in communes_prov if c in df_ecoles['Nom PO'].values])
 
     with col_c3:
         commune_tab3 = st.selectbox(
             "🏘️ Commune",
             communes_dispo,
-            key="t3_comm",
-            format_func=lambda x: f"{'✅' if x in active_communes else '⚪'} {x}"
+            key=f"t3_comm_{st.session_state.t3_rc}",
+            format_func=lambda x: ("— Sélectionnez une commune" if x == "" else f"{'✅' if x in active_communes else '⚪'} {x}")
         )
 
     with col_s3:
         search_ecole = st.text_input(
             "🔍 Rechercher",
-            key="t3_search",
+            key=f"t3_search_{st.session_state.t3_rc}",
             placeholder="Nom d'école, directeur, fase..."
         )
 
-    if not commune_tab3:
-        st.info("Sélectionnez une commune pour afficher ses écoles.")
+    with col_btn3:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        if st.button("🗑️ Effacer les filtres", key="t3_reset", use_container_width=True):
+            st.session_state.t3_rc += 1
+            st.rerun()
+
+    if not commune_tab3 and not search_ecole:
+        st.stop()
+
+    if not commune_tab3 and search_ecole:
+        # Recherche globale sur toutes les écoles si aucune commune sélectionnée
+        df_search = df_ecoles[
+            df_ecoles['Ecole'].astype(str).str.contains(search_ecole, case=False, na=False) |
+            df_ecoles['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False) |
+            df_ecoles['Directeur/rice'].astype(str).str.contains(search_ecole, case=False, na=False)
+        ]
+        if df_search.empty:
+            st.warning("Aucun résultat trouvé.")
+        else:
+            st.markdown(f"**{len(df_search)} résultat(s)** pour *\"{search_ecole}\"* sur toutes les communes")
+            for _, row in df_search.iterrows():
+                email_link = f'<a href="mailto:{row["Email"]}" style="color:#4169E1;">{row["Email"]}</a>' if pd.notna(row.get("Email")) and str(row.get("Email","")).strip() else "—"
+                tel_link = f'<a href="tel:{row["Téléphone"]}" style="color:#4169E1;">{row["Téléphone"]}</a>' if pd.notna(row.get("Téléphone")) and str(row.get("Téléphone","")).strip() else "—"
+                st.markdown(
+                    f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #4169E1; border-radius:8px; padding:10px 16px; margin-bottom:8px;">'
+                    f'<div style="font-weight:700; color:#1e293b; font-size:14px;">{row.get("Ecole","—")}</div>'
+                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">PO : {row.get("Nom PO","—")} &nbsp;|&nbsp; Fase école : {row.get("Fase école","—")} &nbsp;|&nbsp; Dir. : {row.get("Directeur/rice","—")}</div>'
+                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">{email_link} &nbsp;|&nbsp; {tel_link} &nbsp;|&nbsp; {row.get("Adresse","—")}, {row.get("Code postal","—")} {row.get("Localité","—")}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
         st.stop()
 
     # --- Données de la commune sélectionnée ---
