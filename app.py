@@ -650,14 +650,30 @@ with tab4:
         svc_list4 = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
         svc_cnt4  = {s: int(df_active['Services'].str.contains(s, na=False).sum()) if not df_active.empty else 0 for s in svc_list4}
 
-        mc1, mc2, mc3, mc4, mc5, mc6, mc7 = st.columns(7)
-        mc1.metric("🏫 Écoles actives", n_active4)
-        mc2.metric("🏘️ Communes", n_comm4)
-        mc3.metric("💳 Prépaiement", n_prep4)
-        mc4.metric("🧾 Post-paiement", n_post4)
-        mc5.metric("🍽️ Cantine J", svc_cnt4["Cantine Jour"])
-        mc6.metric("⏰ Garderie", svc_cnt4["Garderie"])
-        mc7.metric("🏐 Activités", svc_cnt4["Activités"])
+        col_teal4, col_pad4 = st.columns([1, 2])
+        with col_teal4:
+            _svc_j4   = svc_cnt4["Cantine Jour"]
+            _svc_s4   = svc_cnt4["Cantine Semaine"]
+            _svc_m4   = svc_cnt4["Cantine Mois"]
+            _svc_g4   = svc_cnt4["Garderie"]
+            _svc_a4   = svc_cnt4["Activités"]
+            _html4 = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">'
+            _html4 += '<div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">'
+            _html4 += '<div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des écoles actives</div>'
+            _html4 += f'<div style="font-size:60px; font-weight:bold; margin-bottom:15px; line-height:1;">{n_active4}</div>'
+            _html4 += '<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">'
+            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{n_prep4}</span><span style="font-size:11px; opacity:0.9;">Prépaiement</span></div>'
+            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{n_post4}</span><span style="font-size:11px; opacity:0.9;">Post-paiement</span></div>'
+            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#a78bfa;">{n_comm4}</span><span style="font-size:11px; opacity:0.9;">Communes</span></div>'
+            _html4 += '</div>'
+            _html4 += '<div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;"><i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{_svc_j4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;"><i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{_svc_s4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;"><i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{_svc_m4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;"><i class="fa-solid fa-clock"></i> Garderie : <b>{_svc_g4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;"><i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{_svc_a4}</b></div>'
+            _html4 += '</div></div>'
+            st.markdown(_html4, unsafe_allow_html=True)
 
         st.divider()
         st.subheader("📝 Configurer une École")
