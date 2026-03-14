@@ -281,9 +281,8 @@ else:
 
 
 # --- 4. TABS ---
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab3, tab4 = st.tabs([
     "📊 Tableau de bord et Carte",
-    "✏️ Gestion des Communes",
     "🏫 Écoles par Commune",
     "⚙️ Configuration des Écoles"
 ])
@@ -391,125 +390,6 @@ with tab1:
 # ============================================================
 # --- TAB 2 : GESTION DES COMMUNES (inchangé) ---
 # ============================================================
-with tab2:
-    st.header("✏️ Gestion des Communes")
-    nt = len(df_gsheets)
-    p_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
-    po_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
-
-    c_form, c_stat = st.columns([6, 4])
-    with c_form:
-        p_sel = st.selectbox("1. Province", list(data_fwb.keys()), key="m_p")
-        with st.form("edit_form"):
-            f1, f2 = st.columns(2)
-            with f1: com_sel = st.selectbox("2. Commune", data_fwb[p_sel])
-            with f2:
-                pay_v = st.radio("3. Mode", ["Prépaiement", "Post-paiement"], horizontal=True)
-                serv_v = st.multiselect("4. Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"])
-            sc1, sc2 = st.columns(2)
-            with sc1:
-                if st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True):
-                    new_r = pd.DataFrame([{"Commune": com_sel, "Province": p_sel, "Paiement": pay_v, "Services": "|".join(serv_v)}])
-                    df_u = pd.concat([df_gsheets[df_gsheets['Commune'] != com_sel], new_r], ignore_index=True)
-                    conn.update(data=df_u); st.rerun()
-            with sc2:
-                if st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True):
-                    df_u = df_gsheets[df_gsheets['Commune'] != com_sel]
-                    conn.update(data=df_u); st.rerun()
-
-    with c_stat:
-        st.markdown(f"""
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">
-<div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des communes actives</div>
-<div style="font-size:60px; font-weight:bold; margin-bottom:15px; line-height:1;">{nt}</div>
-<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">
-<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{p_stat}</span><span style="font-size:11px; opacity:0.9;">Prépaiement</span></div>
-<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{po_stat}</span><span style="font-size:11px; opacity:0.9;">Post-paiement</span></div>
-</div>
-<div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;"><i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;"><i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;"><i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum()}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;"><i class="fa-solid fa-clock"></i> Garderie : <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;"><i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b></div>
-</div></div>
-""", unsafe_allow_html=True)
-
-    st.divider()
-
-    if 'rc' not in st.session_state: st.session_state.rc = 0
-    col_titre, col_reset = st.columns([7, 3])
-    with col_titre: st.subheader("🔍 Filtres & Liste filtrée")
-    with col_reset:
-        st.write("##")
-        if st.button("❌ Effacer les filtres", use_container_width=True):
-            st.session_state.rc += 1; st.rerun()
-
-    f1, f2, f3 = st.columns([2, 1, 2])
-    with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
-    with f2: fl_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
-    with f3: fl_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
-
-    df_r = df_gsheets.copy()
-    if not df_r.empty:
-        if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
-        if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]
-        if fl_s:
-            for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
-        df_sorted = df_r.sort_values(['Province', 'Commune'])
-
-        st.markdown("""
-            <style>
-                div.stDownloadButton > button { background-color: #008080 !important; color: white !important; border: none !important; width: 100% !important; }
-                div.stDownloadButton > button:hover { background-color: #006666 !important; color: white !important; }
-            </style>
-        """, unsafe_allow_html=True)
-
-        col_excel, col_print = st.columns(2)
-        with col_excel:
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
-            st.download_button(label="📥 Exporter vers Excel", data=buffer.getvalue(), file_name="creos_export.xlsx", mime="application/vnd.ms-excel", use_container_width=True)
-
-        with col_print:
-            print_html = generate_print_html(df_sorted, fl_p, fl_m, fl_s)
-            b64_print = base64.b64encode(print_html.encode('utf-8')).decode('ascii')
-            components.html(f"""
-            <style>* {{ box-sizing: border-box; margin: 0; padding: 0; }} body {{ margin: 0; padding: 0; }}
-            button {{ background-color: #008080; color: white; border: none; padding: 0 16px; border-radius: 5px; cursor: pointer; width: 100%; height: 38px; font-size: 14px; font-weight: bold; font-family: sans-serif; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 2px; }}
-            button:hover {{ background-color: #006666; }}</style>
-            <button onclick="openPrint()">🖨️ IMPRESSION</button>
-            <script>
-            function b64ToUtf8(str) {{ return decodeURIComponent(atob(str).split('').map(function(c) {{ return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }}).join('')); }}
-            function openPrint() {{ var htmlContent = b64ToUtf8('{b64_print}'); var w = window.open('', '_blank'); w.document.open(); w.document.write(htmlContent); w.document.close(); setTimeout(function() {{ w.focus(); w.print(); }}, 600); }}
-            </script>""", height=50)
-
-        col_list, col_viz = st.columns([6, 4], gap="medium")
-        with col_list:
-            st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=520)
-        with col_viz:
-            if not df_sorted.empty:
-                p_c = df_sorted['Paiement'].value_counts().reset_index()
-                fig_p = px.pie(p_c, values='count', names='Paiement', hole=0.4, title="Modes de Paiement (Sélection)",
-                               color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
-                fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
-                st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
-                sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-                ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
-                df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
-                fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services (Sélection)",
-                               color='Service', color_discrete_map={"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
-                fig_s.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
-                st.plotly_chart(fig_s, use_container_width=True, config={'displayModeBar': False})
-
-
-# ============================================================
-# ============================================================
-# --- TAB 3 : ÉCOLES PAR COMMUNE (inchangé) ---
-# ============================================================
-with tab3:
     if df_ecoles.empty:
         st.error("⚠️ Impossible de charger la feuille **Ecoles**. Assurez-vous d'avoir créé une feuille nommée **'Ecoles'** dans votre Google Sheets.")
     else:
