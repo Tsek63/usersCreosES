@@ -767,10 +767,8 @@ with tab4:
                 com_sel4 = st.selectbox(
                     "2. Commune",
                     com_options4,
-                    key="t4_comm",
-                    index=com_options4.index(st.session_state.get("t4_comm_val", "— Sélectionnez —")) if st.session_state.get("t4_comm_val") in com_options4 else 0
+                    key="t4_comm"
                 )
-                st.session_state["t4_comm_val"] = com_sel4
 
             with s3:
                 commune_valide4 = com_sel4 != "— Sélectionnez —" and not df_ecoles.empty
@@ -791,10 +789,8 @@ with tab4:
                     ecole_label_sel4 = st.selectbox(
                         "3. École",
                         ecole_labels4,
-                        key="t4_ecole",
-                        index=ecole_labels4.index(st.session_state.get("t4_ecole_val")) if st.session_state.get("t4_ecole_val") in ecole_labels4 else 0
+                        key="t4_ecole"
                     )
-                    st.session_state["t4_ecole_val"] = ecole_label_sel4
                     ecole_fase_sel4, ecole_name_sel4 = fase_map4.get(ecole_label_sel4, ("", ""))
                 else:
                     ecole_fase_sel4, ecole_name_sel4 = "", ""
