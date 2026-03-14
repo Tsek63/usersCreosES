@@ -594,27 +594,24 @@ with tab3:
                     else:
                         cfg_badge = ''
 
-                    st.markdown(f"""
-                    <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:16px;
-                                margin-bottom:12px; border-left:5px solid #4169E1;
-                                box-shadow: 0 2px 6px rgba(65,105,225,0.08);">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px;">
-                            <div style="font-size:14px; font-weight:bold; color:#4169E1; line-height:1.3;">🏫 {school['Ecole']}</div>
-                            {cfg_badge}
-                        </div>
-                        <div style="font-size:10px; color:#94a3b8; margin-bottom:10px; letter-spacing:0.5px;">
-                            N° FASE ÉCOLE : <b style="color:#475569; font-size:11px;">{school['Fase école']}</b>
-                        </div>
-                        <div style="border-top:1px solid #f1f5f9; padding-top:10px; font-size:12px; color:#334155; line-height:2;">
-                            <div><i class="fa-solid fa-user" style="color:#4169E1; width:16px;"></i>&nbsp; <b>{school['Directeur.rice']}</b></div>
-                            <div><i class="fa-solid fa-envelope" style="color:#4169E1; width:16px;"></i>&nbsp; {email_html}</div>
-                            <div><i class="fa-solid fa-phone" style="color:#4169E1; width:16px;"></i>&nbsp; {phone_html}</div>
-                            <div style="font-size:11px; color:#64748b; margin-top:4px;">
-                                <i class="fa-solid fa-location-dot" style="color:#94a3b8; width:16px;"></i>&nbsp; {adresse}
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    _card_html = (
+                        f'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px;border-left:5px solid #4169E1;box-shadow:0 2px 6px rgba(65,105,225,0.08);">'
+                        f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">'
+                        f'<div style="font-size:14px;font-weight:bold;color:#4169E1;line-height:1.3;">&#127963; {school["Ecole"]}</div>'
+                        f'{cfg_badge}'
+                        f'</div>'
+                        f'<div style="font-size:10px;color:#94a3b8;margin-bottom:10px;letter-spacing:0.5px;">'
+                        f'N&#176; FASE &#201;COLE : <b style="color:#475569;font-size:11px;">{school["Fase école"]}</b>'
+                        f'</div>'
+                        f'<div style="border-top:1px solid #f1f5f9;padding-top:10px;font-size:12px;color:#334155;line-height:2;">'
+                        f'<div><b style="color:#4169E1;">&#128100;</b>&nbsp;<b>{school["Directeur.rice"]}</b></div>'
+                        f'<div><b style="color:#4169E1;">&#9993;</b>&nbsp;{email_html}</div>'
+                        f'<div><b style="color:#4169E1;">&#128222;</b>&nbsp;{phone_html}</div>'
+                        f'<div style="font-size:11px;color:#64748b;margin-top:4px;">&#128205;&nbsp;{adresse}</div>'
+                        f'</div>'
+                        f'</div>'
+                    )
+                    st.markdown(_card_html, unsafe_allow_html=True)
 
         st.divider()
         col_exp1, col_exp2, col_exp3 = st.columns([3, 2, 3])
@@ -787,15 +784,21 @@ with tab4:
                         [df_config[df_config['Fase école'] != ecole_fase_sel4], new_row4],
                         ignore_index=True
                     )
-                    conn.update(worksheet="EcolesConfig", data=df_upd4)
-                    st.success("✅ Enregistré !")
-                    st.rerun()
+                    try:
+                        conn.update(worksheet="EcolesConfig", data=df_upd4)
+                        st.success("✅ Enregistré !")
+                        st.rerun()
+                    except Exception as e_save:
+                        st.error(f"❌ Impossible d'enregistrer. Vérifiez que l'onglet **EcolesConfig** existe EXACTEMENT dans votre Google Sheets (respectez les majuscules, sans espace). Erreur: {e_save}")
 
                 if deleted4:
                     df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
-                    conn.update(worksheet="EcolesConfig", data=df_upd4)
-                    st.success("🗑️ Supprimé !")
-                    st.rerun()
+                    try:
+                        conn.update(worksheet="EcolesConfig", data=df_upd4)
+                        st.success("🗑️ Supprimé !")
+                        st.rerun()
+                    except Exception as e_del:
+                        st.error(f"❌ Impossible de supprimer. Vérifiez que l'onglet **EcolesConfig** existe dans votre Google Sheets. Erreur: {e_del}")
             else:
                 st.info("👆 Sélectionnez une Province, une Commune et une École pour configurer.")
                 st.form_submit_button("💾 ENREGISTRER / MODIFIER", disabled=True, use_container_width=True)
