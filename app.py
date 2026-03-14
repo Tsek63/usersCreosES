@@ -642,7 +642,7 @@ with tab4:
 
         st.header("⚙️ Configuration des Écoles par Commune")
 
-        # --- Stats (métriques Streamlit natives, pas de HTML brut) ---
+        # --- Calcul stats ---
         n_active4 = len(df_active)
         n_comm4   = df_active['Commune'].nunique() if not df_active.empty else 0
         n_prep4   = len(df_active[df_active['Paiement'] == 'Prépaiement'])  if not df_active.empty else 0
@@ -650,227 +650,226 @@ with tab4:
         svc_list4 = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
         svc_cnt4  = {s: int(df_active['Services'].str.contains(s, na=False).sum()) if not df_active.empty else 0 for s in svc_list4}
 
-        col_teal4, col_pad4 = st.columns([1, 2])
-        with col_teal4:
-            _svc_j4   = svc_cnt4["Cantine Jour"]
-            _svc_s4   = svc_cnt4["Cantine Semaine"]
-            _svc_m4   = svc_cnt4["Cantine Mois"]
-            _svc_g4   = svc_cnt4["Garderie"]
-            _svc_a4   = svc_cnt4["Activités"]
-            _html4 = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">'
-            _html4 += '<div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">'
-            _html4 += '<div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des écoles actives</div>'
-            _html4 += f'<div style="font-size:60px; font-weight:bold; margin-bottom:15px; line-height:1;">{n_active4}</div>'
-            _html4 += '<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">'
-            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{n_prep4}</span><span style="font-size:11px; opacity:0.9;">Prépaiement</span></div>'
-            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{n_post4}</span><span style="font-size:11px; opacity:0.9;">Post-paiement</span></div>'
-            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#a78bfa;">{n_comm4}</span><span style="font-size:11px; opacity:0.9;">Communes</span></div>'
+        # --- Mise en page principale 2/3 gauche | 1/3 droite ---
+        col_left4, col_right4 = st.columns([2, 1])
+
+        # ============================================================
+        # COLONNE GAUCHE : Configurer une École
+        # ============================================================
+        with col_left4:
+            st.subheader("📝 Configurer une École")
+
+            # Sélecteurs en cascade
+            s1, s2, s3, s4 = st.columns([2, 2, 3, 1])
+
+            with s1:
+                p_sel4 = st.selectbox(
+                    "1. Province",
+                    list(data_fwb.keys()),
+                    key=f"t4_p_{st.session_state.t4_rc}"
+                )
+
+            with s2:
+                if not df_ecoles.empty:
+                    communes_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Commune'].values])
+                else:
+                    communes_p4 = []
+                com_options4 = ["— Sélectionnez —"] + communes_p4
+                com_sel4 = st.selectbox(
+                    "2. Commune",
+                    com_options4,
+                    key=f"t4_c_{st.session_state.t4_rc}"
+                )
+
+            with s3:
+                commune_valide4 = com_sel4 != "— Sélectionnez —" and not df_ecoles.empty
+                if commune_valide4:
+                    df_comm4 = df_ecoles[df_ecoles['Commune'] == com_sel4].copy()
+                    df_comm4['Fase école'] = df_comm4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                    school_opts4 = []
+                    for _, row4 in df_comm4.iterrows():
+                        fase4 = str(row4['Fase école'])
+                        match4 = df_config[df_config['Fase école'] == fase4]
+                        if not match4.empty:
+                            icon4 = " ✅" if match4.iloc[0]['Extrascolaire'] == 'Oui' else " ⭕"
+                        else:
+                            icon4 = ""
+                        school_opts4.append((f"{row4['Ecole']}{icon4} — Fase {fase4}", fase4, row4['Ecole']))
+                    fase_map4     = {opt[0]: (opt[1], opt[2]) for opt in school_opts4}
+                    ecole_labels4 = [opt[0] for opt in school_opts4]
+                    ecole_label_sel4 = st.selectbox(
+                        "3. École",
+                        ecole_labels4,
+                        key=f"t4_e_{st.session_state.t4_rc}"
+                    )
+                    ecole_fase_sel4, ecole_name_sel4 = fase_map4.get(ecole_label_sel4, ("", ""))
+                else:
+                    ecole_fase_sel4, ecole_name_sel4 = "", ""
+                    st.selectbox(
+                        "3. École",
+                        ["— Choisissez d'abord une commune —"],
+                        key=f"t4_e_{st.session_state.t4_rc}",
+                        disabled=True
+                    )
+
+            with s4:
+                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                if st.button("🗑️ Effacer", key="t4_reset", use_container_width=True):
+                    st.session_state.t4_rc += 1
+                    st.rerun()
+
+            # Préchargement config actuelle
+            if ecole_fase_sel4:
+                cur4          = df_config[df_config['Fase école'] == ecole_fase_sel4]
+                cur_extra4    = cur4.iloc[0]['Extrascolaire'] if not cur4.empty else 'Non'
+                cur_pay4_raw  = cur4.iloc[0]['Paiement']      if not cur4.empty else ''
+                cur_pay4      = cur_pay4_raw if cur_pay4_raw in ['Prépaiement', 'Post-paiement'] else 'Prépaiement'
+                cur_serv4_raw = str(cur4.iloc[0].get('Services', '')) if not cur4.empty else ''
+                cur_serv4     = [s.strip() for s in cur_serv4_raw.split('|') if s.strip() and s.strip() != 'nan']
+            else:
+                cur_extra4, cur_pay4, cur_serv4 = 'Non', 'Prépaiement', []
+
+            # Formulaire
+            with st.form("form_ecole4"):
+                if ecole_fase_sel4:
+                    _fhdr = f'<div style="background:#f0f7ff; border-left:4px solid #4169E1; padding:10px 16px; border-radius:0 8px 8px 0; margin-bottom:12px;">'
+                    _fhdr += f'<span style="font-weight:700; color:#1e293b; font-size:15px;">🏫 {ecole_name_sel4}</span>'
+                    _fhdr += f'&nbsp;&nbsp;<span style="color:#64748b; font-size:12px;">Fase {ecole_fase_sel4} &nbsp;|&nbsp; {com_sel4}</span></div>'
+                    st.markdown(_fhdr, unsafe_allow_html=True)
+                    fc1, fc2 = st.columns(2)
+                    with fc1:
+                        extra_v4 = st.radio(
+                            "Utilise l'Extrascolaire Creos ?",
+                            ["Oui", "Non"],
+                            horizontal=True,
+                            index=0 if cur_extra4 == 'Oui' else 1
+                        )
+                    with fc2:
+                        pay_v4 = st.radio(
+                            "Mode de paiement",
+                            ["Prépaiement", "Post-paiement"],
+                            horizontal=True,
+                            index=0 if cur_pay4 == 'Prépaiement' else 1,
+                            help="Applicable uniquement si Extrascolaire = Oui"
+                        )
+                    serv_v4 = st.multiselect(
+                        "Services utilisés",
+                        ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"],
+                        default=cur_serv4,
+                        help="Applicable uniquement si Extrascolaire = Oui"
+                    )
+                    fbs1, fbs2 = st.columns(2)
+                    with fbs1:
+                        saved4 = st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True)
+                    with fbs2:
+                        deleted4 = st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True)
+
+                    if saved4:
+                        new_row4 = pd.DataFrame([{
+                            "Fase école":    ecole_fase_sel4,
+                            "Commune":       com_sel4,
+                            "Province":      p_sel4,
+                            "Extrascolaire": extra_v4,
+                            "Paiement":      pay_v4 if extra_v4 == "Oui" else "",
+                            "Services":      "|".join(serv_v4) if extra_v4 == "Oui" else ""
+                        }])
+                        df_upd4 = pd.concat(
+                            [df_config[df_config['Fase école'] != ecole_fase_sel4], new_row4],
+                            ignore_index=True
+                        )
+                        try:
+                            conn.update(worksheet="EcolesConfig", data=df_upd4)
+                            st.success("✅ Enregistré !")
+                            st.rerun()
+                        except Exception as e_save:
+                            st.error(f"❌ Impossible d'enregistrer : {e_save}")
+
+                    if deleted4:
+                        df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
+                        try:
+                            conn.update(worksheet="EcolesConfig", data=df_upd4)
+                            st.success("🗑️ Supprimé !")
+                            st.rerun()
+                        except Exception as e_del:
+                            st.error(f"❌ Impossible de supprimer : {e_del}")
+                else:
+                    st.info("👆 Sélectionnez une Province, une Commune et une École pour configurer.")
+                    st.form_submit_button("💾 ENREGISTRER / MODIFIER", disabled=True, use_container_width=True)
+
+        # ============================================================
+        # COLONNE DROITE : Bloc teal + Filtres & Liste
+        # ============================================================
+        with col_right4:
+            # --- Bloc teal ---
+            _svc_j4 = svc_cnt4["Cantine Jour"]
+            _svc_s4 = svc_cnt4["Cantine Semaine"]
+            _svc_m4 = svc_cnt4["Cantine Mois"]
+            _svc_g4 = svc_cnt4["Garderie"]
+            _svc_a4 = svc_cnt4["Activités"]
+            _html4  = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">'
+            _html4 += '<div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center;">'
+            _html4 += '<div style="font-size:11px; text-transform:uppercase; opacity:0.8; margin-bottom:4px;">Total des écoles actives</div>'
+            _html4 += f'<div style="font-size:52px; font-weight:bold; margin-bottom:12px; line-height:1;">{n_active4}</div>'
+            _html4 += '<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:12px 0; margin-bottom:12px;">'
+            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:16px; font-weight:bold; color:#ec4899;">{n_prep4}</span><span style="font-size:10px; opacity:0.9;">Prépaiement</span></div>'
+            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:16px; font-weight:bold; color:#38bdf8;">{n_post4}</span><span style="font-size:10px; opacity:0.9;">Post-paiement</span></div>'
+            _html4 += f'<div style="text-align:center;"><span style="display:block; font-size:16px; font-weight:bold; color:#a78bfa;">{n_comm4}</span><span style="font-size:10px; opacity:0.9;">Communes</span></div>'
             _html4 += '</div>'
-            _html4 += '<div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">'
-            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;"><i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{_svc_j4}</b></div>'
-            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;"><i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{_svc_s4}</b></div>'
-            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;"><i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{_svc_m4}</b></div>'
-            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;"><i class="fa-solid fa-clock"></i> Garderie : <b>{_svc_g4}</b></div>'
-            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;"><i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{_svc_a4}</b></div>'
+            _html4 += '<div style="text-align:left; font-size:10px; display:grid; grid-template-columns: 1fr 1fr; gap:6px;">'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:6px; border-radius:6px; border-left:4px solid #FFD700;"><i class="fa-solid fa-utensils"></i> Cant. Jour : <b>{_svc_j4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:6px; border-radius:6px; border-left:4px solid #FF8C00;"><i class="fa-solid fa-calendar-day"></i> Cant. Sem. : <b>{_svc_s4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:6px; border-radius:6px; border-left:4px solid #FF0000;"><i class="fa-solid fa-calendar-days"></i> Cant. Mois : <b>{_svc_m4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:6px; border-radius:6px; border-left:4px solid #38bdf8;"><i class="fa-solid fa-clock"></i> Garderie : <b>{_svc_g4}</b></div>'
+            _html4 += f'<div style="background:rgba(255,255,255,0.1); padding:6px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;"><i class="fa-solid fa-volleyball"></i> Activités : <b>{_svc_a4}</b></div>'
             _html4 += '</div></div>'
             st.markdown(_html4, unsafe_allow_html=True)
 
-        st.divider()
-        st.subheader("📝 Configurer une École")
+            st.divider()
 
-        # --- Sélecteurs (au niveau du tab, aucune imbrication de colonnes) ---
-        s1, s2, s3, s4 = st.columns([2, 2, 3, 1])
+            # --- Filtres & Liste ---
+            col_t4r, col_r4r = st.columns([3, 2])
+            with col_t4r:
+                st.subheader("🔍 Écoles configurées")
+            with col_r4r:
+                st.write("")
+                if st.button("❌ Effacer filtres", key="t4_filt_reset", use_container_width=True):
+                    st.session_state.t4_frc += 1
+                    st.rerun()
 
-        with s1:
-            p_sel4 = st.selectbox(
-                "1. Province",
-                list(data_fwb.keys()),
-                key=f"t4_p_{st.session_state.t4_rc}"
-            )
-
-        with s2:
-            if not df_ecoles.empty:
-                communes_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Commune'].values])
-            else:
-                communes_p4 = []
-            com_options4 = ["— Sélectionnez —"] + communes_p4
-            com_sel4 = st.selectbox(
-                "2. Commune",
-                com_options4,
-                key=f"t4_c_{st.session_state.t4_rc}"
-            )
-
-        with s3:
-            commune_valide4 = com_sel4 != "— Sélectionnez —" and not df_ecoles.empty
-            if commune_valide4:
-                df_comm4 = df_ecoles[df_ecoles['Commune'] == com_sel4].copy()
-                df_comm4['Fase école'] = df_comm4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
-                school_opts4 = []
-                for _, row4 in df_comm4.iterrows():
-                    fase4 = str(row4['Fase école'])
-                    match4 = df_config[df_config['Fase école'] == fase4]
-                    if not match4.empty:
-                        icon4 = " ✅" if match4.iloc[0]['Extrascolaire'] == 'Oui' else " ⭕"
-                    else:
-                        icon4 = ""
-                    school_opts4.append((f"{row4['Ecole']}{icon4} — Fase {fase4}", fase4, row4['Ecole']))
-                fase_map4    = {opt[0]: (opt[1], opt[2]) for opt in school_opts4}
-                ecole_labels4 = [opt[0] for opt in school_opts4]
-                ecole_label_sel4 = st.selectbox(
-                    "3. École",
-                    ecole_labels4,
-                    key=f"t4_e_{st.session_state.t4_rc}"
-                )
-                ecole_fase_sel4, ecole_name_sel4 = fase_map4.get(ecole_label_sel4, ("", ""))
-            else:
-                ecole_fase_sel4, ecole_name_sel4 = "", ""
-                st.selectbox(
-                    "3. École",
-                    ["— Choisissez d'abord une commune —"],
-                    key=f"t4_e_{st.session_state.t4_rc}",
-                    disabled=True
-                )
-
-        with s4:
-            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            if st.button("🗑️ Effacer", key="t4_reset", use_container_width=True):
-                st.session_state.t4_rc += 1
-                st.rerun()
-
-        # --- Préchargement config actuelle ---
-        if ecole_fase_sel4:
-            cur4         = df_config[df_config['Fase école'] == ecole_fase_sel4]
-            cur_extra4   = cur4.iloc[0]['Extrascolaire'] if not cur4.empty else 'Non'
-            cur_pay4_raw = cur4.iloc[0]['Paiement']      if not cur4.empty else ''
-            cur_pay4     = cur_pay4_raw if cur_pay4_raw in ['Prépaiement', 'Post-paiement'] else 'Prépaiement'
-            cur_serv4_raw = str(cur4.iloc[0].get('Services', '')) if not cur4.empty else ''
-            cur_serv4    = [s.strip() for s in cur_serv4_raw.split('|') if s.strip() and s.strip() != 'nan']
-        else:
-            cur_extra4, cur_pay4, cur_serv4 = 'Non', 'Prépaiement', []
-
-        # --- Formulaire ---
-        with st.form("form_ecole4"):
-            if ecole_fase_sel4:
-                st.markdown(
-                    f'<div style="background:#f0f7ff; border-left:4px solid #4169E1; padding:10px 16px;'
-                    f' border-radius:0 8px 8px 0; margin-bottom:12px;">'
-                    f'<span style="font-weight:700; color:#1e293b; font-size:15px;">🏫 {ecole_name_sel4}</span>'
-                    f'&nbsp;&nbsp;<span style="color:#64748b; font-size:12px;">Fase {ecole_fase_sel4}'
-                    f' &nbsp;|&nbsp; {com_sel4}</span></div>',
-                    unsafe_allow_html=True
-                )
-                fc1, fc2 = st.columns(2)
-                with fc1:
-                    extra_v4 = st.radio(
-                        "Utilise l'Extrascolaire Creos ?",
-                        ["Oui", "Non"],
-                        horizontal=True,
-                        index=0 if cur_extra4 == 'Oui' else 1
-                    )
-                with fc2:
-                    pay_v4 = st.radio(
-                        "Mode de paiement",
-                        ["Prépaiement", "Post-paiement"],
-                        horizontal=True,
-                        index=0 if cur_pay4 == 'Prépaiement' else 1,
-                        help="Applicable uniquement si Extrascolaire = Oui"
-                    )
-                serv_v4 = st.multiselect(
-                    "Services utilisés",
-                    ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"],
-                    default=cur_serv4,
-                    help="Applicable uniquement si Extrascolaire = Oui"
-                )
-                fbs1, fbs2 = st.columns(2)
-                with fbs1:
-                    saved4 = st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True)
-                with fbs2:
-                    deleted4 = st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True)
-
-                if saved4:
-                    new_row4 = pd.DataFrame([{
-                        "Fase école":   ecole_fase_sel4,
-                        "Commune":      com_sel4,
-                        "Province":     p_sel4,
-                        "Extrascolaire": extra_v4,
-                        "Paiement":     pay_v4 if extra_v4 == "Oui" else "",
-                        "Services":     "|".join(serv_v4) if extra_v4 == "Oui" else ""
-                    }])
-                    df_upd4 = pd.concat(
-                        [df_config[df_config['Fase école'] != ecole_fase_sel4], new_row4],
-                        ignore_index=True
-                    )
-                    try:
-                        conn.update(worksheet="EcolesConfig", data=df_upd4)
-                        st.success("✅ Enregistré !")
-                        st.rerun()
-                    except Exception as e_save:
-                        st.error(f"❌ Impossible d'enregistrer. Vérifiez que l'onglet **EcolesConfig** existe EXACTEMENT dans votre Google Sheets (respectez les majuscules, sans espace). Erreur: {e_save}")
-
-                if deleted4:
-                    df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
-                    try:
-                        conn.update(worksheet="EcolesConfig", data=df_upd4)
-                        st.success("🗑️ Supprimé !")
-                        st.rerun()
-                    except Exception as e_del:
-                        st.error(f"❌ Impossible de supprimer. Vérifiez que l'onglet **EcolesConfig** existe dans votre Google Sheets. Erreur: {e_del}")
-            else:
-                st.info("👆 Sélectionnez une Province, une Commune et une École pour configurer.")
-                st.form_submit_button("💾 ENREGISTRER / MODIFIER", disabled=True, use_container_width=True)
-
-        st.divider()
-
-        # --- Filtres & Liste ---
-        col_titre4, col_reset4 = st.columns([7, 3])
-        with col_titre4:
-            st.subheader("🔍 Filtres & Liste des écoles configurées")
-        with col_reset4:
-            st.write("")
-            if st.button("❌ Effacer les filtres", key="t4_filt_reset", use_container_width=True):
-                st.session_state.t4_frc += 1
-                st.rerun()
-
-        ff1, ff2, ff3 = st.columns([2, 1, 2])
-        with ff1:
             fl4_p = st.multiselect(
                 "Province",
                 sorted(df_active['Province'].unique()) if not df_active.empty else [],
                 key=f"t4_fp_{st.session_state.t4_frc}"
             )
-        with ff2:
             fl4_m = st.multiselect(
                 "Paiement",
                 ["Prépaiement", "Post-paiement"],
                 key=f"t4_fm_{st.session_state.t4_frc}"
             )
-        with ff3:
             fl4_s = st.multiselect(
                 "Services",
                 ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"],
                 key=f"t4_fs_{st.session_state.t4_frc}"
             )
 
-        df_r4 = df_active.copy()
-        if not df_r4.empty:
-            if fl4_p: df_r4 = df_r4[df_r4['Province'].isin(fl4_p)]
-            if fl4_m: df_r4 = df_r4[df_r4['Paiement'].isin(fl4_m)]
-            for sv4 in fl4_s:
-                df_r4 = df_r4[df_r4['Services'].str.contains(sv4, na=False)]
+            df_r4 = df_active.copy()
+            if not df_r4.empty:
+                if fl4_p: df_r4 = df_r4[df_r4['Province'].isin(fl4_p)]
+                if fl4_m: df_r4 = df_r4[df_r4['Paiement'].isin(fl4_m)]
+                for sv4 in fl4_s:
+                    df_r4 = df_r4[df_r4['Services'].str.contains(sv4, na=False)]
 
-        if not df_r4.empty:
-            if not df_ecoles.empty:
-                ecoles_info4 = df_ecoles[['Fase école', 'Ecole']].copy()
-                ecoles_info4['Fase école'] = ecoles_info4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
-                df_sorted4 = df_r4.merge(ecoles_info4, on='Fase école', how='left')
-            else:
-                df_sorted4 = df_r4.copy()
-            df_sorted4 = df_sorted4.sort_values(['Province', 'Commune'])
-            disp_cols4  = [c for c in ['Province', 'Commune', 'Ecole', 'Fase école', 'Paiement', 'Services'] if c in df_sorted4.columns]
-            df_display4 = df_sorted4[disp_cols4]
+            if not df_r4.empty:
+                if not df_ecoles.empty:
+                    ecoles_info4 = df_ecoles[['Fase école', 'Ecole']].copy()
+                    ecoles_info4['Fase école'] = ecoles_info4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                    df_sorted4 = df_r4.merge(ecoles_info4, on='Fase école', how='left')
+                else:
+                    df_sorted4 = df_r4.copy()
+                df_sorted4 = df_sorted4.sort_values(['Province', 'Commune'])
+                disp_cols4  = [c for c in ['Province', 'Commune', 'Ecole', 'Fase école', 'Paiement', 'Services'] if c in df_sorted4.columns]
+                df_display4 = df_sorted4[disp_cols4]
 
-            col_xl4, _ = st.columns([2, 8])
-            with col_xl4:
                 buf4 = io.BytesIO()
                 with pd.ExcelWriter(buf4, engine='xlsxwriter') as wr4:
                     df_display4.to_excel(wr4, index=False, sheet_name='EcolesActives')
@@ -882,40 +881,12 @@ with tab4:
                     use_container_width=True,
                     key="dl_ecoles4"
                 )
-
-            col_list4, col_viz4 = st.columns([6, 4], gap="medium")
-            with col_list4:
-                st.dataframe(df_display4, use_container_width=True, hide_index=True, height=520)
-            with col_viz4:
-                p_c4 = df_sorted4['Paiement'].value_counts().reset_index()
-                if not p_c4.empty:
-                    fig_p4 = px.pie(
-                        p_c4, values='count', names='Paiement', hole=0.4,
-                        title="Modes de Paiement",
-                        color='Paiement',
-                        color_discrete_map={'Prépaiement': '#ec4899', 'Post-paiement': '#38bdf8'}
-                    )
-                    fig_p4.update_layout(height=260, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
-                    st.plotly_chart(fig_p4, use_container_width=True, config={'displayModeBar': False})
-
-                ct4 = [int(df_sorted4['Services'].str.contains(s, na=False).sum()) for s in svc_list4]
-                df_s4 = pd.DataFrame({'Service': svc_list4, 'Nombre': ct4})
-                fig_s4 = px.bar(
-                    df_s4, x='Nombre', y='Service', orientation='h',
-                    title="Popularité des Services",
-                    color='Service',
-                    color_discrete_map={
-                        "Cantine Jour":"#FFD700","Cantine Semaine":"#FF8C00",
-                        "Cantine Mois":"#FF0000","Garderie":"#38bdf8","Activités":"#4ade80"
-                    }
-                )
-                fig_s4.update_layout(height=260, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
-                st.plotly_chart(fig_s4, use_container_width=True, config={'displayModeBar': False})
-        else:
-            if df_active.empty:
-                st.info("ℹ️ Aucune école configurée pour l'instant. Utilisez le formulaire ci-dessus pour commencer.")
+                st.dataframe(df_display4, use_container_width=True, hide_index=True, height=400)
             else:
-                st.warning("Aucun résultat pour ces filtres.")
+                if df_active.empty:
+                    st.info("ℹ️ Aucune école configurée pour l'instant.")
+                else:
+                    st.warning("Aucun résultat pour ces filtres.")
 
     except Exception as _e4:
         import traceback as _tb4
