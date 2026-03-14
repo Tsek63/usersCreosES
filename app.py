@@ -422,11 +422,11 @@ with tab3:
         st.error("⚠️ Impossible de charger la feuille **Ecoles**. Assurez-vous d'avoir créé une feuille nommée **'Ecoles'** dans votre Google Sheets.")
         st.stop()
 
-    all_po = sorted(df_ecoles['Nom PO'].dropna().unique().tolist())
+    all_po = sorted(df_ecoles['Commune'].dropna().unique().tolist())
 
     total_ecoles_global = len(df_ecoles)
-    total_po_global = df_ecoles['Nom PO'].nunique()
-    total_active_with_schools = len([c for c in active_communes if c in df_ecoles['Nom PO'].values])
+    total_po_global = df_ecoles['Commune'].nunique()
+    total_active_with_schools = len([c for c in active_communes if c in df_ecoles['Commune'].values])
 
     st.markdown(f"""
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -475,7 +475,7 @@ with tab3:
         communes_dispo = [""] + all_po
     else:
         communes_prov = data_fwb.get(prov_tab3, [])
-        communes_dispo = [""] + sorted([c for c in communes_prov if c in df_ecoles['Nom PO'].values])
+        communes_dispo = [""] + sorted([c for c in communes_prov if c in df_ecoles['Commune'].values])
 
     with col_c3:
         commune_tab3 = st.selectbox(
@@ -517,14 +517,14 @@ with tab3:
                 st.markdown(
                     f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #4169E1; border-radius:8px; padding:10px 16px; margin-bottom:8px;">'
                     f'<div style="font-weight:700; color:#1e293b; font-size:14px;">{row.get("Ecole","—")}</div>'
-                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">PO : {row.get("Nom PO","—")} &nbsp;|&nbsp; Fase école : {row.get("Fase école","—")} &nbsp;|&nbsp; Dir. : {row.get("Directeur.rice","—")}</div>'
+                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">PO : {row.get("Commune","—")} &nbsp;|&nbsp; Fase école : {row.get("Fase école","—")} &nbsp;|&nbsp; Dir. : {row.get("Directeur.rice","—")}</div>'
                     f'<div style="font-size:11px; color:#64748b; margin-top:2px;">{email_link} &nbsp;|&nbsp; {tel_link} &nbsp;|&nbsp; {row.get("Adresse","—")}, {row.get("Code postal","—")} {row.get("Localité","—")}</div>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
         st.stop()
 
-    df_comm = df_ecoles[df_ecoles['Nom PO'] == commune_tab3].copy()
+    df_comm = df_ecoles[df_ecoles['Commune'] == commune_tab3].copy()
     fase_po = df_comm['Fase PO'].iloc[0] if not df_comm.empty else '—'
     is_active_t3 = commune_tab3 in active_communes
 
@@ -677,7 +677,7 @@ with tab4:
 
         with s2:
             if not df_ecoles.empty:
-                communes_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Nom PO'].values])
+                communes_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Commune'].values])
             else:
                 communes_p4 = []
             com_options4 = ["— Sélectionnez —"] + communes_p4
@@ -690,7 +690,7 @@ with tab4:
         with s3:
             commune_valide4 = com_sel4 != "— Sélectionnez —" and not df_ecoles.empty
             if commune_valide4:
-                df_comm4 = df_ecoles[df_ecoles['Nom PO'] == com_sel4].copy()
+                df_comm4 = df_ecoles[df_ecoles['Commune'] == com_sel4].copy()
                 df_comm4['Fase école'] = df_comm4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
                 school_opts4 = []
                 for _, row4 in df_comm4.iterrows():
