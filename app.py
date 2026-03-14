@@ -764,6 +764,8 @@ with tab4:
                 else:
                     communes_p4 = []
                 com_options4 = ["— Sélectionnez —"] + communes_p4
+                if st.session_state.get("t4_comm") not in com_options4:
+                    st.session_state["t4_comm"] = com_options4[0]
                 com_sel4 = st.selectbox(
                     "2. Commune",
                     com_options4,
@@ -786,6 +788,8 @@ with tab4:
                         school_opts4.append((f"{row4['Ecole']}{icon4} — Fase {fase4}", fase4, row4['Ecole']))
                     fase_map4     = {opt[0]: (opt[1], opt[2]) for opt in school_opts4}
                     ecole_labels4 = [opt[0] for opt in school_opts4]
+                    if st.session_state.get("t4_ecole") not in ecole_labels4:
+                        st.session_state["t4_ecole"] = ecole_labels4[0] if ecole_labels4 else None
                     ecole_label_sel4 = st.selectbox(
                         "3. École",
                         ecole_labels4,
