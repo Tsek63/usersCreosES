@@ -47,7 +47,7 @@ data_fwb = {
     "Luxembourg": ["Arlon", "Attert", "Aubange", "Bastogne", "Bertogne", "Bertrix", "Bouillon", "Chiny", "Daverdisse", "Durbuy", "Erezée", "Etalle", "Fauvillers", "Florenville", "Gouvy", "Habay", "Herbeumont", "Hotton", "Houffalize", "La Roche-en-Ardenne", "Léglise", "Libin", "Libramont-Chevigny", "Manhay", "Marche-en-Famenne", "Martelange", "Meix-devant-Virton", "Messancy", "Musson", "Nassogne", "Neufchâteau", "Paliseul", "Rendeux", "Rouvroy", "Sainte-Ode", "Saint-Hubert", "Saint-Léger", "Tellin", "Tenneville", "Tintigny", "Vaux-sur-Sûre", "Vielsalm", "Virton", "Wellin"]
 }
 
-# --- FONCTION GÉNÉRATION HTML IMPRESSION ---
+# --- FONCTION GÉNÉRATION HTML IMPRESSION (Tab 2) ---
 def generate_print_html(df_print, fl_p, fl_m, fl_s):
     date_str = pd.Timestamp.now().strftime("%d/%m/%Y à %H:%M")
     filter_parts = []
@@ -135,27 +135,85 @@ def generate_print_html(df_print, fl_p, fl_m, fl_s):
     return html
 
 
-# --- 3. CONNEXION GSHEETS ---
+# --- 3. CONNEXION GSHEETS & CHARGEMENT DES DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# Feuille principale (Tab 2 compat)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# --- 4. TABS ---
-tab1, tab2, tab3 = st.tabs(["📊 Tableau de bord et Carte", "✏️ Gestion des Communes", "🏫 Écoles par Commune"])
+# Feuille Ecoles
+try:
+    df_ecoles = conn.read(worksheet="Ecoles", ttl=0).dropna(how="all")
+    for col in ['Fase PO', 'Fase école', 'Code postal']:
+        if col in df_ecoles.columns:
+            df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
+except Exception as e:
+    df_ecoles = pd.DataFrame()
+    st.warning(f"⚠️ Feuille 'Ecoles' introuvable : {e}")
 
-# --- TAB 1 : DASHBOARD & CARTE ---
+# Feuille EcolesConfig (Tab 4)
+_config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
+try:
+    df_config = conn.read(worksheet="EcolesConfig", ttl=0).dropna(how="all")
+    if df_config.empty or not all(c in df_config.columns for c in _config_cols):
+        df_config = pd.DataFrame(columns=_config_cols)
+    else:
+        df_config['Fase école'] = df_config['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+except Exception:
+    df_config = pd.DataFrame(columns=_config_cols)
+
+# Écoles actives (Extrascolaire = Oui) — source de vérité pour Tab 1
+df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy() if not df_config.empty else pd.DataFrame(columns=_config_cols)
+active_communes = set(df_active['Commune'].unique()) if not df_active.empty else set()
+
+# Résumé par commune pour Tab 1 (carte + liste)
+if not df_active.empty:
+    tab1_rows = []
+    for comm, grp in df_active.groupby('Commune'):
+        prov = grp['Province'].iloc[0]
+        nb = len(grp)
+        all_svcs = []
+        for svc_str in grp['Services'].dropna():
+            for s in str(svc_str).split('|'):
+                s = s.strip()
+                if s and s not in all_svcs:
+                    all_svcs.append(s)
+        pay_vc = grp['Paiement'].value_counts()
+        paiement = pay_vc.index[0] if len(pay_vc) > 0 else ''
+        tab1_rows.append({
+            'Commune': comm, 'Province': prov, 'NbEcoles': nb,
+            'Paiement': paiement, 'Services': '|'.join(all_svcs)
+        })
+    df_tab1 = pd.DataFrame(tab1_rows)
+else:
+    df_tab1 = pd.DataFrame(columns=['Commune', 'Province', 'NbEcoles', 'Paiement', 'Services'])
+
+
+# --- 4. TABS ---
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 Tableau de bord et Carte",
+    "✏️ Gestion des Communes",
+    "🏫 Écoles par Commune",
+    "⚙️ Configuration des Écoles"
+])
+
+# ============================================================
+# --- TAB 1 : DASHBOARD & CARTE (données depuis EcolesConfig) ---
+# ============================================================
 with tab1:
-    t_dash = len(df_gsheets)
-    p_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
-    po_dash = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
+    t_dash = df_tab1['Commune'].nunique() if not df_tab1.empty else 0
+    p_dash = len(df_active[df_active['Paiement'] == 'Prépaiement']) if not df_active.empty else 0
+    po_dash = len(df_active[df_active['Paiement'] == 'Post-paiement']) if not df_active.empty else 0
     s_dash = {
-        "Cantine Jour": (df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum(), "#FFD700"),
-        "Cantine Semaine": (df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum(), "#FF8C00"),
-        "Cantine Mois": (df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum(), "#FF0000"),
-        "Garderie": (df_gsheets['Services'].str.contains("Garderie", na=False).sum(), "#38bdf8"),
-        "Activités": (df_gsheets['Services'].str.contains("Activités", na=False).sum(), "#4ade80")
+        "Cantine Jour":    (int(df_active['Services'].str.contains("Cantine Jour",    na=False).sum()) if not df_active.empty else 0, "#FFD700"),
+        "Cantine Semaine": (int(df_active['Services'].str.contains("Cantine Semaine", na=False).sum()) if not df_active.empty else 0, "#FF8C00"),
+        "Cantine Mois":    (int(df_active['Services'].str.contains("Cantine Mois",    na=False).sum()) if not df_active.empty else 0, "#FF0000"),
+        "Garderie":        (int(df_active['Services'].str.contains("Garderie",        na=False).sum()) if not df_active.empty else 0, "#38bdf8"),
+        "Activités":       (int(df_active['Services'].str.contains("Activités",       na=False).sum()) if not df_active.empty else 0, "#4ade80"),
     }
-    json_recs = df_gsheets.to_json(orient='records')
-    
+
+    json_recs = df_tab1.to_json(orient='records')
+
     html_map = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
             :root {{ --dark: #1e293b; --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; }}
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }}
@@ -177,11 +235,12 @@ with tab1:
             .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
             .badge-container {{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }}
             .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; }}
+            .nb-badge {{ background:#4169E1; color:white; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:6px; }}
         </style></head><body onload="init()">
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
         <div class="stats-panel">
-            <div class="panel-header"><div style="font-size:11px; opacity:0.7;">TOTAL COMMUNES ACTIVES</div><div class="main-count">{t_dash}</div></div>
+            <div class="panel-header"><div style="font-size:11px; opacity:0.7;">COMMUNES ACTIVES</div><div class="main-count">{t_dash}</div></div>
             <div class="cols-container">
                 <div class="col-half">
                     <div style="font-size:10px; opacity:0.5; text-align:center;">PAIEMENT</div>
@@ -197,16 +256,22 @@ with tab1:
     </div>
     <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
-        const dbData = {json_recs}; const mapRef = {json.dumps(data_fwb)}; let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
+        const dbData = {json_recs};
+        const mapRef = {json.dumps(data_fwb)};
+        let db = new Map();
+        dbData.forEach(r => db.set(r.Commune, r));
         const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#FFD700" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#FF8C00" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#FF0000" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
         function init() {{
-            const svg = document.getElementById('svg'); const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
+            const svg = document.getElementById('svg');
+            const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
             Object.entries(mapRef).forEach(([pName, list]) => {{
                 const cleanP = pName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ')[0];
                 list.forEach((name, i) => {{
                     const x = anchors[pName][0] + (i % 8 * 23), y = anchors[pName][1] + (Math.floor(i / 8) * 21);
-                    const r = document.createElementNS("http://www.w3.org/2000/svg", "rect"); r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 20); r.setAttribute("height", 18); r.setAttribute("rx", 3);
-                    r.setAttribute("class", "commune" + (db.has(name) ? " active" : "")); r.style.fill = `var(--c-${{cleanP}})`;
+                    const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 20); r.setAttribute("height", 18); r.setAttribute("rx", 3);
+                    r.setAttribute("class", "commune" + (db.has(name) ? " active" : ""));
+                    r.style.fill = `var(--c-${{cleanP}})`;
                     const t = document.createElementNS("http://www.w3.org/2000/svg", "title"); t.textContent = name; r.appendChild(t); svg.appendChild(r);
                 }});
             }}); render();
@@ -217,9 +282,12 @@ with tab1:
                 const filtered = Array.from(db.values()).filter(x => x.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
                     const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px'; h.style.fontSize='11px'; h.innerText = p; listDiv.appendChild(h);
-                    filtered.forEach(x => {{ const row = document.createElement('div'); row.className = 'item-row';
+                    filtered.forEach(x => {{
+                        const row = document.createElement('div'); row.className = 'item-row';
                         const badges = (x.Services || "").split('|').filter(s => s).map(s => `<span class="badge" style="background:${{icons[s]?.c || '#ccc'}}"><i class="fa-solid ${{icons[s]?.i || 'fa-tag'}}"></i> ${{s}}</span>`).join('');
-                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span><div class="badge-container">${{badges}}</div>`; listDiv.appendChild(row);
+                        const nbBadge = `<span class="nb-badge">${{x.NbEcoles}} école(s)</span>`;
+                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong>${{nbBadge}}</span><div class="badge-container">${{badges}}</div>`;
+                        listDiv.appendChild(row);
                     }});
                 }}
             }});
@@ -228,13 +296,16 @@ with tab1:
     </script></body></html>"""
     components.html(html_map, height=750)
 
-# --- TAB 2 : GESTION ---
+
+# ============================================================
+# --- TAB 2 : GESTION DES COMMUNES (inchangé) ---
+# ============================================================
 with tab2:
     st.header("✏️ Gestion des Communes")
     nt = len(df_gsheets)
     p_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Prépaiement'])
     po_stat = len(df_gsheets[df_gsheets['Paiement'] == 'Post-paiement'])
-    
+
     c_form, c_stat = st.columns([6, 4])
     with c_form:
         p_sel = st.selectbox("1. Province", list(data_fwb.keys()), key="m_p")
@@ -344,29 +415,15 @@ with tab2:
 
 
 # ============================================================
-# --- TAB 3 : ÉCOLES PAR COMMUNE ---
+# --- TAB 3 : ÉCOLES PAR COMMUNE (inchangé) ---
 # ============================================================
 with tab3:
-
-    # --- Chargement des données écoles depuis la feuille "Ecoles" du même GSheets ---
-    try:
-        df_ecoles = conn.read(worksheet="Ecoles", ttl=0).dropna(how="all")
-        # Nettoyage des types
-        for col in ['Fase PO', 'Fase école', 'Code postal']:
-            df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
-    except Exception as e:
-        st.error(
-            f"⚠️ Impossible de charger la feuille **Ecoles**. "
-            f"Assurez-vous d'avoir créé une feuille nommée **'Ecoles'** dans votre Google Sheets "
-            f"et d'y avoir collé les données du fichier Excel fourni.\n\nErreur : `{e}`"
-        )
+    if df_ecoles.empty:
+        st.error("⚠️ Impossible de charger la feuille **Ecoles**. Assurez-vous d'avoir créé une feuille nommée **'Ecoles'** dans votre Google Sheets.")
         st.stop()
 
-    # --- Communes actives dans Creos ---
-    active_communes = set(df_gsheets['Commune'].tolist())
     all_po = sorted(df_ecoles['Nom PO'].dropna().unique().tolist())
 
-    # --- Bandeau de stats global ---
     total_ecoles_global = len(df_ecoles)
     total_po_global = df_ecoles['Nom PO'].nunique()
     total_active_with_schools = len([c for c in active_communes if c in df_ecoles['Nom PO'].values])
@@ -402,11 +459,9 @@ with tab3:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Session state pour reset des filtres ---
     if 't3_rc' not in st.session_state:
         st.session_state.t3_rc = 0
 
-    # --- Sélecteurs Province / Commune / Recherche + Bouton reset ---
     col_p3, col_c3, col_s3, col_btn3 = st.columns([2, 3, 3, 1.5])
 
     with col_p3:
@@ -416,7 +471,6 @@ with tab3:
             key=f"t3_prov_{st.session_state.t3_rc}"
         )
 
-    # Filtrer les communes disponibles selon la province choisie
     if prov_tab3 == "Toutes les provinces":
         communes_dispo = [""] + all_po
     else:
@@ -448,7 +502,6 @@ with tab3:
         st.stop()
 
     if not commune_tab3 and search_ecole:
-        # Recherche globale sur toutes les écoles si aucune commune sélectionnée
         df_search = df_ecoles[
             df_ecoles['Ecole'].astype(str).str.contains(search_ecole, case=False, na=False) |
             df_ecoles['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False) |
@@ -471,18 +524,16 @@ with tab3:
                 )
         st.stop()
 
-    # --- Données de la commune sélectionnée ---
     df_comm = df_ecoles[df_ecoles['Nom PO'] == commune_tab3].copy()
     fase_po = df_comm['Fase PO'].iloc[0] if not df_comm.empty else '—'
-    is_active = commune_tab3 in active_communes
+    is_active_t3 = commune_tab3 in active_communes
 
-    # Infos Creos si commune active
     paiement_badge_html = ""
     services_badges_html = ""
-    if is_active and not df_gsheets[df_gsheets['Commune'] == commune_tab3].empty:
-        gsheet_row = df_gsheets[df_gsheets['Commune'] == commune_tab3].iloc[0]
-        paiement_info = gsheet_row.get('Paiement', '—')
-        services_info = gsheet_row.get('Services', '') or ''
+    if is_active_t3 and not df_active[df_active['Commune'] == commune_tab3].empty:
+        active_row = df_active[df_active['Commune'] == commune_tab3].iloc[0]
+        paiement_info = active_row.get('Paiement', '—') or '—'
+        services_info = active_row.get('Services', '') or ''
         pc = "#ec4899" if paiement_info == "Prépaiement" else "#38bdf8"
         paiement_badge_html = f'<span style="background:{pc}; color:white; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:bold;">{paiement_info}</span>'
         service_colors = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
@@ -492,16 +543,14 @@ with tab3:
                 sc = service_colors.get(s, "#999")
                 services_badges_html += f'<span style="background:{sc}; color:white; padding:4px 10px; border-radius:6px; font-size:10px; font-weight:bold; margin-left:4px;">{s}</span>'
 
-    active_color = "#4ade80" if is_active else "#64748b"
-    active_text = "&#10003; Active dans Creos" if is_active else "&#9675; Non active dans Creos"
-    active_txt_color = "#1e293b" if is_active else "white"
-
+    active_color = "#4ade80" if is_active_t3 else "#64748b"
+    active_text = "&#10003; Active dans Creos" if is_active_t3 else "&#9675; Non active dans Creos"
+    active_txt_color = "#1e293b" if is_active_t3 else "white"
     active_badge_html = f'<span style="background:{active_color}; color:{active_txt_color}; padding:5px 14px; border-radius:20px; font-size:11px; font-weight:bold;">{active_text}</span>'
     all_badges_html = services_badges_html + paiement_badge_html + active_badge_html
 
     st.markdown(f'<div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"><div style="display:flex; align-items:center; gap:16px;"><span style="font-size:20px; font-weight:bold;">&#127963; {commune_tab3}</span><span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span><span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> &#233;cole(s)</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">{all_badges_html}</div></div>', unsafe_allow_html=True)
 
-    # --- Filtrage par recherche ---
     if search_ecole:
         mask = (
             df_comm['Ecole'].str.contains(search_ecole, case=False, na=False) |
@@ -515,19 +564,12 @@ with tab3:
     if df_display.empty:
         st.warning("Aucune école trouvée pour cette recherche.")
     else:
-        st.markdown(
-            f"<div style='font-size:12px; color:#64748b; margin-bottom:10px;'>"
-            f"<b style='color:#334155;'>{len(df_display)}</b> école(s) affichée(s)</div>",
-            unsafe_allow_html=True
-        )
-
-        # --- Affichage en cartes (2 par ligne) ---
+        st.markdown(f"<div style='font-size:12px; color:#64748b; margin-bottom:10px;'><b style='color:#334155;'>{len(df_display)}</b> école(s) affichée(s)</div>", unsafe_allow_html=True)
         for i in range(0, len(df_display), 2):
             cols = st.columns(2, gap="medium")
             for j in range(2):
                 idx = i + j
-                if idx >= len(df_display):
-                    break
+                if idx >= len(df_display): break
                 school = df_display.iloc[idx]
                 with cols[j]:
                     email = school.get('Email', None)
@@ -539,24 +581,26 @@ with tab3:
                     cp = school.get('Code postal', '')
                     loc = school.get('Localité', '')
                     adresse = f"{rue} {num}{bte}, {cp} {loc}".strip()
+                    email_html = (f'<a href="mailto:{email}" style="color:#4169E1; text-decoration:none;">{email}</a>' if pd.notna(email) and str(email).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
+                    phone_html = (f'<a href="tel:{phone}" style="color:#334155; text-decoration:none;">{phone}</a>' if pd.notna(phone) and str(phone).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
 
-                    email_html = (
-                        f'<a href="mailto:{email}" style="color:#4169E1; text-decoration:none;">{email}</a>'
-                        if pd.notna(email) and str(email).strip() not in ['nan', '']
-                        else '<span style="color:#94a3b8;">—</span>'
-                    )
-                    phone_html = (
-                        f'<a href="tel:{phone}" style="color:#334155; text-decoration:none;">{phone}</a>'
-                        if pd.notna(phone) and str(phone).strip() not in ['nan', '']
-                        else '<span style="color:#94a3b8;">—</span>'
-                    )
+                    # Statut de configuration dans EcolesConfig
+                    fase_e = str(school.get('Fase école', ''))
+                    school_conf = df_config[df_config['Fase école'] == fase_e]
+                    if not school_conf.empty and school_conf.iloc[0]['Extrascolaire'] == 'Oui':
+                        cfg_badge = '<span style="background:#4ade80; color:#1e293b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">✓ Creos actif</span>'
+                    elif not school_conf.empty:
+                        cfg_badge = '<span style="background:#64748b; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">○ Non configurée</span>'
+                    else:
+                        cfg_badge = ''
 
                     st.markdown(f"""
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:16px;
                                 margin-bottom:12px; border-left:5px solid #4169E1;
                                 box-shadow: 0 2px 6px rgba(65,105,225,0.08);">
-                        <div style="font-size:14px; font-weight:bold; color:#4169E1; margin-bottom:3px; line-height:1.3;">
-                            🏫 {school['Ecole']}
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px;">
+                            <div style="font-size:14px; font-weight:bold; color:#4169E1; line-height:1.3;">🏫 {school['Ecole']}</div>
+                            {cfg_badge}
                         </div>
                         <div style="font-size:10px; color:#94a3b8; margin-bottom:10px; letter-spacing:0.5px;">
                             N° FASE ÉCOLE : <b style="color:#475569; font-size:11px;">{school['Fase école']}</b>
@@ -573,14 +617,12 @@ with tab3:
                     """, unsafe_allow_html=True)
 
         st.divider()
-
-        # --- Export Excel des écoles de la commune ---
         col_exp1, col_exp2, col_exp3 = st.columns([3, 2, 3])
         with col_exp2:
             buffer_e = io.BytesIO()
             export_df = df_display.drop(columns=['Rue', 'N°', 'Bte', 'Adresse'], errors='ignore')
             with pd.ExcelWriter(buffer_e, engine='xlsxwriter') as writer:
-                export_df.to_excel(writer, index=False, sheet_name=f'Ecoles')
+                export_df.to_excel(writer, index=False, sheet_name='Ecoles')
             st.download_button(
                 label="📥 Exporter les écoles",
                 data=buffer_e.getvalue(),
@@ -589,6 +631,255 @@ with tab3:
                 use_container_width=True,
                 key="dl_ecoles"
             )
+
+
+# ============================================================
+# --- TAB 4 : CONFIGURATION DES ÉCOLES ---
+# ============================================================
+with tab4:
+    st.header("⚙️ Configuration des Écoles par Commune")
+
+    if 't4_rc' not in st.session_state:
+        st.session_state.t4_rc = 0
+
+    # --- Stats ---
+    n_active4 = len(df_active)
+    n_comm4 = df_active['Commune'].nunique() if not df_active.empty else 0
+    n_prep4 = len(df_active[df_active['Paiement'] == 'Prépaiement']) if not df_active.empty else 0
+    n_post4 = len(df_active[df_active['Paiement'] == 'Post-paiement']) if not df_active.empty else 0
+
+    c_form4, c_stat4 = st.columns([6, 4])
+
+    with c_form4:
+        # --- Sélecteurs HORS formulaire pour préchargement de la config ---
+        sel_cols = st.columns([2, 2, 3, 1.2])
+
+        with sel_cols[0]:
+            p_sel4 = st.selectbox("1. Province", list(data_fwb.keys()), key=f"t4_p_{st.session_state.t4_rc}")
+
+        with sel_cols[1]:
+            communes_p4 = sorted([c for c in data_fwb[p_sel4] if not df_ecoles.empty and c in df_ecoles['Nom PO'].values])
+            com_sel4 = st.selectbox(
+                "2. Commune",
+                communes_p4 if communes_p4 else ["—"],
+                key=f"t4_c_{st.session_state.t4_rc}"
+            )
+
+        with sel_cols[2]:
+            if communes_p4 and com_sel4 != "—" and not df_ecoles.empty:
+                df_comm4 = df_ecoles[df_ecoles['Nom PO'] == com_sel4].copy()
+                df_comm4['Fase école'] = df_comm4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                school_opts4 = []
+                for _, row in df_comm4.iterrows():
+                    fase = str(row['Fase école'])
+                    is_conf = not df_config[df_config['Fase école'] == fase].empty
+                    if is_conf:
+                        st_icon = " ✅" if df_config[df_config['Fase école'] == fase].iloc[0]['Extrascolaire'] == 'Oui' else " ⭕"
+                    else:
+                        st_icon = ""
+                    school_opts4.append((f"{row['Ecole']}{st_icon} — Fase {fase}", fase, row['Ecole']))
+                fase_map4 = {opt[0]: (opt[1], opt[2]) for opt in school_opts4}
+                ecole_labels4 = [opt[0] for opt in school_opts4]
+                ecole_label_sel4 = st.selectbox("3. École", ecole_labels4, key=f"t4_e_{st.session_state.t4_rc}")
+                ecole_fase_sel4, ecole_name_sel4 = fase_map4.get(ecole_label_sel4, ("", ""))
+            else:
+                ecole_fase_sel4, ecole_name_sel4 = "", ""
+                st.selectbox("3. École", ["— Choisissez d'abord une commune —"], key=f"t4_e_{st.session_state.t4_rc}", disabled=True)
+
+        with sel_cols[3]:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            if st.button("🗑️ Effacer", key="t4_reset", use_container_width=True):
+                st.session_state.t4_rc += 1
+                st.rerun()
+
+        # --- Préchargement config actuelle ---
+        if ecole_fase_sel4:
+            cur4 = df_config[df_config['Fase école'] == ecole_fase_sel4]
+            cur_extra4 = cur4.iloc[0]['Extrascolaire'] if not cur4.empty else 'Non'
+            cur_pay4_raw = cur4.iloc[0]['Paiement'] if not cur4.empty else ''
+            cur_pay4 = cur_pay4_raw if cur_pay4_raw in ['Prépaiement', 'Post-paiement'] else 'Prépaiement'
+            cur_serv4_raw = str(cur4.iloc[0].get('Services', '')) if not cur4.empty else ''
+            cur_serv4 = [s.strip() for s in cur_serv4_raw.split('|') if s.strip() and s.strip() != 'nan']
+        else:
+            cur_extra4 = 'Non'
+            cur_pay4 = 'Prépaiement'
+            cur_serv4 = []
+
+        # --- Formulaire de configuration ---
+        with st.form("form_ecole4"):
+            if ecole_fase_sel4:
+                st.markdown(
+                    f'<div style="background:#f0f7ff; border-left:4px solid #4169E1; padding:10px 16px; border-radius:0 8px 8px 0; margin-bottom:12px;">'
+                    f'<span style="font-weight:700; color:#1e293b; font-size:15px;">🏫 {ecole_name_sel4}</span>'
+                    f'&nbsp;&nbsp;<span style="color:#64748b; font-size:12px;">Fase {ecole_fase_sel4} &nbsp;|&nbsp; {com_sel4}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                fconf1, fconf2 = st.columns(2)
+                with fconf1:
+                    extra_v4 = st.radio(
+                        "Utilise l'Extrascolaire Creos ?",
+                        ["Oui", "Non"],
+                        horizontal=True,
+                        index=0 if cur_extra4 == 'Oui' else 1
+                    )
+                with fconf2:
+                    pay_v4 = st.radio(
+                        "Mode de paiement",
+                        ["Prépaiement", "Post-paiement"],
+                        horizontal=True,
+                        index=0 if cur_pay4 == 'Prépaiement' else 1,
+                        help="Applicable uniquement si Extrascolaire = Oui"
+                    )
+                serv_v4 = st.multiselect(
+                    "Services utilisés",
+                    ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"],
+                    default=cur_serv4,
+                    help="Applicable uniquement si Extrascolaire = Oui"
+                )
+                sc_save4, sc_del4 = st.columns(2)
+                with sc_save4:
+                    saved4 = st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True)
+                with sc_del4:
+                    deleted4 = st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True)
+
+                if saved4:
+                    new_row4 = pd.DataFrame([{
+                        "Fase école": ecole_fase_sel4,
+                        "Commune": com_sel4,
+                        "Province": p_sel4,
+                        "Extrascolaire": extra_v4,
+                        "Paiement": pay_v4 if extra_v4 == "Oui" else "",
+                        "Services": "|".join(serv_v4) if extra_v4 == "Oui" else ""
+                    }])
+                    df_upd4 = pd.concat([df_config[df_config['Fase école'] != ecole_fase_sel4], new_row4], ignore_index=True)
+                    conn.update(worksheet="EcolesConfig", data=df_upd4)
+                    st.rerun()
+
+                if deleted4:
+                    df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
+                    conn.update(worksheet="EcolesConfig", data=df_upd4)
+                    st.rerun()
+            else:
+                st.info("👆 Sélectionnez une Province, une Commune et une École pour configurer.")
+                st.form_submit_button("💾 ENREGISTRER / MODIFIER", disabled=True, use_container_width=True)
+
+    # --- Panneau stats (même style que Tab 2) ---
+    with c_stat4:
+        st.markdown(f"""
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">
+<div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Écoles actives (Extrascolaire)</div>
+<div style="font-size:60px; font-weight:bold; margin-bottom:5px; line-height:1;">{n_active4}</div>
+<div style="font-size:11px; opacity:0.7; margin-bottom:15px;">dans {n_comm4} commune(s)</div>
+<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">
+<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{n_prep4}</span><span style="font-size:11px; opacity:0.9;">Prépaiement</span></div>
+<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{n_post4}</span><span style="font-size:11px; opacity:0.9;">Post-paiement</span></div>
+</div>
+<div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;"><i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{int(df_active['Services'].str.contains("Cantine Jour", na=False).sum()) if not df_active.empty else 0}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;"><i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{int(df_active['Services'].str.contains("Cantine Semaine", na=False).sum()) if not df_active.empty else 0}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;"><i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{int(df_active['Services'].str.contains("Cantine Mois", na=False).sum()) if not df_active.empty else 0}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;"><i class="fa-solid fa-clock"></i> Garderie : <b>{int(df_active['Services'].str.contains("Garderie", na=False).sum()) if not df_active.empty else 0}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;"><i class="fa-solid fa-volleyball"></i> Activités : <b>{int(df_active['Services'].str.contains("Activités", na=False).sum()) if not df_active.empty else 0}</b></div>
+</div></div>
+""", unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- Filtres & Liste (même style que Tab 2) ---
+    if 't4_frc' not in st.session_state:
+        st.session_state.t4_frc = 0
+
+    col_titre4, col_reset4 = st.columns([7, 3])
+    with col_titre4:
+        st.subheader("🔍 Filtres & Liste des écoles configurées")
+    with col_reset4:
+        st.write("##")
+        if st.button("❌ Effacer les filtres", key="t4_filt_reset", use_container_width=True):
+            st.session_state.t4_frc += 1
+            st.rerun()
+
+    ff1, ff2, ff3 = st.columns([2, 1, 2])
+    with ff1:
+        fl4_p = st.multiselect("Province", sorted(df_active['Province'].unique()) if not df_active.empty else [], key=f"t4_fp_{st.session_state.t4_frc}")
+    with ff2:
+        fl4_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"t4_fm_{st.session_state.t4_frc}")
+    with ff3:
+        fl4_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"t4_fs_{st.session_state.t4_frc}")
+
+    df_r4 = df_active.copy()
+    if not df_r4.empty:
+        if fl4_p: df_r4 = df_r4[df_r4['Province'].isin(fl4_p)]
+        if fl4_m: df_r4 = df_r4[df_r4['Paiement'].isin(fl4_m)]
+        if fl4_s:
+            for s in fl4_s:
+                df_r4 = df_r4[df_r4['Services'].str.contains(s, na=False)]
+
+    if not df_r4.empty:
+        # Joindre le nom de l'école depuis df_ecoles
+        if not df_ecoles.empty:
+            ecoles_info4 = df_ecoles[['Fase école', 'Ecole']].copy()
+            ecoles_info4['Fase école'] = ecoles_info4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+            df_sorted4 = df_r4.merge(ecoles_info4, on='Fase école', how='left')
+        else:
+            df_sorted4 = df_r4.copy()
+
+        df_sorted4 = df_sorted4.sort_values(['Province', 'Commune'])
+        # Colonnes d'affichage
+        disp_cols4 = [c for c in ['Province', 'Commune', 'Ecole', 'Fase école', 'Paiement', 'Services'] if c in df_sorted4.columns]
+        df_display4 = df_sorted4[disp_cols4]
+
+        st.markdown("""
+            <style>
+                div.stDownloadButton > button { background-color: #008080 !important; color: white !important; border: none !important; width: 100% !important; }
+                div.stDownloadButton > button:hover { background-color: #006666 !important; color: white !important; }
+            </style>
+        """, unsafe_allow_html=True)
+
+        col_xl4, _ = st.columns([2, 8])
+        with col_xl4:
+            buffer4 = io.BytesIO()
+            with pd.ExcelWriter(buffer4, engine='xlsxwriter') as writer:
+                df_display4.to_excel(writer, index=False, sheet_name='EcolesActives')
+            st.download_button(
+                label="📥 Exporter vers Excel",
+                data=buffer4.getvalue(),
+                file_name="ecoles_actives.xlsx",
+                mime="application/vnd.ms-excel",
+                use_container_width=True,
+                key="dl_ecoles4"
+            )
+
+        col_list4, col_viz4 = st.columns([6, 4], gap="medium")
+        with col_list4:
+            st.dataframe(df_display4, use_container_width=True, hide_index=True, height=520)
+        with col_viz4:
+            if not df_sorted4.empty:
+                p_c4 = df_sorted4['Paiement'].value_counts().reset_index()
+                if not p_c4.empty:
+                    fig_p4 = px.pie(p_c4, values='count', names='Paiement', hole=0.4,
+                                    title="Modes de Paiement (Sélection)",
+                                    color='Paiement',
+                                    color_discrete_map={'Prépaiement': '#ec4899', 'Post-paiement': '#38bdf8'})
+                    fig_p4.update_layout(height=250, margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", y=-0.1))
+                    st.plotly_chart(fig_p4, use_container_width=True, config={'displayModeBar': False})
+
+                sl4 = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+                ct4 = [int(df_sorted4['Services'].str.contains(s, na=False).sum()) for s in sl4]
+                df_s4 = pd.DataFrame({'Service': sl4, 'Nombre': ct4})
+                fig_s4 = px.bar(df_s4, x='Nombre', y='Service', orientation='h',
+                                title="Popularité des Services (Sélection)",
+                                color='Service',
+                                color_discrete_map={"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00",
+                                                    "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
+                fig_s4.update_layout(height=250, showlegend=False, margin=dict(l=0, r=0, t=40, b=0), xaxis_title=None, yaxis_title=None)
+                st.plotly_chart(fig_s4, use_container_width=True, config={'displayModeBar': False})
+    else:
+        if df_active.empty:
+            st.info("ℹ️ Aucune école configurée pour l'instant. Utilisez le formulaire ci-dessus pour commencer.")
+        else:
+            st.warning("Aucun résultat pour ces filtres.")
 
 
 # --- FOOTER ---
