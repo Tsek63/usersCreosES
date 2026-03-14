@@ -460,26 +460,13 @@ with tab3:
                 services_badges_html += f'<span style="background:{sc}; color:white; padding:4px 10px; border-radius:6px; font-size:10px; font-weight:bold; margin-left:4px;">{s}</span>'
 
     active_color = "#4ade80" if is_active else "#64748b"
-    active_text = "✓ Active dans Creos" if is_active else "○ Non active dans Creos"
+    active_text = "&#10003; Active dans Creos" if is_active else "&#9675; Non active dans Creos"
     active_txt_color = "#1e293b" if is_active else "white"
 
-    st.markdown(f"""
-    <div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px;
-                display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-        <div style="display:flex; align-items:center; gap:16px;">
-            <span style="font-size:20px; font-weight:bold;">🏛️ {commune_tab3}</span>
-            <span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span>
-            <span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> école(s)</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-            {services_badges_html}
-            {paiement_badge_html}
-            <span style="background:{active_color}; color:{active_txt_color}; padding:5px 14px; border-radius:20px; font-size:11px; font-weight:bold;">
-                {active_text}
-            </span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    active_badge_html = f'<span style="background:{active_color}; color:{active_txt_color}; padding:5px 14px; border-radius:20px; font-size:11px; font-weight:bold;">{active_text}</span>'
+    all_badges_html = services_badges_html + paiement_badge_html + active_badge_html
+
+    st.markdown(f'<div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"><div style="display:flex; align-items:center; gap:16px;"><span style="font-size:20px; font-weight:bold;">&#127963; {commune_tab3}</span><span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span><span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> &#233;cole(s)</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">{all_badges_html}</div></div>', unsafe_allow_html=True)
 
     # --- Filtrage par recherche ---
     if search_ecole:
