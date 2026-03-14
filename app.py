@@ -726,8 +726,6 @@ with tab3:
 # ============================================================
 with tab4:
     try:
-        if 't4_rc' not in st.session_state:
-            st.session_state.t4_rc = 0
         if 't4_frc' not in st.session_state:
             st.session_state.t4_frc = 0
 
@@ -757,7 +755,7 @@ with tab4:
                 p_sel4 = st.selectbox(
                     "1. Province",
                     list(data_fwb.keys()),
-                    key=f"t4_p_{st.session_state.t4_rc}"
+                    key="t4_prov"
                 )
 
             with s2:
@@ -769,8 +767,10 @@ with tab4:
                 com_sel4 = st.selectbox(
                     "2. Commune",
                     com_options4,
-                    key=f"t4_c_{st.session_state.t4_rc}"
+                    key="t4_comm",
+                    index=com_options4.index(st.session_state.get("t4_comm_val", "— Sélectionnez —")) if st.session_state.get("t4_comm_val") in com_options4 else 0
                 )
+                st.session_state["t4_comm_val"] = com_sel4
 
             with s3:
                 commune_valide4 = com_sel4 != "— Sélectionnez —" and not df_ecoles.empty
@@ -791,22 +791,26 @@ with tab4:
                     ecole_label_sel4 = st.selectbox(
                         "3. École",
                         ecole_labels4,
-                        key=f"t4_e_{st.session_state.t4_rc}"
+                        key="t4_ecole",
+                        index=ecole_labels4.index(st.session_state.get("t4_ecole_val")) if st.session_state.get("t4_ecole_val") in ecole_labels4 else 0
                     )
+                    st.session_state["t4_ecole_val"] = ecole_label_sel4
                     ecole_fase_sel4, ecole_name_sel4 = fase_map4.get(ecole_label_sel4, ("", ""))
                 else:
                     ecole_fase_sel4, ecole_name_sel4 = "", ""
                     st.selectbox(
                         "3. École",
                         ["— Choisissez d'abord une commune —"],
-                        key=f"t4_e_{st.session_state.t4_rc}",
+                        key="t4_ecole",
                         disabled=True
                     )
 
             with s4:
                 st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
                 if st.button("🗑️ Effacer", key="t4_reset", use_container_width=True):
-                    st.session_state.t4_rc += 1
+                    for k in ["t4_comm", "t4_comm_val", "t4_ecole", "t4_ecole_val"]:
+                        if k in st.session_state:
+                            del st.session_state[k]
                     st.rerun()
 
             # Préchargement config actuelle
