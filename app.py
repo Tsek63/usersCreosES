@@ -50,27 +50,15 @@ data_fwb = {
 # --- FONCTION GÉNÉRATION HTML IMPRESSION ---
 def generate_print_html(df_print, fl_p, fl_m, fl_s):
     date_str = pd.Timestamp.now().strftime("%d/%m/%Y à %H:%M")
-
-    # Description des filtres appliqués
     filter_parts = []
-    if fl_p:
-        filter_parts.append(f"Province(s) : {', '.join(fl_p)}")
-    if fl_m:
-        filter_parts.append(f"Paiement : {', '.join(fl_m)}")
-    if fl_s:
-        filter_parts.append(f"Services : {', '.join(fl_s)}")
+    if fl_p: filter_parts.append(f"Province(s) : {', '.join(fl_p)}")
+    if fl_m: filter_parts.append(f"Paiement : {', '.join(fl_m)}")
+    if fl_s: filter_parts.append(f"Services : {', '.join(fl_s)}")
     filter_text = " &nbsp;|&nbsp; ".join(filter_parts) if filter_parts else "Aucun filtre appliqué — Liste complète par province"
-
     province_colors = {
-        "Bruxelles":      "#ffeaa7",
-        "Brabant Wallon": "#81ecec",
-        "Hainaut":        "#a29bfe",
-        "Liège":          "#74b9ff",
-        "Namur":          "#fab1a0",
-        "Luxembourg":     "#FF43D0",
+        "Bruxelles": "#ffeaa7", "Brabant Wallon": "#81ecec", "Hainaut": "#a29bfe",
+        "Liège": "#74b9ff", "Namur": "#fab1a0", "Luxembourg": "#FF43D0",
     }
-
-    # Construction des lignes du tableau, groupées par province
     rows_html = ""
     total = len(df_print)
     province_order = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"]
@@ -118,128 +106,32 @@ def generate_print_html(df_print, fl_p, fl_m, fl_s):
                     </td>
                     <td style="font-size:11px; color:#475569;">{services_display}</td>
                 </tr>"""
-
     html = f"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Creos Extrascolaire — Impression</title>
+<html lang="fr"><head><meta charset="UTF-8"><title>Creos Extrascolaire — Impression</title>
 <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ font-family: Arial, sans-serif; font-size: 12px; color: #333; padding: 20px; }}
-    .header {{
-        background-color: #4169E1;
-        color: white;
-        padding: 14px 20px;
-        border-radius: 8px;
-        margin-bottom: 14px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }}
+    .header {{ background-color: #4169E1; color: white; padding: 14px 20px; border-radius: 8px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }}
     .header h1 {{ font-size: 18px; margin: 0; }}
     .header .date {{ font-size: 11px; opacity: 0.85; }}
-    .filters {{
-        background: #f0f7ff;
-        border-left: 4px solid #4169E1;
-        padding: 8px 14px;
-        margin-bottom: 12px;
-        border-radius: 0 6px 6px 0;
-        font-size: 11px;
-        color: #334155;
-    }}
+    .filters {{ background: #f0f7ff; border-left: 4px solid #4169E1; padding: 8px 14px; margin-bottom: 12px; border-radius: 0 6px 6px 0; font-size: 11px; color: #334155; }}
     .filters strong {{ color: #4169E1; }}
-    .summary {{
-        background: #008080;
-        color: white;
-        display: inline-block;
-        padding: 6px 14px;
-        border-radius: 6px;
-        margin-bottom: 14px;
-        font-size: 12px;
-    }}
-    table {{
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 11.5px;
-    }}
-    thead th {{
-        background-color: #4169E1;
-        color: white;
-        padding: 8px 10px;
-        text-align: left;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }}
-    tr.province-header td {{
-        padding: 7px 10px;
-        font-weight: bold;
-        font-size: 12px;
-        color: #1e293b;
-        border-top: 2px solid #4169E1;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }}
-    tr:not(.province-header) td {{
-        padding: 6px 10px;
-        border-bottom: 1px solid #e2e8f0;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }}
-    .footer {{
-        margin-top: 20px;
-        text-align: center;
-        font-size: 10px;
-        color: #94a3b8;
-        border-top: 1px solid #e2e8f0;
-        padding-top: 8px;
-    }}
-    @page {{
-        margin: 0;
-        size: A4;
-    }}
-    @media print {{
-        body {{ margin: 10mm 12mm; padding: 0; }}
-        .no-print {{ display: none !important; }}
-        thead {{ display: table-header-group; }}
-        tr {{ page-break-inside: avoid; }}
-    }}
-</style>
-</head>
-<body>
-
-<div class="header">
-    <h1>🏫 Creos Extrascolaire — Liste des Communes</h1>
-    <span class="date">Imprimé le {date_str}</span>
-</div>
-
-<div class="filters">
-    <strong>Filtres appliqués :</strong>&nbsp; {filter_text}
-</div>
-
-<div class="summary">
-    📍 Total : <strong>{total}</strong> commune{"s" if total > 1 else ""}
-</div>
-
-<table>
-    <thead>
-        <tr>
-            <th style="width:35%">Commune</th>
-            <th style="width:22%">Mode de Paiement</th>
-            <th style="width:43%">Services</th>
-        </tr>
-    </thead>
-    <tbody>
-        {rows_html}
-    </tbody>
-</table>
-
-<div class="footer">
-    Creos Extrascolaire &mdash; Document généré automatiquement le {date_str}
-</div>
-
-</body>
-</html>"""
+    .summary {{ background: #008080; color: white; display: inline-block; padding: 6px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 12px; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 11.5px; }}
+    thead th {{ background-color: #4169E1; color: white; padding: 8px 10px; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+    tr.province-header td {{ padding: 7px 10px; font-weight: bold; font-size: 12px; color: #1e293b; border-top: 2px solid #4169E1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+    tr:not(.province-header) td {{ padding: 6px 10px; border-bottom: 1px solid #e2e8f0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+    .footer {{ margin-top: 20px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 8px; }}
+    @page {{ margin: 0; size: A4; }}
+    @media print {{ body {{ margin: 10mm 12mm; padding: 0; }} .no-print {{ display: none !important; }} thead {{ display: table-header-group; }} tr {{ page-break-inside: avoid; }} }}
+</style></head><body>
+<div class="header"><h1>🏫 Creos Extrascolaire — Liste des Communes</h1><span class="date">Imprimé le {date_str}</span></div>
+<div class="filters"><strong>Filtres appliqués :</strong>&nbsp; {filter_text}</div>
+<div class="summary">📍 Total : <strong>{total}</strong> commune{"s" if total > 1 else ""}</div>
+<table><thead><tr><th style="width:35%">Commune</th><th style="width:22%">Mode de Paiement</th><th style="width:43%">Services</th></tr></thead>
+<tbody>{rows_html}</tbody></table>
+<div class="footer">Creos Extrascolaire &mdash; Document généré automatiquement le {date_str}</div>
+</body></html>"""
     return html
 
 
@@ -248,7 +140,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
 # --- 4. TABS ---
-tab1, tab2 = st.tabs(["📊 Tableau de bord et Carte", "✏️ Gestion des Communes"])
+tab1, tab2, tab3 = st.tabs(["📊 Tableau de bord et Carte", "✏️ Gestion des Communes", "🏫 Écoles par Commune"])
 
 # --- TAB 1 : DASHBOARD & CARTE ---
 with tab1:
@@ -370,150 +262,71 @@ with tab2:
 <div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Total des communes actives</div>
 <div style="font-size:60px; font-weight:bold; margin-bottom:15px; line-height:1;">{nt}</div>
 <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">
-<div style="text-align:center;">
-<span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{p_stat}</span>
-<span style="font-size:11px; opacity:0.9;">Prépaiement</span>
-</div>
-<div style="text-align:center;">
-<span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{po_stat}</span>
-<span style="font-size:11px; opacity:0.9;">Post-paiement</span>
-</div>
+<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{p_stat}</span><span style="font-size:11px; opacity:0.9;">Prépaiement</span></div>
+<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{po_stat}</span><span style="font-size:11px; opacity:0.9;">Post-paiement</span></div>
 </div>
 <div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;">
-<i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b>
-</div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;">
-<i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b>
-</div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;">
-<i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum()}</b>
-</div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;">
-<i class="fa-solid fa-clock"></i> Garderie : <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b>
-</div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;">
-<i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b>
-</div>
-</div>
-</div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;"><i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{df_gsheets['Services'].str.contains("Cantine Jour", na=False).sum()}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;"><i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{df_gsheets['Services'].str.contains("Cantine Semaine", na=False).sum()}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;"><i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{df_gsheets['Services'].str.contains("Cantine Mois", na=False).sum()}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;"><i class="fa-solid fa-clock"></i> Garderie : <b>{df_gsheets['Services'].str.contains("Garderie", na=False).sum()}</b></div>
+<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;"><i class="fa-solid fa-volleyball"></i> Activités Extrascolaires : <b>{df_gsheets['Services'].str.contains("Activités", na=False).sum()}</b></div>
+</div></div>
 """, unsafe_allow_html=True)
 
     st.divider()
 
-# --- 3. ZONE DU BAS : FILTRES & EXPORT ---
     if 'rc' not in st.session_state: st.session_state.rc = 0
-    
     col_titre, col_reset = st.columns([7, 3])
-    with col_titre:
-        st.subheader("🔍 Filtres & Liste filtrée")
+    with col_titre: st.subheader("🔍 Filtres & Liste filtrée")
     with col_reset:
         st.write("##")
         if st.button("❌ Effacer les filtres", use_container_width=True):
-            st.session_state.rc += 1
-            st.rerun()
+            st.session_state.rc += 1; st.rerun()
 
     f1, f2, f3 = st.columns([2, 1, 2])
     with f1: fl_p = st.multiselect("Province", sorted(df_gsheets['Province'].unique()) if not df_gsheets.empty else [], key=f"p_{st.session_state.rc}")
     with f2: fl_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"m_{st.session_state.rc}")
     with f3: fl_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"s_{st.session_state.rc}")
 
-    # Logique de filtrage
     df_r = df_gsheets.copy()
     if not df_r.empty:
         if fl_p: df_r = df_r[df_r['Province'].isin(fl_p)]
         if fl_m: df_r = df_r[df_r['Paiement'].isin(fl_m)]
         if fl_s:
             for s in fl_s: df_r = df_r[df_r['Services'].str.contains(s, na=False)]
-        
         df_sorted = df_r.sort_values(['Province', 'Commune'])
 
-        # --- CSS COMMUN POUR LES BOUTONS ---
         st.markdown("""
             <style>
-                div.stDownloadButton > button {
-                    background-color: #008080 !important;
-                    color: white !important;
-                    border: none !important;
-                    width: 100% !important;
-                }
-                div.stDownloadButton > button:hover {
-                    background-color: #006666 !important;
-                    color: white !important;
-                }
+                div.stDownloadButton > button { background-color: #008080 !important; color: white !important; border: none !important; width: 100% !important; }
+                div.stDownloadButton > button:hover { background-color: #006666 !important; color: white !important; }
             </style>
         """, unsafe_allow_html=True)
 
-        # --- BOUTONS EXCEL + IMPRESSION côte à côte ---
         col_excel, col_print = st.columns(2)
-
         with col_excel:
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                 df_sorted.to_excel(writer, index=False, sheet_name='Communes_Filtrees')
-            st.download_button(
-                label="📥 Exporter vers Excel",
-                data=buffer.getvalue(),
-                file_name="creos_export.xlsx",
-                mime="application/vnd.ms-excel",
-                use_container_width=True
-            )
+            st.download_button(label="📥 Exporter vers Excel", data=buffer.getvalue(), file_name="creos_export.xlsx", mime="application/vnd.ms-excel", use_container_width=True)
 
         with col_print:
-            # Génération du HTML d'impression encodé en base64 (UTF-8 safe)
             print_html = generate_print_html(df_sorted, fl_p, fl_m, fl_s)
             b64_print = base64.b64encode(print_html.encode('utf-8')).decode('ascii')
-
             components.html(f"""
-            <style>
-                * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-                body {{ margin: 0; padding: 0; }}
-                button {{
-                    background-color: #008080;
-                    color: white;
-                    border: none;
-                    padding: 0 16px;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    width: 100%;
-                    height: 38px;
-                    font-size: 14px;
-                    font-weight: bold;
-                    font-family: sans-serif;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 6px;
-                    margin-top: 2px;
-                }}
-                button:hover {{ background-color: #006666; }}
-            </style>
+            <style>* {{ box-sizing: border-box; margin: 0; padding: 0; }} body {{ margin: 0; padding: 0; }}
+            button {{ background-color: #008080; color: white; border: none; padding: 0 16px; border-radius: 5px; cursor: pointer; width: 100%; height: 38px; font-size: 14px; font-weight: bold; font-family: sans-serif; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 2px; }}
+            button:hover {{ background-color: #006666; }}</style>
             <button onclick="openPrint()">🖨️ IMPRESSION</button>
             <script>
-            function b64ToUtf8(str) {{
-                return decodeURIComponent(
-                    atob(str).split('').map(function(c) {{
-                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                    }}).join('')
-                );
-            }}
-            function openPrint() {{
-                var htmlContent = b64ToUtf8('{b64_print}');
-                var w = window.open('', '_blank');
-                w.document.open();
-                w.document.write(htmlContent);
-                w.document.close();
-                setTimeout(function() {{ w.focus(); w.print(); }}, 600);
-            }}
-            </script>
-            """, height=50)
-        # -----------------------------------------------
+            function b64ToUtf8(str) {{ return decodeURIComponent(atob(str).split('').map(function(c) {{ return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }}).join('')); }}
+            function openPrint() {{ var htmlContent = b64ToUtf8('{b64_print}'); var w = window.open('', '_blank'); w.document.open(); w.document.write(htmlContent); w.document.close(); setTimeout(function() {{ w.focus(); w.print(); }}, 600); }}
+            </script>""", height=50)
 
         col_list, col_viz = st.columns([6, 4], gap="medium")
-
         with col_list:
             st.dataframe(df_sorted, use_container_width=True, hide_index=True, height=520)
-             
         with col_viz:
             if not df_sorted.empty:
                 p_c = df_sorted['Paiement'].value_counts().reset_index()
@@ -521,29 +334,248 @@ with tab2:
                                color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
                 fig_p.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
                 st.plotly_chart(fig_p, use_container_width=True, config={'displayModeBar': False})
-
                 sl = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
                 ct = [df_sorted['Services'].str.contains(s, na=False).sum() for s in sl]
                 df_s = pd.DataFrame({'Service': sl, 'Nombre': ct})
                 fig_s = px.bar(df_s, x='Nombre', y='Service', orientation='h', title="Popularité des Services (Sélection)",
-                               color='Service', color_discrete_map={
-                                  "Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00",
-                                  "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
+                               color='Service', color_discrete_map={"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
                 fig_s.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
                 st.plotly_chart(fig_s, use_container_width=True, config={'displayModeBar': False})
 
+
+# ============================================================
+# --- TAB 3 : ÉCOLES PAR COMMUNE ---
+# ============================================================
+with tab3:
+
+    # --- Chargement des données écoles depuis la feuille "Ecoles" du même GSheets ---
+    try:
+        df_ecoles = conn.read(worksheet="Ecoles", ttl=0).dropna(how="all")
+        # Nettoyage des types
+        for col in ['Fase PO', 'Fase école', 'Code postal']:
+            df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
+    except Exception as e:
+        st.error(
+            f"⚠️ Impossible de charger la feuille **Ecoles**. "
+            f"Assurez-vous d'avoir créé une feuille nommée **'Ecoles'** dans votre Google Sheets "
+            f"et d'y avoir collé les données du fichier Excel fourni.\n\nErreur : `{e}`"
+        )
+        st.stop()
+
+    # --- Communes actives dans Creos ---
+    active_communes = set(df_gsheets['Commune'].tolist())
+    all_po = sorted(df_ecoles['Nom PO'].dropna().unique().tolist())
+
+    # --- Bandeau de stats global ---
+    total_ecoles_global = len(df_ecoles)
+    total_po_global = df_ecoles['Nom PO'].nunique()
+    total_active_with_schools = len([c for c in active_communes if c in df_ecoles['Nom PO'].values])
+
+    st.markdown(f"""
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <div style="display:flex; gap:12px; margin-bottom:16px;">
+        <div style="flex:1; background:#4169E1; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
+            <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">Total Écoles</div>
+            <div style="font-size:38px; font-weight:bold; line-height:1.1;">{total_ecoles_global}</div>
+        </div>
+        <div style="flex:1; background:#008080; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
+            <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">PO / Communes</div>
+            <div style="font-size:38px; font-weight:bold; line-height:1.1;">{total_po_global}</div>
+        </div>
+        <div style="flex:1; background:#1e293b; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
+            <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">Actives avec écoles</div>
+            <div style="font-size:38px; font-weight:bold; line-height:1.1; color:#4ade80;">{total_active_with_schools}</div>
+        </div>
+        <div style="flex:3; background:#f8fafc; border:1px solid #e2e8f0; padding:14px 18px; border-radius:10px; display:flex; align-items:center;">
+            <div>
+                <div style="font-size:13px; color:#334155; font-weight:600; margin-bottom:4px;">
+                    <i class="fa-solid fa-circle-info" style="color:#4169E1;"></i>
+                    &nbsp;Comment utiliser cet onglet
+                </div>
+                <div style="font-size:11px; color:#64748b; line-height:1.6;">
+                    Sélectionnez une <b>province</b> puis une <b>commune</b> pour afficher ses écoles.<br>
+                    <span style="color:#4ade80; font-weight:bold;">✓ Vert</span> = commune active dans Creos &nbsp;|&nbsp;
+                    <span style="color:#ef4444; font-weight:bold;">○ Gris</span> = commune non encore active
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Sélecteurs Province / Commune / Recherche ---
+    col_p3, col_c3, col_s3 = st.columns([2, 3, 3])
+
+    with col_p3:
+        prov_tab3 = st.selectbox(
+            "🗺️ Province",
+            ["Toutes les provinces"] + list(data_fwb.keys()),
+            key="t3_prov"
+        )
+
+    # Filtrer les communes disponibles selon la province choisie
+    if prov_tab3 == "Toutes les provinces":
+        communes_dispo = all_po
+    else:
+        communes_prov = data_fwb.get(prov_tab3, [])
+        communes_dispo = sorted([c for c in communes_prov if c in df_ecoles['Nom PO'].values])
+
+    with col_c3:
+        commune_tab3 = st.selectbox(
+            "🏘️ Commune",
+            communes_dispo,
+            key="t3_comm",
+            format_func=lambda x: f"{'✅' if x in active_communes else '⚪'} {x}"
+        )
+
+    with col_s3:
+        search_ecole = st.text_input(
+            "🔍 Rechercher",
+            key="t3_search",
+            placeholder="Nom d'école, directeur, fase..."
+        )
+
+    if not commune_tab3:
+        st.info("Sélectionnez une commune pour afficher ses écoles.")
+        st.stop()
+
+    # --- Données de la commune sélectionnée ---
+    df_comm = df_ecoles[df_ecoles['Nom PO'] == commune_tab3].copy()
+    fase_po = df_comm['Fase PO'].iloc[0] if not df_comm.empty else '—'
+    is_active = commune_tab3 in active_communes
+
+    # Infos Creos si commune active
+    paiement_badge_html = ""
+    services_badges_html = ""
+    if is_active and not df_gsheets[df_gsheets['Commune'] == commune_tab3].empty:
+        gsheet_row = df_gsheets[df_gsheets['Commune'] == commune_tab3].iloc[0]
+        paiement_info = gsheet_row.get('Paiement', '—')
+        services_info = gsheet_row.get('Services', '') or ''
+        pc = "#ec4899" if paiement_info == "Prépaiement" else "#38bdf8"
+        paiement_badge_html = f'<span style="background:{pc}; color:white; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:bold;">{paiement_info}</span>'
+        service_colors = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
+        for s in services_info.split("|"):
+            s = s.strip()
+            if s:
+                sc = service_colors.get(s, "#999")
+                services_badges_html += f'<span style="background:{sc}; color:white; padding:4px 10px; border-radius:6px; font-size:10px; font-weight:bold; margin-left:4px;">{s}</span>'
+
+    active_color = "#4ade80" if is_active else "#64748b"
+    active_text = "✓ Active dans Creos" if is_active else "○ Non active dans Creos"
+    active_txt_color = "#1e293b" if is_active else "white"
+
+    st.markdown(f"""
+    <div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px;
+                display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div style="display:flex; align-items:center; gap:16px;">
+            <span style="font-size:20px; font-weight:bold;">🏛️ {commune_tab3}</span>
+            <span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span>
+            <span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> école(s)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            {services_badges_html}
+            {paiement_badge_html}
+            <span style="background:{active_color}; color:{active_txt_color}; padding:5px 14px; border-radius:20px; font-size:11px; font-weight:bold;">
+                {active_text}
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Filtrage par recherche ---
+    if search_ecole:
+        mask = (
+            df_comm['Ecole'].str.contains(search_ecole, case=False, na=False) |
+            df_comm['Directeur.rice'].str.contains(search_ecole, case=False, na=False) |
+            df_comm['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False)
+        )
+        df_display = df_comm[mask]
+    else:
+        df_display = df_comm
+
+    if df_display.empty:
+        st.warning("Aucune école trouvée pour cette recherche.")
+    else:
+        st.markdown(
+            f"<div style='font-size:12px; color:#64748b; margin-bottom:10px;'>"
+            f"<b style='color:#334155;'>{len(df_display)}</b> école(s) affichée(s)</div>",
+            unsafe_allow_html=True
+        )
+
+        # --- Affichage en cartes (2 par ligne) ---
+        for i in range(0, len(df_display), 2):
+            cols = st.columns(2, gap="medium")
+            for j in range(2):
+                idx = i + j
+                if idx >= len(df_display):
+                    break
+                school = df_display.iloc[idx]
+                with cols[j]:
+                    email = school.get('Email', None)
+                    phone = school.get('Téléphone', None)
+                    bte_val = school.get('Bte', None)
+                    bte = f" bte {bte_val}" if pd.notna(bte_val) and str(bte_val).strip() not in ['nan', ''] else ""
+                    num = school.get('N°', '')
+                    rue = school.get('Rue', '')
+                    cp = school.get('Code postal', '')
+                    loc = school.get('Localité', '')
+                    adresse = f"{rue} {num}{bte}, {cp} {loc}".strip()
+
+                    email_html = (
+                        f'<a href="mailto:{email}" style="color:#4169E1; text-decoration:none;">{email}</a>'
+                        if pd.notna(email) and str(email).strip() not in ['nan', '']
+                        else '<span style="color:#94a3b8;">—</span>'
+                    )
+                    phone_html = (
+                        f'<a href="tel:{phone}" style="color:#334155; text-decoration:none;">{phone}</a>'
+                        if pd.notna(phone) and str(phone).strip() not in ['nan', '']
+                        else '<span style="color:#94a3b8;">—</span>'
+                    )
+
+                    st.markdown(f"""
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:16px;
+                                margin-bottom:12px; border-left:5px solid #4169E1;
+                                box-shadow: 0 2px 6px rgba(65,105,225,0.08);">
+                        <div style="font-size:14px; font-weight:bold; color:#4169E1; margin-bottom:3px; line-height:1.3;">
+                            🏫 {school['Ecole']}
+                        </div>
+                        <div style="font-size:10px; color:#94a3b8; margin-bottom:10px; letter-spacing:0.5px;">
+                            N° FASE ÉCOLE : <b style="color:#475569; font-size:11px;">{school['Fase école']}</b>
+                        </div>
+                        <div style="border-top:1px solid #f1f5f9; padding-top:10px; font-size:12px; color:#334155; line-height:2;">
+                            <div><i class="fa-solid fa-user" style="color:#4169E1; width:16px;"></i>&nbsp; <b>{school['Directeur.rice']}</b></div>
+                            <div><i class="fa-solid fa-envelope" style="color:#4169E1; width:16px;"></i>&nbsp; {email_html}</div>
+                            <div><i class="fa-solid fa-phone" style="color:#4169E1; width:16px;"></i>&nbsp; {phone_html}</div>
+                            <div style="font-size:11px; color:#64748b; margin-top:4px;">
+                                <i class="fa-solid fa-location-dot" style="color:#94a3b8; width:16px;"></i>&nbsp; {adresse}
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        st.divider()
+
+        # --- Export Excel des écoles de la commune ---
+        col_exp1, col_exp2, col_exp3 = st.columns([3, 2, 3])
+        with col_exp2:
+            buffer_e = io.BytesIO()
+            export_df = df_display.drop(columns=['Rue', 'N°', 'Bte', 'Adresse'], errors='ignore')
+            with pd.ExcelWriter(buffer_e, engine='xlsxwriter') as writer:
+                export_df.to_excel(writer, index=False, sheet_name=f'Ecoles')
+            st.download_button(
+                label="📥 Exporter les écoles",
+                data=buffer_e.getvalue(),
+                file_name=f"ecoles_{commune_tab3.lower().replace(' ', '_').replace('/', '-')}.xlsx",
+                mime="application/vnd.ms-excel",
+                use_container_width=True,
+                key="dl_ecoles"
+            )
+
+
+# --- FOOTER ---
 st.markdown("""
-    <div style="
-        position: fixed;
-        bottom: 0; left: 0; right: 0;
-        background-color: #1e293b;
-        color: rgba(255,255,255,0.45);
-        text-align: center;
-        font-size: 11px;
-        padding: 5px 0;
-        letter-spacing: 1px;
-        z-index: 9999;
-    ">
+    <div style="position: fixed; bottom: 0; left: 0; right: 0; background-color: #1e293b;
+        color: rgba(255,255,255,0.45); text-align: center; font-size: 11px;
+        padding: 5px 0; letter-spacing: 1px; z-index: 9999;">
         © AJH 2026 — Creos Extrascolaire
     </div>
 """, unsafe_allow_html=True)
