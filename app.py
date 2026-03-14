@@ -7,6 +7,14 @@ import io
 import base64
 import plotly.express as px
 
+
+# Helper : détecte si un PO est une Province
+def is_province(name):
+    return str(name).startswith("Province")
+
+def icon_po(name):
+    return "🏛️" if is_province(name) else "🏘️"
+
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
 
@@ -447,14 +455,18 @@ with tab3:
             communes_dispo = [""] + all_po
         else:
             communes_prov = data_fwb.get(prov_tab3, [])
-            communes_dispo = [""] + sorted([c for c in communes_prov if c in df_ecoles['Commune'].values])
+            base_list = sorted([c for c in communes_prov if c in df_ecoles['Commune'].values])
+            # Inclure la Province elle-même si elle est un PO dans les écoles
+            if prov_tab3 in df_ecoles['Commune'].values and prov_tab3 not in base_list:
+                base_list = sorted(base_list + [prov_tab3])
+            communes_dispo = [""] + base_list
 
         with col_c3:
             commune_tab3 = st.selectbox(
                 "🏘️ Commune",
                 communes_dispo,
                 key=f"t3_comm_{st.session_state.t3_rc}",
-                format_func=lambda x: ("— Sélectionnez une commune" if x == "" else f"{'✅' if x in active_communes else '⚪'} {x}")
+                format_func=lambda x: ("— Sélectionnez une commune" if x == "" else f"{'✅' if x in active_communes else '⚪'} {icon_po(x)} {x}")
             )
 
         with col_s3:
@@ -637,7 +649,11 @@ with tab4:
 
         with s2:
             if not df_ecoles.empty:
-                communes_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Commune'].values])
+                base_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Commune'].values])
+                # Inclure la Province elle-même si elle est un PO dans les écoles
+                if p_sel4 in df_ecoles['Commune'].values and p_sel4 not in base_p4:
+                    base_p4 = sorted(base_p4 + [p_sel4])
+                communes_p4 = base_p4
             else:
                 communes_p4 = []
             com_options4 = ["— Sélectionnez —"] + communes_p4
@@ -645,9 +661,10 @@ with tab4:
                 st.session_state["t4_comm"] = com_options4[0]
                 st.session_state.pop("t4_ecole", None)
             com_sel4 = st.selectbox(
-                "2. Commune",
+                "2. Commune / PO",
                 com_options4,
-                key="t4_comm"
+                key="t4_comm",
+                format_func=lambda x: x if x == "— Sélectionnez —" else f"{icon_po(x)} {x}"
             )
 
         with s3:
