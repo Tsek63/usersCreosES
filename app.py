@@ -637,56 +637,88 @@ with tab3:
 # --- TAB 4 : CONFIGURATION DES ÉCOLES ---
 # ============================================================
 with tab4:
-    st.header("⚙️ Configuration des Écoles par Commune")
+    try:
+        if 't4_rc' not in st.session_state:
+            st.session_state.t4_rc = 0
+        if 't4_frc' not in st.session_state:
+            st.session_state.t4_frc = 0
 
-    if 't4_rc' not in st.session_state:
-        st.session_state.t4_rc = 0
+        st.header("⚙️ Configuration des Écoles par Commune")
 
-    # --- Stats ---
-    n_active4 = len(df_active)
-    n_comm4 = df_active['Commune'].nunique() if not df_active.empty else 0
-    n_prep4 = len(df_active[df_active['Paiement'] == 'Prépaiement']) if not df_active.empty else 0
-    n_post4 = len(df_active[df_active['Paiement'] == 'Post-paiement']) if not df_active.empty else 0
+        # --- Stats (métriques Streamlit natives, pas de HTML brut) ---
+        n_active4 = len(df_active)
+        n_comm4   = df_active['Commune'].nunique() if not df_active.empty else 0
+        n_prep4   = len(df_active[df_active['Paiement'] == 'Prépaiement'])  if not df_active.empty else 0
+        n_post4   = len(df_active[df_active['Paiement'] == 'Post-paiement']) if not df_active.empty else 0
+        svc_list4 = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+        svc_cnt4  = {s: int(df_active['Services'].str.contains(s, na=False).sum()) if not df_active.empty else 0 for s in svc_list4}
 
-    c_form4, c_stat4 = st.columns([6, 4])
+        mc1, mc2, mc3, mc4, mc5, mc6, mc7 = st.columns(7)
+        mc1.metric("🏫 Écoles actives", n_active4)
+        mc2.metric("🏘️ Communes", n_comm4)
+        mc3.metric("💳 Prépaiement", n_prep4)
+        mc4.metric("🧾 Post-paiement", n_post4)
+        mc5.metric("🍽️ Cantine J", svc_cnt4["Cantine Jour"])
+        mc6.metric("⏰ Garderie", svc_cnt4["Garderie"])
+        mc7.metric("🏐 Activités", svc_cnt4["Activités"])
 
-    with c_form4:
-        # --- Sélecteurs HORS formulaire pour préchargement de la config ---
-        sel_cols = st.columns([2, 2, 3, 1.2])
+        st.divider()
+        st.subheader("📝 Configurer une École")
 
-        with sel_cols[0]:
-            p_sel4 = st.selectbox("1. Province", list(data_fwb.keys()), key=f"t4_p_{st.session_state.t4_rc}")
+        # --- Sélecteurs (au niveau du tab, aucune imbrication de colonnes) ---
+        s1, s2, s3, s4 = st.columns([2, 2, 3, 1])
 
-        with sel_cols[1]:
-            communes_p4 = sorted([c for c in data_fwb[p_sel4] if not df_ecoles.empty and c in df_ecoles['Nom PO'].values])
+        with s1:
+            p_sel4 = st.selectbox(
+                "1. Province",
+                list(data_fwb.keys()),
+                key=f"t4_p_{st.session_state.t4_rc}"
+            )
+
+        with s2:
+            if not df_ecoles.empty:
+                communes_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Nom PO'].values])
+            else:
+                communes_p4 = []
+            com_options4 = ["— Sélectionnez —"] + communes_p4
             com_sel4 = st.selectbox(
                 "2. Commune",
-                communes_p4 if communes_p4 else ["—"],
+                com_options4,
                 key=f"t4_c_{st.session_state.t4_rc}"
             )
 
-        with sel_cols[2]:
-            if communes_p4 and com_sel4 != "—" and not df_ecoles.empty:
+        with s3:
+            commune_valide4 = com_sel4 != "— Sélectionnez —" and not df_ecoles.empty
+            if commune_valide4:
                 df_comm4 = df_ecoles[df_ecoles['Nom PO'] == com_sel4].copy()
                 df_comm4['Fase école'] = df_comm4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
                 school_opts4 = []
-                for _, row in df_comm4.iterrows():
-                    fase = str(row['Fase école'])
-                    is_conf = not df_config[df_config['Fase école'] == fase].empty
-                    if is_conf:
-                        st_icon = " ✅" if df_config[df_config['Fase école'] == fase].iloc[0]['Extrascolaire'] == 'Oui' else " ⭕"
+                for _, row4 in df_comm4.iterrows():
+                    fase4 = str(row4['Fase école'])
+                    match4 = df_config[df_config['Fase école'] == fase4]
+                    if not match4.empty:
+                        icon4 = " ✅" if match4.iloc[0]['Extrascolaire'] == 'Oui' else " ⭕"
                     else:
-                        st_icon = ""
-                    school_opts4.append((f"{row['Ecole']}{st_icon} — Fase {fase}", fase, row['Ecole']))
-                fase_map4 = {opt[0]: (opt[1], opt[2]) for opt in school_opts4}
+                        icon4 = ""
+                    school_opts4.append((f"{row4['Ecole']}{icon4} — Fase {fase4}", fase4, row4['Ecole']))
+                fase_map4    = {opt[0]: (opt[1], opt[2]) for opt in school_opts4}
                 ecole_labels4 = [opt[0] for opt in school_opts4]
-                ecole_label_sel4 = st.selectbox("3. École", ecole_labels4, key=f"t4_e_{st.session_state.t4_rc}")
+                ecole_label_sel4 = st.selectbox(
+                    "3. École",
+                    ecole_labels4,
+                    key=f"t4_e_{st.session_state.t4_rc}"
+                )
                 ecole_fase_sel4, ecole_name_sel4 = fase_map4.get(ecole_label_sel4, ("", ""))
             else:
                 ecole_fase_sel4, ecole_name_sel4 = "", ""
-                st.selectbox("3. École", ["— Choisissez d'abord une commune —"], key=f"t4_e_{st.session_state.t4_rc}", disabled=True)
+                st.selectbox(
+                    "3. École",
+                    ["— Choisissez d'abord une commune —"],
+                    key=f"t4_e_{st.session_state.t4_rc}",
+                    disabled=True
+                )
 
-        with sel_cols[3]:
+        with s4:
             st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
             if st.button("🗑️ Effacer", key="t4_reset", use_container_width=True):
                 st.session_state.t4_rc += 1
@@ -694,36 +726,35 @@ with tab4:
 
         # --- Préchargement config actuelle ---
         if ecole_fase_sel4:
-            cur4 = df_config[df_config['Fase école'] == ecole_fase_sel4]
-            cur_extra4 = cur4.iloc[0]['Extrascolaire'] if not cur4.empty else 'Non'
-            cur_pay4_raw = cur4.iloc[0]['Paiement'] if not cur4.empty else ''
-            cur_pay4 = cur_pay4_raw if cur_pay4_raw in ['Prépaiement', 'Post-paiement'] else 'Prépaiement'
+            cur4         = df_config[df_config['Fase école'] == ecole_fase_sel4]
+            cur_extra4   = cur4.iloc[0]['Extrascolaire'] if not cur4.empty else 'Non'
+            cur_pay4_raw = cur4.iloc[0]['Paiement']      if not cur4.empty else ''
+            cur_pay4     = cur_pay4_raw if cur_pay4_raw in ['Prépaiement', 'Post-paiement'] else 'Prépaiement'
             cur_serv4_raw = str(cur4.iloc[0].get('Services', '')) if not cur4.empty else ''
-            cur_serv4 = [s.strip() for s in cur_serv4_raw.split('|') if s.strip() and s.strip() != 'nan']
+            cur_serv4    = [s.strip() for s in cur_serv4_raw.split('|') if s.strip() and s.strip() != 'nan']
         else:
-            cur_extra4 = 'Non'
-            cur_pay4 = 'Prépaiement'
-            cur_serv4 = []
+            cur_extra4, cur_pay4, cur_serv4 = 'Non', 'Prépaiement', []
 
-        # --- Formulaire de configuration ---
+        # --- Formulaire ---
         with st.form("form_ecole4"):
             if ecole_fase_sel4:
                 st.markdown(
-                    f'<div style="background:#f0f7ff; border-left:4px solid #4169E1; padding:10px 16px; border-radius:0 8px 8px 0; margin-bottom:12px;">'
+                    f'<div style="background:#f0f7ff; border-left:4px solid #4169E1; padding:10px 16px;'
+                    f' border-radius:0 8px 8px 0; margin-bottom:12px;">'
                     f'<span style="font-weight:700; color:#1e293b; font-size:15px;">🏫 {ecole_name_sel4}</span>'
-                    f'&nbsp;&nbsp;<span style="color:#64748b; font-size:12px;">Fase {ecole_fase_sel4} &nbsp;|&nbsp; {com_sel4}</span>'
-                    f'</div>',
+                    f'&nbsp;&nbsp;<span style="color:#64748b; font-size:12px;">Fase {ecole_fase_sel4}'
+                    f' &nbsp;|&nbsp; {com_sel4}</span></div>',
                     unsafe_allow_html=True
                 )
-                fconf1, fconf2 = st.columns(2)
-                with fconf1:
+                fc1, fc2 = st.columns(2)
+                with fc1:
                     extra_v4 = st.radio(
                         "Utilise l'Extrascolaire Creos ?",
                         ["Oui", "Non"],
                         horizontal=True,
                         index=0 if cur_extra4 == 'Oui' else 1
                     )
-                with fconf2:
+                with fc2:
                     pay_v4 = st.radio(
                         "Mode de paiement",
                         ["Prépaiement", "Post-paiement"],
@@ -737,149 +768,140 @@ with tab4:
                     default=cur_serv4,
                     help="Applicable uniquement si Extrascolaire = Oui"
                 )
-                sc_save4, sc_del4 = st.columns(2)
-                with sc_save4:
+                fbs1, fbs2 = st.columns(2)
+                with fbs1:
                     saved4 = st.form_submit_button("💾 ENREGISTRER / MODIFIER", use_container_width=True)
-                with sc_del4:
+                with fbs2:
                     deleted4 = st.form_submit_button("🗑️ SUPPRIMER", use_container_width=True)
 
                 if saved4:
                     new_row4 = pd.DataFrame([{
-                        "Fase école": ecole_fase_sel4,
-                        "Commune": com_sel4,
-                        "Province": p_sel4,
+                        "Fase école":   ecole_fase_sel4,
+                        "Commune":      com_sel4,
+                        "Province":     p_sel4,
                         "Extrascolaire": extra_v4,
-                        "Paiement": pay_v4 if extra_v4 == "Oui" else "",
-                        "Services": "|".join(serv_v4) if extra_v4 == "Oui" else ""
+                        "Paiement":     pay_v4 if extra_v4 == "Oui" else "",
+                        "Services":     "|".join(serv_v4) if extra_v4 == "Oui" else ""
                     }])
-                    df_upd4 = pd.concat([df_config[df_config['Fase école'] != ecole_fase_sel4], new_row4], ignore_index=True)
+                    df_upd4 = pd.concat(
+                        [df_config[df_config['Fase école'] != ecole_fase_sel4], new_row4],
+                        ignore_index=True
+                    )
                     conn.update(worksheet="EcolesConfig", data=df_upd4)
+                    st.success("✅ Enregistré !")
                     st.rerun()
 
                 if deleted4:
                     df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
                     conn.update(worksheet="EcolesConfig", data=df_upd4)
+                    st.success("🗑️ Supprimé !")
                     st.rerun()
             else:
                 st.info("👆 Sélectionnez une Province, une Commune et une École pour configurer.")
                 st.form_submit_button("💾 ENREGISTRER / MODIFIER", disabled=True, use_container_width=True)
 
-    # --- Panneau stats (même style que Tab 2) ---
-    with c_stat4:
-        st.markdown(f"""
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center;">
-<div style="font-size:12px; text-transform:uppercase; opacity:0.8; margin-bottom:5px;">Écoles actives (Extrascolaire)</div>
-<div style="font-size:60px; font-weight:bold; margin-bottom:5px; line-height:1;">{n_active4}</div>
-<div style="font-size:11px; opacity:0.7; margin-bottom:15px;">dans {n_comm4} commune(s)</div>
-<div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2); padding:15px 0; margin-bottom:15px;">
-<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#ec4899;">{n_prep4}</span><span style="font-size:11px; opacity:0.9;">Prépaiement</span></div>
-<div style="text-align:center;"><span style="display:block; font-size:18px; font-weight:bold; color:#38bdf8;">{n_post4}</span><span style="font-size:11px; opacity:0.9;">Post-paiement</span></div>
-</div>
-<div style="text-align:left; font-size:11px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FFD700;"><i class="fa-solid fa-utensils"></i> Cantine Jour : <b>{int(df_active['Services'].str.contains("Cantine Jour", na=False).sum()) if not df_active.empty else 0}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF8C00;"><i class="fa-solid fa-calendar-day"></i> Cantine Semaine : <b>{int(df_active['Services'].str.contains("Cantine Semaine", na=False).sum()) if not df_active.empty else 0}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #FF0000;"><i class="fa-solid fa-calendar-days"></i> Cantine Mois : <b>{int(df_active['Services'].str.contains("Cantine Mois", na=False).sum()) if not df_active.empty else 0}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #38bdf8;"><i class="fa-solid fa-clock"></i> Garderie : <b>{int(df_active['Services'].str.contains("Garderie", na=False).sum()) if not df_active.empty else 0}</b></div>
-<div style="background:rgba(255,255,255,0.1); padding:8px; border-radius:6px; border-left:4px solid #4ade80; grid-column: span 2;"><i class="fa-solid fa-volleyball"></i> Activités : <b>{int(df_active['Services'].str.contains("Activités", na=False).sum()) if not df_active.empty else 0}</b></div>
-</div></div>
-""", unsafe_allow_html=True)
+        st.divider()
 
-    st.divider()
+        # --- Filtres & Liste ---
+        col_titre4, col_reset4 = st.columns([7, 3])
+        with col_titre4:
+            st.subheader("🔍 Filtres & Liste des écoles configurées")
+        with col_reset4:
+            st.write("")
+            if st.button("❌ Effacer les filtres", key="t4_filt_reset", use_container_width=True):
+                st.session_state.t4_frc += 1
+                st.rerun()
 
-    # --- Filtres & Liste (même style que Tab 2) ---
-    if 't4_frc' not in st.session_state:
-        st.session_state.t4_frc = 0
-
-    col_titre4, col_reset4 = st.columns([7, 3])
-    with col_titre4:
-        st.subheader("🔍 Filtres & Liste des écoles configurées")
-    with col_reset4:
-        st.write("##")
-        if st.button("❌ Effacer les filtres", key="t4_filt_reset", use_container_width=True):
-            st.session_state.t4_frc += 1
-            st.rerun()
-
-    ff1, ff2, ff3 = st.columns([2, 1, 2])
-    with ff1:
-        fl4_p = st.multiselect("Province", sorted(df_active['Province'].unique()) if not df_active.empty else [], key=f"t4_fp_{st.session_state.t4_frc}")
-    with ff2:
-        fl4_m = st.multiselect("Paiement", ["Prépaiement", "Post-paiement"], key=f"t4_fm_{st.session_state.t4_frc}")
-    with ff3:
-        fl4_s = st.multiselect("Services", ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"], key=f"t4_fs_{st.session_state.t4_frc}")
-
-    df_r4 = df_active.copy()
-    if not df_r4.empty:
-        if fl4_p: df_r4 = df_r4[df_r4['Province'].isin(fl4_p)]
-        if fl4_m: df_r4 = df_r4[df_r4['Paiement'].isin(fl4_m)]
-        if fl4_s:
-            for s in fl4_s:
-                df_r4 = df_r4[df_r4['Services'].str.contains(s, na=False)]
-
-    if not df_r4.empty:
-        # Joindre le nom de l'école depuis df_ecoles
-        if not df_ecoles.empty:
-            ecoles_info4 = df_ecoles[['Fase école', 'Ecole']].copy()
-            ecoles_info4['Fase école'] = ecoles_info4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
-            df_sorted4 = df_r4.merge(ecoles_info4, on='Fase école', how='left')
-        else:
-            df_sorted4 = df_r4.copy()
-
-        df_sorted4 = df_sorted4.sort_values(['Province', 'Commune'])
-        # Colonnes d'affichage
-        disp_cols4 = [c for c in ['Province', 'Commune', 'Ecole', 'Fase école', 'Paiement', 'Services'] if c in df_sorted4.columns]
-        df_display4 = df_sorted4[disp_cols4]
-
-        st.markdown("""
-            <style>
-                div.stDownloadButton > button { background-color: #008080 !important; color: white !important; border: none !important; width: 100% !important; }
-                div.stDownloadButton > button:hover { background-color: #006666 !important; color: white !important; }
-            </style>
-        """, unsafe_allow_html=True)
-
-        col_xl4, _ = st.columns([2, 8])
-        with col_xl4:
-            buffer4 = io.BytesIO()
-            with pd.ExcelWriter(buffer4, engine='xlsxwriter') as writer:
-                df_display4.to_excel(writer, index=False, sheet_name='EcolesActives')
-            st.download_button(
-                label="📥 Exporter vers Excel",
-                data=buffer4.getvalue(),
-                file_name="ecoles_actives.xlsx",
-                mime="application/vnd.ms-excel",
-                use_container_width=True,
-                key="dl_ecoles4"
+        ff1, ff2, ff3 = st.columns([2, 1, 2])
+        with ff1:
+            fl4_p = st.multiselect(
+                "Province",
+                sorted(df_active['Province'].unique()) if not df_active.empty else [],
+                key=f"t4_fp_{st.session_state.t4_frc}"
+            )
+        with ff2:
+            fl4_m = st.multiselect(
+                "Paiement",
+                ["Prépaiement", "Post-paiement"],
+                key=f"t4_fm_{st.session_state.t4_frc}"
+            )
+        with ff3:
+            fl4_s = st.multiselect(
+                "Services",
+                ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"],
+                key=f"t4_fs_{st.session_state.t4_frc}"
             )
 
-        col_list4, col_viz4 = st.columns([6, 4], gap="medium")
-        with col_list4:
-            st.dataframe(df_display4, use_container_width=True, hide_index=True, height=520)
-        with col_viz4:
-            if not df_sorted4.empty:
+        df_r4 = df_active.copy()
+        if not df_r4.empty:
+            if fl4_p: df_r4 = df_r4[df_r4['Province'].isin(fl4_p)]
+            if fl4_m: df_r4 = df_r4[df_r4['Paiement'].isin(fl4_m)]
+            for sv4 in fl4_s:
+                df_r4 = df_r4[df_r4['Services'].str.contains(sv4, na=False)]
+
+        if not df_r4.empty:
+            if not df_ecoles.empty:
+                ecoles_info4 = df_ecoles[['Fase école', 'Ecole']].copy()
+                ecoles_info4['Fase école'] = ecoles_info4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                df_sorted4 = df_r4.merge(ecoles_info4, on='Fase école', how='left')
+            else:
+                df_sorted4 = df_r4.copy()
+            df_sorted4 = df_sorted4.sort_values(['Province', 'Commune'])
+            disp_cols4  = [c for c in ['Province', 'Commune', 'Ecole', 'Fase école', 'Paiement', 'Services'] if c in df_sorted4.columns]
+            df_display4 = df_sorted4[disp_cols4]
+
+            col_xl4, _ = st.columns([2, 8])
+            with col_xl4:
+                buf4 = io.BytesIO()
+                with pd.ExcelWriter(buf4, engine='xlsxwriter') as wr4:
+                    df_display4.to_excel(wr4, index=False, sheet_name='EcolesActives')
+                st.download_button(
+                    label="📥 Exporter vers Excel",
+                    data=buf4.getvalue(),
+                    file_name="ecoles_actives.xlsx",
+                    mime="application/vnd.ms-excel",
+                    use_container_width=True,
+                    key="dl_ecoles4"
+                )
+
+            col_list4, col_viz4 = st.columns([6, 4], gap="medium")
+            with col_list4:
+                st.dataframe(df_display4, use_container_width=True, hide_index=True, height=520)
+            with col_viz4:
                 p_c4 = df_sorted4['Paiement'].value_counts().reset_index()
                 if not p_c4.empty:
-                    fig_p4 = px.pie(p_c4, values='count', names='Paiement', hole=0.4,
-                                    title="Modes de Paiement (Sélection)",
-                                    color='Paiement',
-                                    color_discrete_map={'Prépaiement': '#ec4899', 'Post-paiement': '#38bdf8'})
-                    fig_p4.update_layout(height=250, margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", y=-0.1))
+                    fig_p4 = px.pie(
+                        p_c4, values='count', names='Paiement', hole=0.4,
+                        title="Modes de Paiement",
+                        color='Paiement',
+                        color_discrete_map={'Prépaiement': '#ec4899', 'Post-paiement': '#38bdf8'}
+                    )
+                    fig_p4.update_layout(height=260, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
                     st.plotly_chart(fig_p4, use_container_width=True, config={'displayModeBar': False})
 
-                sl4 = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-                ct4 = [int(df_sorted4['Services'].str.contains(s, na=False).sum()) for s in sl4]
-                df_s4 = pd.DataFrame({'Service': sl4, 'Nombre': ct4})
-                fig_s4 = px.bar(df_s4, x='Nombre', y='Service', orientation='h',
-                                title="Popularité des Services (Sélection)",
-                                color='Service',
-                                color_discrete_map={"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00",
-                                                    "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
-                fig_s4.update_layout(height=250, showlegend=False, margin=dict(l=0, r=0, t=40, b=0), xaxis_title=None, yaxis_title=None)
+                ct4 = [int(df_sorted4['Services'].str.contains(s, na=False).sum()) for s in svc_list4]
+                df_s4 = pd.DataFrame({'Service': svc_list4, 'Nombre': ct4})
+                fig_s4 = px.bar(
+                    df_s4, x='Nombre', y='Service', orientation='h',
+                    title="Popularité des Services",
+                    color='Service',
+                    color_discrete_map={
+                        "Cantine Jour":"#FFD700","Cantine Semaine":"#FF8C00",
+                        "Cantine Mois":"#FF0000","Garderie":"#38bdf8","Activités":"#4ade80"
+                    }
+                )
+                fig_s4.update_layout(height=260, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
                 st.plotly_chart(fig_s4, use_container_width=True, config={'displayModeBar': False})
-    else:
-        if df_active.empty:
-            st.info("ℹ️ Aucune école configurée pour l'instant. Utilisez le formulaire ci-dessus pour commencer.")
         else:
-            st.warning("Aucun résultat pour ces filtres.")
+            if df_active.empty:
+                st.info("ℹ️ Aucune école configurée pour l'instant. Utilisez le formulaire ci-dessus pour commencer.")
+            else:
+                st.warning("Aucun résultat pour ces filtres.")
+
+    except Exception as _e4:
+        import traceback as _tb4
+        st.error(f"❌ Erreur dans le Tab 4 : {str(_e4)}")
+        st.code(_tb4.format_exc())
 
 
 # --- FOOTER ---
