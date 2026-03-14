@@ -986,14 +986,15 @@ with tab4:
                         key="dl_ecoles4"
                     )
                 with btn_pr4:
-                    st.markdown(
-                        f'''<script>
-                        function b64ToUtf8_4(b64) {{ var bin = atob(b64); var bytes = new Uint8Array(bin.length); for(var i=0;i<bin.length;i++){{bytes[i]=bin.charCodeAt(i);}} return new TextDecoder("utf-8").decode(bytes); }}
-                        function openPrint4() {{ var htmlContent = b64ToUtf8_4('{b64_print4}'); var w = window.open('', '_blank'); w.document.open(); w.document.write(htmlContent); w.document.close(); setTimeout(function() {{ w.focus(); w.print(); }}, 600); }}
-                        </script>
-                        <button onclick="openPrint4()" style="width:100%; padding:6px 12px; background:#008080; color:white; border:none; border-radius:6px; font-size:14px; cursor:pointer; font-weight:600;">🖨️ IMPRESSION</button>''',
-                        unsafe_allow_html=True
-                    )
+                    components.html(f"""
+                    <style>* {{ box-sizing: border-box; margin: 0; padding: 0; }} body {{ margin: 0; padding: 0; }}
+                    button {{ background-color: #008080; color: white; border: none; padding: 0 16px; border-radius: 5px; cursor: pointer; width: 100%; height: 38px; font-size: 14px; font-weight: bold; font-family: sans-serif; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 2px; }}
+                    button:hover {{ background-color: #006666; }}</style>
+                    <button onclick="openPrint4()">🖨️ IMPRESSION</button>
+                    <script>
+                    function b64ToUtf8_4(str) {{ return decodeURIComponent(atob(str).split('').map(function(c) {{ return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }}).join('')); }}
+                    function openPrint4() {{ var htmlContent = b64ToUtf8_4('{b64_print4}'); var w = window.open('', '_blank'); w.document.open(); w.document.write(htmlContent); w.document.close(); setTimeout(function() {{ w.focus(); w.print(); }}, 600); }}
+                    </script>""", height=50)
                 st.dataframe(df_display4, use_container_width=True, hide_index=True, height=450)
             with col_viz4:
                 p_c4 = df_display4['Paiement'].value_counts().reset_index()
