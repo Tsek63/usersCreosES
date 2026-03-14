@@ -650,9 +650,12 @@ with tab4:
         with s2:
             if not df_ecoles.empty:
                 base_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Commune'].values])
-                # Inclure la Province elle-même si elle est un PO dans les écoles
-                if p_sel4 in df_ecoles['Commune'].values and p_sel4 not in base_p4:
-                    base_p4 = sorted(base_p4 + [p_sel4])
+                # Inclure les PO "Province de X" qui correspondent à la province sélectionnée
+                province_pos = [c for c in df_ecoles['Commune'].dropna().unique()
+                                if is_province(c) and p_sel4.lower() in c.lower()]
+                for pp in province_pos:
+                    if pp not in base_p4:
+                        base_p4 = sorted(base_p4 + [pp])
                 communes_p4 = base_p4
             else:
                 communes_p4 = []
