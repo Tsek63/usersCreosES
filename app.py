@@ -452,7 +452,7 @@ with tab3:
         df_search = df_ecoles[
             df_ecoles['Ecole'].astype(str).str.contains(search_ecole, case=False, na=False) |
             df_ecoles['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False) |
-            df_ecoles['Directeur/rice'].astype(str).str.contains(search_ecole, case=False, na=False)
+            df_ecoles['Directeur.rice'].astype(str).str.contains(search_ecole, case=False, na=False)
         ]
         if df_search.empty:
             st.warning("Aucun résultat trouvé.")
@@ -464,7 +464,7 @@ with tab3:
                 st.markdown(
                     f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #4169E1; border-radius:8px; padding:10px 16px; margin-bottom:8px;">'
                     f'<div style="font-weight:700; color:#1e293b; font-size:14px;">{row.get("Ecole","—")}</div>'
-                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">PO : {row.get("Nom PO","—")} &nbsp;|&nbsp; Fase école : {row.get("Fase école","—")} &nbsp;|&nbsp; Dir. : {row.get("Directeur/rice","—")}</div>'
+                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">PO : {row.get("Nom PO","—")} &nbsp;|&nbsp; Fase école : {row.get("Fase école","—")} &nbsp;|&nbsp; Dir. : {row.get("Directeur.rice","—")}</div>'
                     f'<div style="font-size:11px; color:#64748b; margin-top:2px;">{email_link} &nbsp;|&nbsp; {tel_link} &nbsp;|&nbsp; {row.get("Adresse","—")}, {row.get("Code postal","—")} {row.get("Localité","—")}</div>'
                     f'</div>',
                     unsafe_allow_html=True
