@@ -650,7 +650,7 @@ with tab4:
         svc_list4 = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
         svc_cnt4  = {s: int(df_active['Services'].str.contains(s, na=False).sum()) if not df_active.empty else 0 for s in svc_list4}
 
-        # --- Mise en page principale 2/3 gauche | 1/3 droite ---
+        # --- Mise en page HAUT : 2/3 formulaire | 1/3 bloc teal ---
         col_left4, col_right4 = st.columns([2, 1])
 
         # ============================================================
@@ -797,10 +797,9 @@ with tab4:
                     st.form_submit_button("💾 ENREGISTRER / MODIFIER", disabled=True, use_container_width=True)
 
         # ============================================================
-        # COLONNE DROITE : Bloc teal + Filtres & Liste
+        # COLONNE DROITE : Bloc teal uniquement
         # ============================================================
         with col_right4:
-            # --- Bloc teal ---
             _svc_j4 = svc_cnt4["Cantine Jour"]
             _svc_s4 = svc_cnt4["Cantine Semaine"]
             _svc_m4 = svc_cnt4["Cantine Mois"]
@@ -824,55 +823,64 @@ with tab4:
             _html4 += '</div></div>'
             st.markdown(_html4, unsafe_allow_html=True)
 
-            st.divider()
+        # ============================================================
+        # BAS PLEINE LARGEUR : Filtres, Liste & Graphiques
+        # ============================================================
+        st.divider()
 
-            # --- Filtres & Liste ---
-            col_t4r, col_r4r = st.columns([3, 2])
-            with col_t4r:
-                st.subheader("🔍 Écoles configurées")
-            with col_r4r:
-                st.write("")
-                if st.button("❌ Effacer filtres", key="t4_filt_reset", use_container_width=True):
-                    st.session_state.t4_frc += 1
-                    st.rerun()
+        col_filt_title, col_filt_reset = st.columns([6, 2])
+        with col_filt_title:
+            st.subheader("🔍 Filtres & Liste des écoles configurées")
+        with col_filt_reset:
+            st.write("")
+            if st.button("❌ Effacer filtres", key="t4_filt_reset", use_container_width=True):
+                st.session_state.t4_frc += 1
+                st.rerun()
 
+        ff1, ff2, ff3 = st.columns(3)
+        with ff1:
             fl4_p = st.multiselect(
                 "Province",
                 sorted(df_active['Province'].unique()) if not df_active.empty else [],
                 key=f"t4_fp_{st.session_state.t4_frc}"
             )
+        with ff2:
             fl4_m = st.multiselect(
                 "Paiement",
                 ["Prépaiement", "Post-paiement"],
                 key=f"t4_fm_{st.session_state.t4_frc}"
             )
+        with ff3:
             fl4_s = st.multiselect(
                 "Services",
                 ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"],
                 key=f"t4_fs_{st.session_state.t4_frc}"
             )
 
-            df_r4 = df_active.copy()
-            if not df_r4.empty:
-                if fl4_p: df_r4 = df_r4[df_r4['Province'].isin(fl4_p)]
-                if fl4_m: df_r4 = df_r4[df_r4['Paiement'].isin(fl4_m)]
-                for sv4 in fl4_s:
-                    df_r4 = df_r4[df_r4['Services'].str.contains(sv4, na=False)]
+        df_r4 = df_active.copy()
+        if not df_r4.empty:
+            if fl4_p: df_r4 = df_r4[df_r4['Province'].isin(fl4_p)]
+            if fl4_m: df_r4 = df_r4[df_r4['Paiement'].isin(fl4_m)]
+            for sv4 in fl4_s:
+                df_r4 = df_r4[df_r4['Services'].str.contains(sv4, na=False)]
 
-            if not df_r4.empty:
-                if not df_ecoles.empty:
-                    ecoles_info4 = df_ecoles[['Fase école', 'Ecole']].copy()
-                    ecoles_info4['Fase école'] = ecoles_info4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
-                    df_sorted4 = df_r4.merge(ecoles_info4, on='Fase école', how='left')
-                else:
-                    df_sorted4 = df_r4.copy()
-                df_sorted4 = df_sorted4.sort_values(['Province', 'Commune'])
-                disp_cols4  = [c for c in ['Province', 'Commune', 'Ecole', 'Fase école', 'Paiement', 'Services'] if c in df_sorted4.columns]
-                df_display4 = df_sorted4[disp_cols4]
+        if not df_r4.empty:
+            if not df_ecoles.empty:
+                ecoles_info4 = df_ecoles[['Fase école', 'Ecole']].copy()
+                ecoles_info4['Fase école'] = ecoles_info4['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                df_sorted4 = df_r4.merge(ecoles_info4, on='Fase école', how='left')
+            else:
+                df_sorted4 = df_r4.copy()
+            df_sorted4 = df_sorted4.sort_values(['Province', 'Commune'])
+            disp_cols4  = [c for c in ['Province', 'Commune', 'Ecole', 'Fase école', 'Paiement', 'Services'] if c in df_sorted4.columns]
+            df_display4 = df_sorted4[disp_cols4]
 
-                buf4 = io.BytesIO()
-                with pd.ExcelWriter(buf4, engine='xlsxwriter') as wr4:
-                    df_display4.to_excel(wr4, index=False, sheet_name='EcolesActives')
+            buf4 = io.BytesIO()
+            with pd.ExcelWriter(buf4, engine='xlsxwriter') as wr4:
+                df_display4.to_excel(wr4, index=False, sheet_name='EcolesActives')
+
+            col_list4, col_viz4 = st.columns([6, 4], gap="medium")
+            with col_list4:
                 st.download_button(
                     label="📥 Exporter vers Excel",
                     data=buf4.getvalue(),
@@ -881,12 +889,25 @@ with tab4:
                     use_container_width=True,
                     key="dl_ecoles4"
                 )
-                st.dataframe(df_display4, use_container_width=True, hide_index=True, height=400)
+                st.dataframe(df_display4, use_container_width=True, hide_index=True, height=450)
+            with col_viz4:
+                p_c4 = df_display4['Paiement'].value_counts().reset_index()
+                fig_p4 = px.pie(p_c4, values='count', names='Paiement', hole=0.4, title="Modes de Paiement",
+                                color='Paiement', color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
+                fig_p4.update_layout(height=250, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
+                st.plotly_chart(fig_p4, use_container_width=True, config={'displayModeBar': False})
+                sl4 = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
+                ct4 = [df_display4['Services'].str.contains(s, na=False).sum() for s in sl4]
+                df_s4 = pd.DataFrame({'Service': sl4, 'Nombre': ct4})
+                fig_s4 = px.bar(df_s4, x='Nombre', y='Service', orientation='h', title="Popularité des Services",
+                                color='Service', color_discrete_map={"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
+                fig_s4.update_layout(height=250, showlegend=False, margin=dict(l=0,r=0,t=40,b=0), xaxis_title=None, yaxis_title=None)
+                st.plotly_chart(fig_s4, use_container_width=True, config={'displayModeBar': False})
+        else:
+            if df_active.empty:
+                st.info("ℹ️ Aucune école configurée pour l'instant.")
             else:
-                if df_active.empty:
-                    st.info("ℹ️ Aucune école configurée pour l'instant.")
-                else:
-                    st.warning("Aucun résultat pour ces filtres.")
+                st.warning("Aucun résultat pour ces filtres.")
 
     except Exception as _e4:
         import traceback as _tb4
