@@ -977,28 +977,30 @@ with tab4:
         print_html4 = generate_print_html_ecoles(df_display4, fl4_p, fl4_m, fl4_s)
         b64_print4 = base64.b64encode(print_html4.encode('utf-8')).decode('ascii')
 
+        # --- Ligne 1: Boutons (Export + Impression) à 1 niveau de colonnes ---
+        btn_xl4, btn_pr4, _sp4 = st.columns([3, 3, 4])
+        with btn_xl4:
+            st.download_button(
+                label="📥 Exporter vers Excel",
+                data=buf4.getvalue(),
+                file_name="ecoles_actives.xlsx",
+                mime="application/vnd.ms-excel",
+                use_container_width=True,
+                key="dl_ecoles4"
+            )
+        with btn_pr4:
+            _js_fn4  = "function b64ToUtf8_4(s){return decodeURIComponent(atob(s).split('').map(function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join(''));}"
+            _js_fn4 += f"function openPrint4(){{var h=b64ToUtf8_4('{b64_print4}');var w=window.open('','_blank');w.document.open();w.document.write(h);w.document.close();setTimeout(function(){{w.focus();w.print();}},600);}}"
+            _btn_html4  = '<style>*{box-sizing:border-box;margin:0;padding:0;}body{margin:0;padding:0;}'
+            _btn_html4 += 'button{background:#008080;color:white;border:none;padding:0 16px;border-radius:5px;cursor:pointer;width:100%;height:38px;font-size:14px;font-weight:bold;font-family:sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;}'
+            _btn_html4 += 'button:hover{background:#006666;}</style>'
+            _btn_html4 += '<button onclick="openPrint4()">🖨️ IMPRESSION</button>'
+            _btn_html4 += f'<script>{_js_fn4}</script>'
+            components.html(_btn_html4, height=50)
+
+        # --- Ligne 2: Tableau + Graphiques ---
         col_list4, col_viz4 = st.columns([6, 4], gap="medium")
         with col_list4:
-            btn_xl4, btn_pr4 = st.columns(2)
-            with btn_xl4:
-                st.download_button(
-                    label="📥 Exporter vers Excel",
-                    data=buf4.getvalue(),
-                    file_name="ecoles_actives.xlsx",
-                    mime="application/vnd.ms-excel",
-                    use_container_width=True,
-                    key="dl_ecoles4"
-                )
-            with btn_pr4:
-                components.html(f"""
-                <style>* {{ box-sizing: border-box; margin: 0; padding: 0; }} body {{ margin: 0; padding: 0; }}
-                button {{ background-color: #008080; color: white; border: none; padding: 0 16px; border-radius: 5px; cursor: pointer; width: 100%; height: 38px; font-size: 14px; font-weight: bold; font-family: sans-serif; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 2px; }}
-                button:hover {{ background-color: #006666; }}</style>
-                <button onclick="openPrint4()">🖨️ IMPRESSION</button>
-                <script>
-                function b64ToUtf8_4(str) {{ return decodeURIComponent(atob(str).split('').map(function(c) {{ return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }}).join('')); }}
-                function openPrint4() {{ var htmlContent = b64ToUtf8_4('{b64_print4}'); var w = window.open('', '_blank'); w.document.open(); w.document.write(htmlContent); w.document.close(); setTimeout(function() {{ w.focus(); w.print(); }}, 600); }}
-                </script>""", height=50)
             st.dataframe(df_display4, use_container_width=True, hide_index=True, height=450)
         with col_viz4:
             p_c4 = df_display4['Paiement'].value_counts().reset_index()
