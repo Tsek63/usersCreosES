@@ -388,8 +388,9 @@ with tab1:
 
 
 # ============================================================
-# --- TAB 2 : GESTION DES COMMUNES (inchangé) ---
+# --- TAB 3 : ÉCOLES PAR COMMUNE ---
 # ============================================================
+with tab3:
     if df_ecoles.empty:
         st.error("⚠️ Impossible de charger la feuille **Ecoles**. Assurez-vous d'avoir créé une feuille nommée **'Ecoles'** dans votre Google Sheets.")
     else:
