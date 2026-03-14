@@ -506,219 +506,216 @@ with tab2:
 
 
 # ============================================================
+# ============================================================
 # --- TAB 3 : ÉCOLES PAR COMMUNE (inchangé) ---
 # ============================================================
 with tab3:
     if df_ecoles.empty:
         st.error("⚠️ Impossible de charger la feuille **Ecoles**. Assurez-vous d'avoir créé une feuille nommée **'Ecoles'** dans votre Google Sheets.")
-        st.stop()
+    else:
+        all_po = sorted(df_ecoles['Commune'].dropna().unique().tolist())
 
-    all_po = sorted(df_ecoles['Commune'].dropna().unique().tolist())
+        total_ecoles_global = len(df_ecoles)
+        total_po_global = df_ecoles['Commune'].nunique()
+        total_active_with_schools = len([c for c in active_communes if c in df_ecoles['Commune'].values])
 
-    total_ecoles_global = len(df_ecoles)
-    total_po_global = df_ecoles['Commune'].nunique()
-    total_active_with_schools = len([c for c in active_communes if c in df_ecoles['Commune'].values])
-
-    st.markdown(f"""
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <div style="display:flex; gap:12px; margin-bottom:16px;">
-        <div style="flex:1; background:#4169E1; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
-            <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">Total Écoles</div>
-            <div style="font-size:38px; font-weight:bold; line-height:1.1;">{total_ecoles_global}</div>
-        </div>
-        <div style="flex:1; background:#008080; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
-            <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">PO / Communes</div>
-            <div style="font-size:38px; font-weight:bold; line-height:1.1;">{total_po_global}</div>
-        </div>
-        <div style="flex:1; background:#1e293b; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
-            <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">Actives avec écoles</div>
-            <div style="font-size:38px; font-weight:bold; line-height:1.1; color:#4ade80;">{total_active_with_schools}</div>
-        </div>
-        <div style="flex:3; background:#f8fafc; border:1px solid #e2e8f0; padding:14px 18px; border-radius:10px; display:flex; align-items:center;">
-            <div>
-                <div style="font-size:13px; color:#334155; font-weight:600; margin-bottom:4px;">
-                    <i class="fa-solid fa-circle-info" style="color:#4169E1;"></i>
-                    &nbsp;Comment utiliser cet onglet
-                </div>
-                <div style="font-size:11px; color:#64748b; line-height:1.6;">
-                    Sélectionnez une <b>province</b> puis une <b>commune</b> pour afficher ses écoles.<br>
-                    <span style="color:#4ade80; font-weight:bold;">✓ Vert</span> = commune active dans Creos &nbsp;|&nbsp;
-                    <span style="color:#ef4444; font-weight:bold;">○ Gris</span> = commune non encore active
+        st.markdown(f"""
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <div style="display:flex; gap:12px; margin-bottom:16px;">
+            <div style="flex:1; background:#4169E1; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
+                <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">Total Écoles</div>
+                <div style="font-size:38px; font-weight:bold; line-height:1.1;">{total_ecoles_global}</div>
+            </div>
+            <div style="flex:1; background:#008080; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
+                <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">PO / Communes</div>
+                <div style="font-size:38px; font-weight:bold; line-height:1.1;">{total_po_global}</div>
+            </div>
+            <div style="flex:1; background:#1e293b; color:white; padding:14px 18px; border-radius:10px; text-align:center;">
+                <div style="font-size:10px; text-transform:uppercase; opacity:0.8; letter-spacing:1px;">Actives avec écoles</div>
+                <div style="font-size:38px; font-weight:bold; line-height:1.1; color:#4ade80;">{total_active_with_schools}</div>
+            </div>
+            <div style="flex:3; background:#f8fafc; border:1px solid #e2e8f0; padding:14px 18px; border-radius:10px; display:flex; align-items:center;">
+                <div>
+                    <div style="font-size:13px; color:#334155; font-weight:600; margin-bottom:4px;">
+                        <i class="fa-solid fa-circle-info" style="color:#4169E1;"></i>
+                        &nbsp;Comment utiliser cet onglet
+                    </div>
+                    <div style="font-size:11px; color:#64748b; line-height:1.6;">
+                        Sélectionnez une <b>province</b> puis une <b>commune</b> pour afficher ses écoles.<br>
+                        <span style="color:#4ade80; font-weight:bold;">✓ Vert</span> = commune active dans Creos &nbsp;|&nbsp;
+                        <span style="color:#ef4444; font-weight:bold;">○ Gris</span> = commune non encore active
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    if 't3_rc' not in st.session_state:
-        st.session_state.t3_rc = 0
+        if 't3_rc' not in st.session_state:
+            st.session_state.t3_rc = 0
 
-    col_p3, col_c3, col_s3, col_btn3 = st.columns([2, 3, 3, 1.5])
+        col_p3, col_c3, col_s3, col_btn3 = st.columns([2, 3, 3, 1.5])
 
-    with col_p3:
-        prov_tab3 = st.selectbox(
-            "🗺️ Province",
-            ["Toutes les provinces"] + list(data_fwb.keys()),
-            key=f"t3_prov_{st.session_state.t3_rc}"
-        )
-
-    if prov_tab3 == "Toutes les provinces":
-        communes_dispo = [""] + all_po
-    else:
-        communes_prov = data_fwb.get(prov_tab3, [])
-        communes_dispo = [""] + sorted([c for c in communes_prov if c in df_ecoles['Commune'].values])
-
-    with col_c3:
-        commune_tab3 = st.selectbox(
-            "🏘️ Commune",
-            communes_dispo,
-            key=f"t3_comm_{st.session_state.t3_rc}",
-            format_func=lambda x: ("— Sélectionnez une commune" if x == "" else f"{'✅' if x in active_communes else '⚪'} {x}")
-        )
-
-    with col_s3:
-        search_ecole = st.text_input(
-            "🔍 Rechercher",
-            key=f"t3_search_{st.session_state.t3_rc}",
-            placeholder="Nom d'école, directeur, fase..."
-        )
-
-    with col_btn3:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if st.button("🗑️ Effacer les filtres", key="t3_reset", use_container_width=True):
-            st.session_state.t3_rc += 1
-            st.rerun()
-
-    if not commune_tab3 and not search_ecole:
-        st.stop()
-
-    if not commune_tab3 and search_ecole:
-        df_search = df_ecoles[
-            df_ecoles['Ecole'].astype(str).str.contains(search_ecole, case=False, na=False) |
-            df_ecoles['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False) |
-            df_ecoles['Directeur.rice'].astype(str).str.contains(search_ecole, case=False, na=False)
-        ]
-        if df_search.empty:
-            st.warning("Aucun résultat trouvé.")
-        else:
-            st.markdown(f"**{len(df_search)} résultat(s)** pour *\"{search_ecole}\"* sur toutes les communes")
-            for _, row in df_search.iterrows():
-                email_link = f'<a href="mailto:{row["Email"]}" style="color:#4169E1;">{row["Email"]}</a>' if pd.notna(row.get("Email")) and str(row.get("Email","")).strip() else "—"
-                tel_link = f'<a href="tel:{row["Téléphone"]}" style="color:#4169E1;">{row["Téléphone"]}</a>' if pd.notna(row.get("Téléphone")) and str(row.get("Téléphone","")).strip() else "—"
-                st.markdown(
-                    f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #4169E1; border-radius:8px; padding:10px 16px; margin-bottom:8px;">'
-                    f'<div style="font-weight:700; color:#1e293b; font-size:14px;">{row.get("Ecole","—")}</div>'
-                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">PO : {row.get("Commune","—")} &nbsp;|&nbsp; Fase école : {row.get("Fase école","—")} &nbsp;|&nbsp; Dir. : {row.get("Directeur.rice","—")}</div>'
-                    f'<div style="font-size:11px; color:#64748b; margin-top:2px;">{email_link} &nbsp;|&nbsp; {tel_link} &nbsp;|&nbsp; {row.get("Adresse","—")}, {row.get("Code postal","—")} {row.get("Localité","—")}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-        st.stop()
-
-    df_comm = df_ecoles[df_ecoles['Commune'] == commune_tab3].copy()
-    fase_po = df_comm['Fase PO'].iloc[0] if not df_comm.empty else '—'
-    is_active_t3 = commune_tab3 in active_communes
-
-    paiement_badge_html = ""
-    services_badges_html = ""
-    if is_active_t3 and not df_active[df_active['Commune'] == commune_tab3].empty:
-        active_row = df_active[df_active['Commune'] == commune_tab3].iloc[0]
-        paiement_info = active_row.get('Paiement', '—') or '—'
-        services_info = active_row.get('Services', '') or ''
-        pc = "#ec4899" if paiement_info == "Prépaiement" else "#38bdf8"
-        paiement_badge_html = f'<span style="background:{pc}; color:white; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:bold;">{paiement_info}</span>'
-        service_colors = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
-        for s in services_info.split("|"):
-            s = s.strip()
-            if s:
-                sc = service_colors.get(s, "#999")
-                services_badges_html += f'<span style="background:{sc}; color:white; padding:4px 10px; border-radius:6px; font-size:10px; font-weight:bold; margin-left:4px;">{s}</span>'
-
-    active_color = "#4ade80" if is_active_t3 else "#64748b"
-    active_text = "&#10003; Active dans Creos" if is_active_t3 else "&#9675; Non active dans Creos"
-    active_txt_color = "#1e293b" if is_active_t3 else "white"
-    active_badge_html = f'<span style="background:{active_color}; color:{active_txt_color}; padding:5px 14px; border-radius:20px; font-size:11px; font-weight:bold;">{active_text}</span>'
-    all_badges_html = services_badges_html + paiement_badge_html + active_badge_html
-
-    st.markdown(f'<div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"><div style="display:flex; align-items:center; gap:16px;"><span style="font-size:20px; font-weight:bold;">&#127963; {commune_tab3}</span><span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span><span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> &#233;cole(s)</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">{all_badges_html}</div></div>', unsafe_allow_html=True)
-
-    if search_ecole:
-        mask = (
-            df_comm['Ecole'].str.contains(search_ecole, case=False, na=False) |
-            df_comm['Directeur.rice'].str.contains(search_ecole, case=False, na=False) |
-            df_comm['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False)
-        )
-        df_display = df_comm[mask]
-    else:
-        df_display = df_comm
-
-    if df_display.empty:
-        st.warning("Aucune école trouvée pour cette recherche.")
-    else:
-        st.markdown(f"<div style='font-size:12px; color:#64748b; margin-bottom:10px;'><b style='color:#334155;'>{len(df_display)}</b> école(s) affichée(s)</div>", unsafe_allow_html=True)
-        for i in range(0, len(df_display), 2):
-            cols = st.columns(2, gap="medium")
-            for j in range(2):
-                idx = i + j
-                if idx >= len(df_display): break
-                school = df_display.iloc[idx]
-                with cols[j]:
-                    email = school.get('Email', None)
-                    phone = school.get('Téléphone', None)
-                    bte_val = school.get('Bte', None)
-                    bte = f" bte {bte_val}" if pd.notna(bte_val) and str(bte_val).strip() not in ['nan', ''] else ""
-                    num = school.get('N°', '')
-                    rue = school.get('Rue', '')
-                    cp = school.get('Code postal', '')
-                    loc = school.get('Localité', '')
-                    adresse = f"{rue} {num}{bte}, {cp} {loc}".strip()
-                    email_html = (f'<a href="mailto:{email}" style="color:#4169E1; text-decoration:none;">{email}</a>' if pd.notna(email) and str(email).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
-                    phone_html = (f'<a href="tel:{phone}" style="color:#334155; text-decoration:none;">{phone}</a>' if pd.notna(phone) and str(phone).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
-
-                    # Statut de configuration dans EcolesConfig
-                    fase_e = str(school.get('Fase école', ''))
-                    school_conf = df_config[df_config['Fase école'] == fase_e]
-                    if not school_conf.empty and school_conf.iloc[0]['Extrascolaire'] == 'Oui':
-                        cfg_badge = '<span style="background:#4ade80; color:#1e293b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">✓ Creos actif</span>'
-                    elif not school_conf.empty:
-                        cfg_badge = '<span style="background:#64748b; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">○ Non configurée</span>'
-                    else:
-                        cfg_badge = ''
-
-                    _card_html = (
-                        f'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px;border-left:5px solid #4169E1;box-shadow:0 2px 6px rgba(65,105,225,0.08);">'
-                        f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">'
-                        f'<div style="font-size:14px;font-weight:bold;color:#4169E1;line-height:1.3;">&#127963; {school["Ecole"]}</div>'
-                        f'{cfg_badge}'
-                        f'</div>'
-                        f'<div style="font-size:10px;color:#94a3b8;margin-bottom:10px;letter-spacing:0.5px;">'
-                        f'N&#176; FASE &#201;COLE : <b style="color:#475569;font-size:11px;">{school["Fase école"]}</b>'
-                        f'</div>'
-                        f'<div style="border-top:1px solid #f1f5f9;padding-top:10px;font-size:12px;color:#334155;line-height:2;">'
-                        f'<div><b style="color:#4169E1;">&#128100;</b>&nbsp;<b>{school["Directeur.rice"]}</b></div>'
-                        f'<div><b style="color:#4169E1;">&#9993;</b>&nbsp;{email_html}</div>'
-                        f'<div><b style="color:#4169E1;">&#128222;</b>&nbsp;{phone_html}</div>'
-                        f'<div style="font-size:11px;color:#64748b;margin-top:4px;">&#128205;&nbsp;{adresse}</div>'
-                        f'</div>'
-                        f'</div>'
-                    )
-                    st.markdown(_card_html, unsafe_allow_html=True)
-
-        st.divider()
-        col_exp1, col_exp2, col_exp3 = st.columns([3, 2, 3])
-        with col_exp2:
-            buffer_e = io.BytesIO()
-            export_df = df_display.drop(columns=['Rue', 'N°', 'Bte', 'Adresse'], errors='ignore')
-            with pd.ExcelWriter(buffer_e, engine='xlsxwriter') as writer:
-                export_df.to_excel(writer, index=False, sheet_name='Ecoles')
-            st.download_button(
-                label="📥 Exporter les écoles",
-                data=buffer_e.getvalue(),
-                file_name=f"ecoles_{commune_tab3.lower().replace(' ', '_').replace('/', '-')}.xlsx",
-                mime="application/vnd.ms-excel",
-                use_container_width=True,
-                key="dl_ecoles"
+        with col_p3:
+            prov_tab3 = st.selectbox(
+                "🗺️ Province",
+                ["Toutes les provinces"] + list(data_fwb.keys()),
+                key=f"t3_prov_{st.session_state.t3_rc}"
             )
+
+        if prov_tab3 == "Toutes les provinces":
+            communes_dispo = [""] + all_po
+        else:
+            communes_prov = data_fwb.get(prov_tab3, [])
+            communes_dispo = [""] + sorted([c for c in communes_prov if c in df_ecoles['Commune'].values])
+
+        with col_c3:
+            commune_tab3 = st.selectbox(
+                "🏘️ Commune",
+                communes_dispo,
+                key=f"t3_comm_{st.session_state.t3_rc}",
+                format_func=lambda x: ("— Sélectionnez une commune" if x == "" else f"{'✅' if x in active_communes else '⚪'} {x}")
+            )
+
+        with col_s3:
+            search_ecole = st.text_input(
+                "🔍 Rechercher",
+                key=f"t3_search_{st.session_state.t3_rc}",
+                placeholder="Nom d'école, directeur, fase..."
+            )
+
+        with col_btn3:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            if st.button("🗑️ Effacer les filtres", key="t3_reset", use_container_width=True):
+                st.session_state.t3_rc += 1
+                st.rerun()
+
+        if not commune_tab3 and not search_ecole:
+            st.info("👆 Sélectionnez une commune ou saisissez un terme de recherche.")
+        elif not commune_tab3 and search_ecole:
+            df_search = df_ecoles[
+                df_ecoles['Ecole'].astype(str).str.contains(search_ecole, case=False, na=False) |
+                df_ecoles['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False) |
+                df_ecoles['Directeur.rice'].astype(str).str.contains(search_ecole, case=False, na=False)
+            ]
+            if df_search.empty:
+                st.warning("Aucun résultat trouvé.")
+            else:
+                st.markdown(f"**{len(df_search)} résultat(s)** pour *\"{search_ecole}\"* sur toutes les communes")
+                for _, row in df_search.iterrows():
+                    email_link = f'<a href="mailto:{row["Email"]}" style="color:#4169E1;">{row["Email"]}</a>' if pd.notna(row.get("Email")) and str(row.get("Email","")).strip() else "—"
+                    tel_link = f'<a href="tel:{row["Téléphone"]}" style="color:#4169E1;">{row["Téléphone"]}</a>' if pd.notna(row.get("Téléphone")) and str(row.get("Téléphone","")).strip() else "—"
+                    st.markdown(
+                        f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #4169E1; border-radius:8px; padding:10px 16px; margin-bottom:8px;">' +
+                        f'<div style="font-weight:700; color:#1e293b; font-size:14px;">{row.get("Ecole","—")}</div>' +
+                        f'<div style="font-size:11px; color:#64748b; margin-top:2px;">PO : {row.get("Commune","—")} &nbsp;|&nbsp; Fase école : {row.get("Fase école","—")} &nbsp;|&nbsp; Dir. : {row.get("Directeur.rice","—")}</div>' +
+                        f'<div style="font-size:11px; color:#64748b; margin-top:2px;">{email_link} &nbsp;|&nbsp; {tel_link} &nbsp;|&nbsp; {row.get("Adresse","—")}, {row.get("Code postal","—")} {row.get("Localité","—")}</div>' +
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+        else:
+            df_comm = df_ecoles[df_ecoles['Commune'] == commune_tab3].copy()
+            fase_po = df_comm['Fase PO'].iloc[0] if not df_comm.empty else '—'
+            is_active_t3 = commune_tab3 in active_communes
+
+            paiement_badge_html = ""
+            services_badges_html = ""
+            if is_active_t3 and not df_active[df_active['Commune'] == commune_tab3].empty:
+                active_row = df_active[df_active['Commune'] == commune_tab3].iloc[0]
+                paiement_info = active_row.get('Paiement', '—') or '—'
+                services_info = active_row.get('Services', '') or ''
+                pc = "#ec4899" if paiement_info == "Prépaiement" else "#38bdf8"
+                paiement_badge_html = f'<span style="background:{pc}; color:white; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:bold;">{paiement_info}</span>'
+                service_colors = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
+                for s in services_info.split("|"):
+                    s = s.strip()
+                    if s:
+                        sc = service_colors.get(s, "#999")
+                        services_badges_html += f'<span style="background:{sc}; color:white; padding:4px 10px; border-radius:6px; font-size:10px; font-weight:bold; margin-left:4px;">{s}</span>'
+
+            active_color = "#4ade80" if is_active_t3 else "#64748b"
+            active_text = "&#10003; Active dans Creos" if is_active_t3 else "&#9675; Non active dans Creos"
+            active_txt_color = "#1e293b" if is_active_t3 else "white"
+            active_badge_html = f'<span style="background:{active_color}; color:{active_txt_color}; padding:5px 14px; border-radius:20px; font-size:11px; font-weight:bold;">{active_text}</span>'
+            all_badges_html = services_badges_html + paiement_badge_html + active_badge_html
+
+            st.markdown(f'<div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"><div style="display:flex; align-items:center; gap:16px;"><span style="font-size:20px; font-weight:bold;">&#127963; {commune_tab3}</span><span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span><span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> &#233;cole(s)</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">{all_badges_html}</div></div>', unsafe_allow_html=True)
+
+            if search_ecole:
+                mask = (
+                    df_comm['Ecole'].str.contains(search_ecole, case=False, na=False) |
+                    df_comm['Directeur.rice'].str.contains(search_ecole, case=False, na=False) |
+                    df_comm['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False)
+                )
+                df_display = df_comm[mask]
+            else:
+                df_display = df_comm
+
+            if df_display.empty:
+                st.warning("Aucune école trouvée pour cette recherche.")
+            else:
+                st.markdown(f"<div style='font-size:12px; color:#64748b; margin-bottom:10px;'><b style='color:#334155;'>{len(df_display)}</b> école(s) affichée(s)</div>", unsafe_allow_html=True)
+                for i in range(0, len(df_display), 2):
+                    cols = st.columns(2, gap="medium")
+                    for j in range(2):
+                        idx = i + j
+                        if idx >= len(df_display): break
+                        school = df_display.iloc[idx]
+                        with cols[j]:
+                            email = school.get('Email', None)
+                            phone = school.get('Téléphone', None)
+                            bte_val = school.get('Bte', None)
+                            bte = f" bte {bte_val}" if pd.notna(bte_val) and str(bte_val).strip() not in ['nan', ''] else ""
+                            num = school.get('N°', '')
+                            rue = school.get('Rue', '')
+                            cp = school.get('Code postal', '')
+                            loc = school.get('Localité', '')
+                            adresse = f"{rue} {num}{bte}, {cp} {loc}".strip()
+                            email_html = (f'<a href="mailto:{email}" style="color:#4169E1; text-decoration:none;">{email}</a>' if pd.notna(email) and str(email).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
+                            phone_html = (f'<a href="tel:{phone}" style="color:#334155; text-decoration:none;">{phone}</a>' if pd.notna(phone) and str(phone).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
+
+                            fase_e = str(school.get('Fase école', ''))
+                            school_conf = df_config[df_config['Fase école'] == fase_e]
+                            if not school_conf.empty and school_conf.iloc[0]['Extrascolaire'] == 'Oui':
+                                cfg_badge = '<span style="background:#4ade80; color:#1e293b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">✓ Creos actif</span>'
+                            elif not school_conf.empty:
+                                cfg_badge = '<span style="background:#64748b; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">○ Non configurée</span>'
+                            else:
+                                cfg_badge = ''
+
+                            _card_html = (
+                                f'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px;border-left:5px solid #4169E1;box-shadow:0 2px 6px rgba(65,105,225,0.08);">' +
+                                f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">' +
+                                f'<div style="font-size:14px;font-weight:bold;color:#4169E1;line-height:1.3;">&#127963; {school["Ecole"]}</div>' +
+                                f'{cfg_badge}' +
+                                f'</div>' +
+                                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:10px;letter-spacing:0.5px;">' +
+                                f'N&#176; FASE &#201;COLE : <b style="color:#475569;font-size:11px;">{school["Fase école"]}</b>' +
+                                f'</div>' +
+                                f'<div style="border-top:1px solid #f1f5f9;padding-top:10px;font-size:12px;color:#334155;line-height:2;">' +
+                                f'<div><b style="color:#4169E1;">&#128100;</b>&nbsp;<b>{school["Directeur.rice"]}</b></div>' +
+                                f'<div><b style="color:#4169E1;">&#9993;</b>&nbsp;{email_html}</div>' +
+                                f'<div><b style="color:#4169E1;">&#128222;</b>&nbsp;{phone_html}</div>' +
+                                f'<div style="font-size:11px;color:#64748b;margin-top:4px;">&#128205;&nbsp;{adresse}</div>' +
+                                f'</div>' +
+                                f'</div>'
+                            )
+                            st.markdown(_card_html, unsafe_allow_html=True)
+
+            st.divider()
+            col_exp1, col_exp2, col_exp3 = st.columns([3, 2, 3])
+            with col_exp2:
+                buffer_e = io.BytesIO()
+                export_df = df_display.drop(columns=['Rue', 'N°', 'Bte', 'Adresse'], errors='ignore')
+                with pd.ExcelWriter(buffer_e, engine='xlsxwriter') as writer:
+                    export_df.to_excel(writer, index=False, sheet_name='Ecoles')
+                st.download_button(
+                    label="📥 Exporter les écoles",
+                    data=buffer_e.getvalue(),
+                    file_name=f"ecoles_{commune_tab3.lower().replace(' ', '_').replace('/', '-')}.xlsx",
+                    mime="application/vnd.ms-excel",
+                    use_container_width=True,
+                    key="dl_ecoles"
+                )
 
 
 # ============================================================
