@@ -766,6 +766,7 @@ with tab4:
                 com_options4 = ["— Sélectionnez —"] + communes_p4
                 if st.session_state.get("t4_comm") not in com_options4:
                     st.session_state["t4_comm"] = com_options4[0]
+                    st.session_state.pop("t4_ecole", None)
                 com_sel4 = st.selectbox(
                     "2. Commune",
                     com_options4,
@@ -798,10 +799,10 @@ with tab4:
                     ecole_fase_sel4, ecole_name_sel4 = fase_map4.get(ecole_label_sel4, ("", ""))
                 else:
                     ecole_fase_sel4, ecole_name_sel4 = "", ""
+                    st.session_state.pop("t4_ecole", None)
                     st.selectbox(
                         "3. École",
                         ["— Choisissez d'abord une commune —"],
-                        key="t4_ecole",
                         disabled=True
                     )
 
