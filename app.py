@@ -240,6 +240,21 @@ except Exception:
     df_gsheets = pd.DataFrame()
 
 # Première tentative de construction de data_fwb depuis la feuille Commune
+def _norm_prov(name):
+    """Normalise un nom de province vers le nom canonique utilisé dans l'app."""
+    n = str(name).strip()
+    mapping = {
+        "liege": "Liège", "liège": "Liège", "province de liège": "Liège", "province de liege": "Liège",
+        "hainaut": "Hainaut", "province du hainaut": "Hainaut",
+        "namur": "Namur", "province de namur": "Namur",
+        "luxembourg": "Luxembourg", "province de luxembourg": "Luxembourg",
+        "brabant wallon": "Brabant Wallon", "province du brabant wallon": "Brabant Wallon",
+        "bruxelles": "Bruxelles", "région de bruxelles": "Bruxelles", "région bruxelloise": "Bruxelles",
+        "région de bruxelles-capitale": "Bruxelles", "region de bruxelles-capitale": "Bruxelles",
+        "bruxelles-capitale": "Bruxelles",
+    }
+    return mapping.get(n.lower(), n)
+
 def _build_data_fwb(df):
     """Construit le dict Province→[Communes] depuis un DataFrame avec colonnes Province/Commune.
     Normalise les noms de provinces (ex: 'Région de Bruxelles-Capitale' → 'Bruxelles')."""
