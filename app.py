@@ -232,15 +232,20 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # Feuille principale (Tab 2 compat)
 df_gsheets = conn.read(ttl=0).dropna(how="all")
 
-# Construire data_fwb depuis la feuille GSheets (Province → liste de communes)
-if 'Province' in df_gsheets.columns and 'Commune' in df_gsheets.columns:
-    data_fwb = {
-        prov: sorted(grp['Commune'].dropna().unique().tolist())
-        for prov, grp in df_gsheets.groupby('Province')
-    }
-else:
+# Construire data_fwb depuis l'onglet "Commune" du GSheets (Province → liste de communes)
+try:
+    df_commune_sheet = conn.read(worksheet="Commune", ttl=0).dropna(how="all")
+    if 'Province' in df_commune_sheet.columns and 'Commune' in df_commune_sheet.columns:
+        data_fwb = {
+            prov: sorted(grp['Commune'].dropna().unique().tolist())
+            for prov, grp in df_commune_sheet.groupby('Province')
+        }
+    else:
+        data_fwb = {}
+        st.warning("⚠️ Colonnes 'Province'/'Commune' non trouvées dans l'onglet Commune du GSheets.")
+except Exception as e:
     data_fwb = {}
-    st.warning("⚠️ Colonnes 'Province'/'Commune' non trouvées dans la feuille principale GSheets.")
+    st.warning(f"⚠️ Impossible de lire l'onglet Commune : {e}")
 
 # Feuille Ecoles
 try:
@@ -294,7 +299,7 @@ else:
 tab1, tab3, tab4 = st.tabs([
     "📊 Tableau de bord et Carte",
     "🏫 Écoles par Commune",
-    "⚙️ Configuration des Écoles"
+    "⚙️ Gestion des Écoles"
 ])
 
 # ============================================================
@@ -614,13 +619,13 @@ with tab3:
 
 
 # ============================================================
-# --- TAB 4 : CONFIGURATION DES ÉCOLES ---
+# --- TAB 4 : GESTION DES ÉCOLES ---
 # ============================================================
 with tab4:
     if 't4_frc' not in st.session_state:
         st.session_state.t4_frc = 0
 
-    st.header("⚙️ Configuration des Écoles par Commune")
+    st.header("⚙️ Gestion des Écoles")
 
     # --- Calcul stats ---
     n_active4 = len(df_active)
@@ -644,7 +649,7 @@ with tab4:
 
         with s1:
             p_sel4 = st.selectbox(
-                "1. Province",
+                "1. Province / Région",
                 list(data_fwb.keys()),
                 key="t4_prov"
             )
@@ -825,7 +830,7 @@ with tab4:
 
     col_filt_title, col_filt_reset = st.columns([6, 2])
     with col_filt_title:
-        st.subheader("🔍 Filtres & Liste des écoles configurées")
+        st.subheader("🔍 Filtres & Liste des écoles utilisant l'Extrascolaire")
     with col_filt_reset:
         st.write("")
         if st.button("❌ Effacer filtres", key="t4_filt_reset", use_container_width=True):
@@ -854,22 +859,6 @@ with tab4:
             placeholder="Choix des services",
             key=f"t4_fs_{st.session_state.t4_frc}"
         )
-
-    # JS pour renommer "Select all" → "Tout sélectionner" dans les multiselects
-    st.components.v1.html("""
-    <script>
-    function renameSelectAll() {
-        document.querySelectorAll('[data-testid="stMultiSelect"] span, .stMultiSelect span').forEach(function(el) {
-            if (el.innerText && el.innerText.trim() === 'Select all') {
-                el.innerText = 'Tout sélectionner';
-            }
-        });
-    }
-    var obs = new MutationObserver(renameSelectAll);
-    obs.observe(document.body, {childList: true, subtree: true, characterData: true});
-    renameSelectAll();
-    </script>
-    """, height=0)
 
     df_r4 = df_active.copy()
     if not df_r4.empty:
