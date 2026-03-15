@@ -46,14 +46,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. DONNÉES DE RÉFÉRENCE ---
-data_fwb = {
-    "Bruxelles": ["Anderlecht", "Auderghem", "Berchem-Sainte-Agathe", "Bruxelles", "Etterbeek", "Evere", "Forest", "Ganshoren", "Ixelles", "Jette", "Koekelberg", "Molenbeek-Saint-Jean", "Saint-Gilles", "Saint-Josse-ten-Noode", "Schaerbeek", "Uccle", "Watermael-Boitsfort", "Woluwe-Saint-Lambert", "Woluwe-Saint-Pierre"],
-    "Brabant Wallon": ["Beauvechain", "Braine-l'Alleud", "Braine-le-Château", "Chastre", "Chaumont-Gistoux", "Court-Saint-Étienne", "Genappe", "Grez-Doiceau", "Hélécine", "Incourt", "Ittre", "Jodoigne", "La Hulpe", "Lasne", "Mont-Saint-Guibert", "Nivelles", "Orp-Jauche", "Ottignies-Louvain-la-Neuve", "Perwez", "Ramillies", "Rebecq", "Rixensart", "Tubize", "Villers-la-Ville", "Walhain", "Waterloo", "Wavre"],
-    "Hainaut": ["Aiseau-Presles", "Anderlues", "Antoing", "Ath", "Beaumont", "Beloeil", "Bernissart", "Binche", "Boussu", "Braine-le-Comte", "Brugelette", "Brunehaut", "Celles", "Chapelle-lez-Herlaimont", "Charleroi", "Châtelet", "Chièvres", "Chimay", "Colfontaine", "Comines-Warneton", "Courcelles", "Dour", "Ecaussines", "Ellezelles", "Enghien", "Erquelinnes", "Estaimpuis", "Estinnes", "Farciennes", "Fleurus", "Flobecq", "Fontaine-l'Évêque", "Frameries", "Frasnes-lez-Anvaing", "Froidchapelle", "Gerpinnes", "Ham-sur-Heure-Nalinnes", "Hensies", "Jurbise", "La Louvière", "Le Roeulx", "Lens", "Les Bons Villers", "Lessines", "Leuze-en-Hainaut", "Lobbes", "Manage", "Merbes-le-Château", "Momignies", "Mons", "Mont-de-l'Enclus", "Montigny-le-Tilleul", "Morlanwelz", "Mouscron", "Pecq", "Péruwelz", "Pont-à-Celles", "Quaregnon", "Quévy", "Quiévrain", "Rumes", "Saint-Ghislain", "Seneffe", "Silly", "Sivry-Rance", "Soignies", "Thuin", "Tournai"],
-    "Liège": ["Amay", "Amblève", "Ans", "Anthisnes", "Aubel", "Awans", "Aywaille", "Baelen", "Bassenge", "Berloz", "Beyne-Heusay", "Blegny", "Braives", "Büllingen", "Burdinne", "Burg-Reuland", "Butgenbach", "Chaudfontaine", "Clavier", "Comblain-au-Pont", "Crisnée", "Dalhem", "Dison", "Donceel", "Engis", "Esneux", "Eupen", "Faimes", "Ferrières", "Fexhe-le-Haut-Clocher", "Flémalle", "Fléron", "Geer", "Grâce-Hollogne", "Hamoir", "Hannut", "Héron", "Herstal", "Herve", "Huy", "Jalhay", "Juprelle", "Kelmis", "Liège", "Lierneux", "Limbourg", "Lincent", "Lontzen", "Malmedy", "Marchin", "Modave", "Nandrin", "Neupré", "Olne", "Oreye", "Ouffet", "Oupeye", "Pepinster", "Plombières", "Raeren", "Remicourt", "Saint-Georges-sur-Meuse", "Saint-Nicolas", "Saint-Vith", "Seraing", "Soumagne", "Spa", "Sprimont", "Stavelot", "Stoumont", "Theux", "Thimister-Clermont", "Tinlot", "Trois-Ponts", "Trooz", "Verlaine", "Verviers", "Visé", "Waimes", "Wanze", "Waremme", "Wasseiges", "Welkenraedt"],
-    "Namur": ["Andenne", "Anhee", "Assesse", "Beauraing", "Bièvre", "Cerfontaine", "Ciney", "Couvin", "Dinant", "Doische", "Eghezée", "Fernelmont", "Floreffe", "Florennes", "Fosses-la-Ville", "Gedinne", "Gembloux", "Gesves", "Hamois", "Hastiere", "Havelange", "Houyet", "Jemeppe-sur-Sambre", "Mettet", "Namur", "Ohey", "Onhaye", "Philippeville", "Profondeville", "Rochefort", "Sambreville", "Sombreffe", "Somme-Leuze", "Viroinval", "Vresse-sur-Semois", "Walcourt", "Yvoir"],
-    "Luxembourg": ["Arlon", "Attert", "Aubange", "Bastogne", "Bertogne", "Bertrix", "Bouillon", "Chiny", "Daverdisse", "Durbuy", "Erezée", "Etalle", "Fauvillers", "Florenville", "Gouvy", "Habay", "Herbeumont", "Hotton", "Houffalize", "La Roche-en-Ardenne", "Léglise", "Libin", "Libramont-Chevigny", "Manhay", "Marche-en-Famenne", "Martelange", "Meix-devant-Virton", "Messancy", "Musson", "Nassogne", "Neufchâteau", "Paliseul", "Rendeux", "Rouvroy", "Sainte-Ode", "Saint-Hubert", "Saint-Léger", "Tellin", "Tenneville", "Tintigny", "Vaux-sur-Sûre", "Vielsalm", "Virton", "Wellin"]
-}
+# data_fwb sera construit dynamiquement depuis Google Sheets ci-dessous
 
 # --- FONCTION GÉNÉRATION HTML IMPRESSION (Tab 2) ---
 def generate_print_html(df_print, fl_p, fl_m, fl_s):
@@ -237,15 +230,26 @@ def generate_print_html_ecoles(df_print, fl_p, fl_m, fl_s):
 # --- 3. CONNEXION GSHEETS & CHARGEMENT DES DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Feuille principale (Tab 2 compat) — lecture protégée (non utilisée directement mais conservée pour compatibilité)
+# Feuille Commune (Province → Communes) pour data_fwb
 try:
-    df_gsheets = conn.read(ttl=0).dropna(how="all")
+    df_gsheets = conn.read(worksheet="Commune", ttl=300).dropna(how="all")
 except Exception:
     df_gsheets = pd.DataFrame()
 
+# Construire data_fwb dynamiquement depuis df_gsheets (Province → liste Communes)
+if not df_gsheets.empty and 'Province' in df_gsheets.columns and 'Commune' in df_gsheets.columns:
+    data_fwb = {
+        prov: sorted([c for c in grp['Commune'].dropna().unique().tolist()
+                      if not str(c).startswith('Province')])
+        for prov, grp in df_gsheets.groupby('Province')
+        if prov and str(prov).strip()
+    }
+else:
+    data_fwb = {}
+
 # Feuille Ecoles
 try:
-    df_ecoles = conn.read(worksheet="Ecoles", ttl=0).dropna(how="all")
+    df_ecoles = conn.read(worksheet="Ecoles", ttl=300).dropna(how="all")
     for col in ['Fase PO', 'Fase école', 'Code postal']:
         if col in df_ecoles.columns:
             df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
@@ -256,7 +260,7 @@ except Exception as e:
 # Feuille EcolesConfig (Tab 4)
 _config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
 try:
-    df_config = conn.read(worksheet="EcolesConfig", ttl=0).dropna(how="all")
+    df_config = conn.read(worksheet="EcolesConfig", ttl=300).dropna(how="all")
     if df_config.empty or not all(c in df_config.columns for c in _config_cols):
         df_config = pd.DataFrame(columns=_config_cols)
     else:
@@ -384,7 +388,7 @@ with tab1:
                     filtered.forEach(x => {{
                         const row = document.createElement('div'); row.className = 'item-row';
                         const counts = `<div class="counts-container"><span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${{x.NbOui}}</span><span class="cnt" style="background:#ef4444" title="N'utilisent pas Creos">✗ ${{x.NbNon}}</span><span class="cnt" style="background:#94a3b8" title="Sans choix">? ${{x.NbSans}}</span></div>`;
-                        row.innerHTML = `<span><strong style="color:#4169E1;">${x.Commune}</strong></span>${counts}`;
+                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span>${counts}`;
                     }});
                 }}
             }});
