@@ -526,7 +526,7 @@ with tab3:
                         services_badges_html += f'<span style="background:{sc}; color:white; padding:4px 10px; border-radius:6px; font-size:10px; font-weight:bold; margin-left:4px;">{s}</span>'
 
             active_color = "#4ade80" if is_active_t3 else "#64748b"
-            active_text = "&#10003; Active dans Creos" if is_active_t3 else "&#9675; Non active dans Creos"
+            active_text = "&#10003; Active dans Creos Extrascolaire" if is_active_t3 else "&#9675; Non active dans Creos Extrascolaire"
             active_txt_color = "#1e293b" if is_active_t3 else "white"
             active_badge_html = f'<span style="background:{active_color}; color:{active_txt_color}; padding:5px 14px; border-radius:20px; font-size:11px; font-weight:bold;">{active_text}</span>'
             all_badges_html = services_badges_html + paiement_badge_html + active_badge_html
