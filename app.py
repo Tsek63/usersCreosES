@@ -287,21 +287,19 @@ if not data_fwb:
 if data_fwb:
     st.session_state['_data_fwb_cache'] = data_fwb
 
-# ── Fallback croisé : communes de df_ecoles matchées via df_config ──
-if not data_fwb or all(not v for v in data_fwb.values()):
-    if not df_config.empty and 'Province' in df_config.columns and 'Commune' in df_config.columns:
-        comm_prov_map = dict(zip(df_config['Commune'].astype(str), df_config['Province'].astype(str)))
-        rebuilt = {p: [] for p in PROVINCES_STATIC}
-        if not df_ecoles.empty:
-            for comm in df_ecoles['Commune'].dropna().unique():
-                cs = str(comm).strip()
-                if not is_province(cs):
-                    pv = comm_prov_map.get(cs)
-                    if pv and pv in rebuilt:
-                        rebuilt[pv].append(cs)
-        data_fwb = {p: sorted(v) for p, v in rebuilt.items()}
-        if data_fwb:
-            st.session_state['_data_fwb_cache'] = data_fwb
+# ── Enrichissement TOUJOURS : ajouter les communes de df_config dans data_fwb ──
+if not df_config.empty and 'Province' in df_config.columns and 'Commune' in df_config.columns:
+    for _, _cfgrow in df_config.iterrows():
+        _prov = str(_cfgrow.get('Province', '')).strip()
+        _comm = str(_cfgrow.get('Commune', '')).strip()
+        if _prov and _comm and not is_province(_comm):
+            if _prov not in data_fwb:
+                data_fwb[_prov] = []
+            if _comm not in data_fwb[_prov]:
+                data_fwb[_prov].append(_comm)
+    data_fwb = {p: sorted(v) for p, v in data_fwb.items()}
+    if data_fwb:
+        st.session_state['_data_fwb_cache'] = data_fwb
 
 # ── Garantir que toutes les provinces sont présentes (au moins clé vide) ──
 for _p in PROVINCES_STATIC:
@@ -436,9 +434,12 @@ with tab1:
         }}
         function doSearch() {{ const v = document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }}); }}
     </script></body></html>"""
-    _has_map_data = any(len(v) > 0 for v in data_fwb.values()) if data_fwb else False
-    if not _has_map_data:
-        st.info("🗺️ La carte sera disponible après le premier chargement des données (feuille Commune). En attendant, la liste de droite affiche bien les communes configurées.")
+    _nb_communes_map = sum(len(v) for v in data_fwb.values()) if data_fwb else 0
+    if _nb_communes_map == 0:
+        st.warning("🗺️ Carte non disponible : aucune commune trouvée dans les données. Vérifiez que la feuille **'Commune'** existe dans Google Sheets avec les colonnes **Province** et **Commune**.")
+    else:
+        if _nb_communes_map < 50:
+            st.info(f"🗺️ La carte affiche {_nb_communes_map} commune(s) connues. Pour voir toutes les communes, ajoutez les colonnes **Province** et **Commune** dans la feuille **'Ecoles'** de votre Google Sheets.")
     components.html(html_map, height=750)
 
 
@@ -503,14 +504,20 @@ with tab3:
             communes_dispo = [""] + all_po
         else:
             communes_prov = data_fwb.get(prov_tab3, [])
-            base_list = sorted([c for c in communes_prov if c in df_ecoles['Commune'].values])
-            # Fallback : communes via df_config si data_fwb incomplet
+            base_list = sorted([c for c in communes_prov if c in df_ecoles['Commune'].values and not is_province(c)])
+            # Fallback df_config si data_fwb incomplet pour cette province
             if not base_list and not df_config.empty and 'Province' in df_config.columns:
                 _cfg_comms = df_config[df_config['Province'] == prov_tab3]['Commune'].dropna().unique()
                 base_list = sorted([c for c in _cfg_comms if c in df_ecoles['Commune'].values and not is_province(c)])
+            # Fallback ultime : toutes les communes de df_ecoles (sans filtre province)
+            if not base_list and not df_ecoles.empty:
+                base_list = sorted([c for c in df_ecoles['Commune'].dropna().unique() if not is_province(c)])
             # Inclure la Province elle-même si elle est un PO dans les écoles
-            if prov_tab3 in df_ecoles['Commune'].values and prov_tab3 not in base_list:
-                base_list = sorted(base_list + [prov_tab3])
+            province_po_list = [c for c in df_ecoles['Commune'].dropna().unique()
+                                if is_province(c) and prov_tab3 and prov_tab3.lower() in c.lower()]
+            for _ppo in province_po_list:
+                if _ppo not in base_list:
+                    base_list = sorted(base_list + [_ppo])
             communes_dispo = [""] + base_list
 
         with col_c3:
@@ -709,14 +716,17 @@ with tab4:
         with s2:
             if not df_ecoles.empty:
                 base_p4 = sorted([c for c in data_fwb.get(p_sel4, []) if c in df_ecoles['Commune'].values and not is_province(c)]) if p_sel4 in data_fwb else []
-                # Fallback : communes via df_config quand data_fwb incomplet pour cette province
+                # Fallback df_config si data_fwb incomplet pour cette province
                 if not base_p4 and not df_config.empty and 'Province' in df_config.columns:
                     _cfg_c4 = df_config[df_config['Province'] == p_sel4]['Commune'].dropna().unique()
                     base_p4 = sorted([c for c in _cfg_c4 if c in df_ecoles['Commune'].values and not is_province(c)])
+                # Fallback ultime : toutes les communes de df_ecoles (sans filtre province)
+                if not base_p4:
+                    base_p4 = sorted([c for c in df_ecoles['Commune'].dropna().unique() if not is_province(c)])
                 # Inclure les PO "Province de X" qui correspondent à la province sélectionnée
-                province_pos = [c for c in df_ecoles['Commune'].dropna().unique()
+                province_pos4 = [c for c in df_ecoles['Commune'].dropna().unique()
                                 if is_province(c) and p_sel4 and p_sel4.lower() in c.lower()]
-                for pp in province_pos:
+                for pp in province_pos4:
                     if pp not in base_p4:
                         base_p4 = sorted(base_p4 + [pp])
                 communes_p4 = base_p4
