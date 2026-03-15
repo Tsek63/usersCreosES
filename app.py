@@ -292,7 +292,7 @@ else:
 tab1, tab3, tab4 = st.tabs([
     "📊 Tableau de bord et Carte",
     "🏫 Écoles par Commune",
-    "⚙️ Configuration des Écoles"
+    "⚙️ Gestion des Écoles"
 ])
 
 # ============================================================
@@ -620,7 +620,7 @@ with tab4:
     if 't4_frc' not in st.session_state:
         st.session_state.t4_frc = 0
 
-    st.header("⚙️ Configuration des Écoles par Commune")
+    st.header("⚙️ Gestion des Écoles par Commune")
 
     # --- Calcul stats ---
     n_active4 = len(df_active)
