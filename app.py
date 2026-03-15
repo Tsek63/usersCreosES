@@ -232,7 +232,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Feuille Commune (Province → Communes) pour data_fwb
 try:
-    df_gsheets = conn.read(worksheet="Commune", ttl=300).dropna(how="all")
+    df_gsheets = conn.read(worksheet="Commune", ttl=600).dropna(how="all")
 except Exception:
     df_gsheets = pd.DataFrame()
 
@@ -249,7 +249,7 @@ else:
 
 # Feuille Ecoles
 try:
-    df_ecoles = conn.read(worksheet="Ecoles", ttl=300).dropna(how="all")
+    df_ecoles = conn.read(worksheet="Ecoles", ttl=600).dropna(how="all")
     for col in ['Fase PO', 'Fase école', 'Code postal']:
         if col in df_ecoles.columns:
             df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
@@ -260,7 +260,7 @@ except Exception as e:
 # Feuille EcolesConfig (Tab 4)
 _config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
 try:
-    df_config = conn.read(worksheet="EcolesConfig", ttl=300).dropna(how="all")
+    df_config = conn.read(worksheet="EcolesConfig", ttl=600).dropna(how="all")
     if df_config.empty or not all(c in df_config.columns for c in _config_cols):
         df_config = pd.DataFrame(columns=_config_cols)
     else:
@@ -363,7 +363,6 @@ with tab1:
         let db = new Map();
         dbData.forEach(r => db.set(r.Commune, r));
         // Données enrichies par commune (NbOui, NbNon, NbSans)
-        const _unused = {{ "placeholder":, c: "#FF8C00" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#FF0000" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
         function init() {{
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
@@ -389,6 +388,7 @@ with tab1:
                         const row = document.createElement('div'); row.className = 'item-row';
                         const counts = `<div class="counts-container"><span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${{x.NbOui}}</span><span class="cnt" style="background:#ef4444" title="N'utilisent pas Creos">✗ ${{x.NbNon}}</span><span class="cnt" style="background:#94a3b8" title="Sans choix">? ${{x.NbSans}}</span></div>`;
                         row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span>${{counts}}`;
+                        listDiv.appendChild(row);
                     }});
                 }}
             }});
@@ -646,15 +646,18 @@ with tab4:
         s1, s2, s3, s4 = st.columns([2, 2, 3, 1])
 
         with s1:
+            # Valider que la valeur en session_state est toujours une clé valide
+            if st.session_state.get("t4_prov") not in list(data_fwb.keys()) and data_fwb:
+                st.session_state["t4_prov"] = list(data_fwb.keys())[0]
             p_sel4 = st.selectbox(
                 "1. Province / Région",
-                list(data_fwb.keys()),
+                list(data_fwb.keys()) if data_fwb else ["— Aucune donnée —"],
                 key="t4_prov"
             )
 
         with s2:
             if not df_ecoles.empty:
-                base_p4 = sorted([c for c in data_fwb[p_sel4] if c in df_ecoles['Commune'].values])
+                base_p4 = sorted([c for c in data_fwb.get(p_sel4, []) if c in df_ecoles['Commune'].values]) if p_sel4 in data_fwb else []
                 # Inclure les PO "Province de X" qui correspondent à la province sélectionnée
                 province_pos = [c for c in df_ecoles['Commune'].dropna().unique()
                                 if is_province(c) and p_sel4.lower() in c.lower()]
