@@ -271,24 +271,22 @@ active_communes = set(df_active['Commune'].unique()) if not df_active.empty else
 # Résumé par commune pour Tab 1 (carte + liste)
 if not df_active.empty:
     tab1_rows = []
+    df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy() if not df_config.empty else pd.DataFrame(columns=_config_cols)
     for comm, grp in df_active.groupby('Commune'):
         prov = grp['Province'].iloc[0]
-        nb = len(grp)
-        all_svcs = []
-        for svc_str in grp['Services'].dropna():
-            for s in str(svc_str).split('|'):
-                s = s.strip()
-                if s and s not in all_svcs:
-                    all_svcs.append(s)
-        pay_vc = grp['Paiement'].value_counts()
-        paiement = pay_vc.index[0] if len(pay_vc) > 0 else ''
+        nb_oui = len(grp)
+        nb_non = len(df_non[df_non['Commune'] == comm]) if not df_non.empty else 0
+        # Écoles dans df_ecoles pour cette commune, non présentes dans df_config
+        ecoles_comm = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist() if not df_ecoles.empty else []
+        config_comm = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist() if not df_config.empty else []
+        nb_sans = len([e for e in ecoles_comm if e not in config_comm])
         tab1_rows.append({
-            'Commune': comm, 'Province': prov, 'NbEcoles': nb,
-            'Paiement': paiement, 'Services': '|'.join(all_svcs)
+            'Commune': comm, 'Province': prov, 'NbEcoles': nb_oui,
+            'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans
         })
     df_tab1 = pd.DataFrame(tab1_rows)
 else:
-    df_tab1 = pd.DataFrame(columns=['Commune', 'Province', 'NbEcoles', 'Paiement', 'Services'])
+    df_tab1 = pd.DataFrame(columns=['Commune', 'Province', 'NbEcoles', 'NbOui', 'NbNon', 'NbSans'])
 
 
 # --- 4. TABS ---
@@ -334,9 +332,8 @@ with tab1:
             .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 11px; }}
             .v-val {{ font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
             .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
-            .badge-container {{ display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }}
-            .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; }}
-            .nb-badge {{ background:#4169E1; color:white; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:6px; }}
+            .counts-container {{ display: flex; gap: 5px; align-items: center; }}
+            .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; }}
         </style></head><body onload="init()">
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
@@ -361,7 +358,8 @@ with tab1:
         const mapRef = {json.dumps(data_fwb)};
         let db = new Map();
         dbData.forEach(r => db.set(r.Commune, r));
-        const icons = {{ "Cantine Jour": {{ i: "fa-utensils", c: "#FFD700" }}, "Cantine Semaine": {{ i: "fa-calendar-day", c: "#FF8C00" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#FF0000" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
+        // Données enrichies par commune (NbOui, NbNon, NbSans)
+        const _unused = {{ "placeholder":, c: "#FF8C00" }}, "Cantine Mois": {{ i: "fa-calendar-days", c: "#FF0000" }}, "Garderie": {{ i: "fa-clock", c: "#38bdf8" }}, "Activités": {{ i: "fa-volleyball", c: "#4ade80" }} }};
         function init() {{
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
@@ -385,10 +383,8 @@ with tab1:
                     const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px'; h.style.fontSize='11px'; h.innerText = p; listDiv.appendChild(h);
                     filtered.forEach(x => {{
                         const row = document.createElement('div'); row.className = 'item-row';
-                        const badges = (x.Services || "").split('|').filter(s => s).map(s => `<span class="badge" style="background:${{icons[s]?.c || '#ccc'}}"><i class="fa-solid ${{icons[s]?.i || 'fa-tag'}}"></i> ${{s}}</span>`).join('');
-                        const nbBadge = `<span class="nb-badge">${{x.NbEcoles}} école(s)</span>`;
-                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong>${{nbBadge}}</span><div class="badge-container">${{badges}}</div>`;
-                        listDiv.appendChild(row);
+                        const counts = `<div class="counts-container"><span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${x.NbOui}</span><span class="cnt" style="background:#ef4444" title="N'utilisent pas Creos">✗ ${x.NbNon}</span><span class="cnt" style="background:#94a3b8" title="Sans choix">? ${x.NbSans}</span></div>`;
+                        row.innerHTML = `<span><strong style="color:#4169E1;">${x.Commune}</strong></span>${counts}`;
                     }});
                 }}
             }});
