@@ -241,16 +241,21 @@ except Exception:
 
 # Première tentative de construction de data_fwb depuis la feuille Commune
 def _build_data_fwb(df):
-    """Construit le dict Province→[Communes] depuis un DataFrame avec colonnes Province/Commune."""
+    """Construit le dict Province→[Communes] depuis un DataFrame avec colonnes Province/Commune.
+    Normalise les noms de provinces (ex: 'Région de Bruxelles-Capitale' → 'Bruxelles')."""
     if df.empty or 'Province' not in df.columns or 'Commune' not in df.columns:
         return {}
-    result = {
-        prov: sorted([c for c in grp['Commune'].dropna().unique().tolist()
-                      if not str(c).startswith('Province')])
-        for prov, grp in df.groupby('Province')
-        if prov and str(prov).strip()
-    }
-    return {k: v for k, v in result.items() if v}  # exclure provinces sans communes
+    result = {}
+    for _, row in df.iterrows():
+        raw_prov = str(row.get('Province', '')).strip()
+        comm = str(row.get('Commune', '')).strip()
+        if not raw_prov or not comm or comm.startswith('Province'):
+            continue
+        prov = _norm_prov(raw_prov)
+        if prov not in result:
+            result[prov] = set()
+        result[prov].add(comm)
+    return {k: sorted(v) for k, v in result.items() if v}  # exclure provinces sans communes
 
 data_fwb = _build_data_fwb(df_gsheets)
 
@@ -358,7 +363,7 @@ with tab1:
             "namur": "Namur", "province de namur": "Namur",
             "luxembourg": "Luxembourg", "province de luxembourg": "Luxembourg",
             "brabant wallon": "Brabant Wallon", "province du brabant wallon": "Brabant Wallon",
-            "bruxelles": "Bruxelles", "région de bruxelles": "Bruxelles", "région bruxelloise": "Bruxelles",
+            "bruxelles": "Bruxelles", "région de bruxelles": "Bruxelles", "région bruxelloise": "Bruxelles", "région de bruxelles-capitale": "Bruxelles", "region de bruxelles-capitale": "Bruxelles", "bruxelles-capitale": "Bruxelles",
             "bruxelles-capitale": "Bruxelles",
         }
         return mapping.get(n.lower(), n)
