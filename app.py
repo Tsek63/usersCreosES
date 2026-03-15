@@ -355,7 +355,38 @@ with tab1:
 
     json_recs = df_tab1.to_json(orient='records')
 
-    html_map = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
+    # Noms de provinces exacts attendus par les anchors JS
+    ANCHOR_PROVS = {"Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"}
+    # Normalisation : tenter de mapper les variantes vers les noms exacts
+    def _norm_prov(name):
+        n = name.strip()
+        mapping = {
+            "liege": "Liège", "liège": "Liège", "province de liège": "Liège", "province de liege": "Liège",
+            "hainaut": "Hainaut", "province du hainaut": "Hainaut",
+            "namur": "Namur", "province de namur": "Namur",
+            "luxembourg": "Luxembourg", "province de luxembourg": "Luxembourg",
+            "brabant wallon": "Brabant Wallon", "province du brabant wallon": "Brabant Wallon",
+            "bruxelles": "Bruxelles", "région de bruxelles": "Bruxelles", "région bruxelloise": "Bruxelles",
+            "bruxelles-capitale": "Bruxelles",
+        }
+        return mapping.get(n.lower(), n)
+    # Construire data_fwb_map : seulement les 6 provinces canoniques pour la carte
+    data_fwb_map = {}
+    for prov, communes in data_fwb.items():
+        canon = _norm_prov(prov)
+        if canon in ANCHOR_PROVS:
+            if canon not in data_fwb_map:
+                data_fwb_map[canon] = []
+            for c in communes:
+                if c not in data_fwb_map[canon]:
+                    data_fwb_map[canon].append(c)
+    data_fwb_map = {p: sorted(v) for p, v in data_fwb_map.items()}
+    # Ajouter les 6 provinces vides si absentes (pour les anchors)
+    for _ap in ANCHOR_PROVS:
+        if _ap not in data_fwb_map:
+            data_fwb_map[_ap] = []
+
+        html_map = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
             :root {{ --dark: #1e293b; --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; }}
             body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }}
             #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
@@ -398,7 +429,7 @@ with tab1:
     <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
         const dbData = {json_recs};
-        const mapRef = {json.dumps(data_fwb)};
+        const mapRef = {json.dumps(data_fwb_map)};
         let db = new Map();
         dbData.forEach(r => db.set(r.Commune, r));
         // Données enrichies par commune (NbOui, NbNon, NbSans)
@@ -406,6 +437,7 @@ with tab1:
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
             Object.entries(mapRef).forEach(([pName, list]) => {{
+                if (!anchors[pName] || list.length === 0) return;
                 const cleanP = pName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ')[0];
                 list.forEach((name, i) => {{
                     const x = anchors[pName][0] + (i % 8 * 23), y = anchors[pName][1] + (Math.floor(i / 8) * 21);
@@ -434,7 +466,7 @@ with tab1:
         }}
         function doSearch() {{ const v = document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }}); }}
     </script></body></html>"""
-    _nb_communes_map = sum(len(v) for v in data_fwb.values()) if data_fwb else 0
+    _nb_communes_map = sum(len(v) for v in data_fwb_map.values()) if data_fwb_map else 0
     if _nb_communes_map == 0:
         st.warning("🗺️ Carte non disponible : aucune commune trouvée dans les données. Vérifiez que la feuille **'Commune'** existe dans Google Sheets avec les colonnes **Province** et **Commune**.")
     else:
@@ -493,7 +525,7 @@ with tab3:
         col_p3, col_c3, col_s3, col_btn3 = st.columns([2, 3, 3, 1.5])
 
         with col_p3:
-            _prov_opts3 = sorted(set(list(data_fwb.keys()) + PROVINCES_STATIC))
+            _prov_opts3 = sorted(set(list(data_fwb_map.keys()) + list(PROVINCES_STATIC)))
             prov_tab3 = st.selectbox(
                 "🗺️ Province / Région",
                 ["Toutes les provinces"] + _prov_opts3,
@@ -503,7 +535,7 @@ with tab3:
         if prov_tab3 == "Toutes les provinces":
             communes_dispo = [""] + all_po
         else:
-            communes_prov = data_fwb.get(prov_tab3, [])
+            communes_prov = data_fwb_map.get(prov_tab3, [])
             base_list = sorted([c for c in communes_prov if c in df_ecoles['Commune'].values and not is_province(c)])
             # Fallback df_config si data_fwb incomplet pour cette province
             if not base_list and not df_config.empty and 'Province' in df_config.columns:
@@ -703,7 +735,7 @@ with tab4:
 
         with s1:
             # Toujours avoir la liste complète des provinces
-            _all_provs4 = sorted(set(list(data_fwb.keys()) + PROVINCES_STATIC))
+            _all_provs4 = sorted(set(list(data_fwb_map.keys()) + list(PROVINCES_STATIC)))
             # Valider que la valeur en session_state est toujours une clé valide
             if st.session_state.get("t4_prov") not in _all_provs4:
                 st.session_state["t4_prov"] = _all_provs4[0] if _all_provs4 else None
@@ -715,7 +747,7 @@ with tab4:
 
         with s2:
             if not df_ecoles.empty:
-                base_p4 = sorted([c for c in data_fwb.get(p_sel4, []) if c in df_ecoles['Commune'].values and not is_province(c)]) if p_sel4 in data_fwb else []
+                base_p4 = sorted([c for c in data_fwb_map.get(p_sel4, []) if c in df_ecoles['Commune'].values and not is_province(c)]) if p_sel4 in data_fwb_map else []
                 # Fallback df_config si data_fwb incomplet pour cette province
                 if not base_p4 and not df_config.empty and 'Province' in df_config.columns:
                     _cfg_c4 = df_config[df_config['Province'] == p_sel4]['Commune'].dropna().unique()
