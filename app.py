@@ -388,7 +388,7 @@ with tab1:
                     filtered.forEach(x => {{
                         const row = document.createElement('div'); row.className = 'item-row';
                         const counts = `<div class="counts-container"><span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${{x.NbOui}}</span><span class="cnt" style="background:#ef4444" title="N'utilisent pas Creos">✗ ${{x.NbNon}}</span><span class="cnt" style="background:#94a3b8" title="Sans choix">? ${{x.NbSans}}</span></div>`;
-                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span>${counts}`;
+                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span>${{counts}}`;
                     }});
                 }}
             }});
