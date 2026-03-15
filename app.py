@@ -825,7 +825,7 @@ with tab4:
 
     col_filt_title, col_filt_reset = st.columns([6, 2])
     with col_filt_title:
-        st.subheader("🔍 Filtres & Liste des écoles configurées")
+        st.subheader("🔍 Filtres & Liste des écoles utilisant l'Extrascolaire")
     with col_filt_reset:
         st.write("")
         if st.button("❌ Effacer filtres", key="t4_filt_reset", use_container_width=True):
