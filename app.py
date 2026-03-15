@@ -570,7 +570,7 @@ with tab3:
                             school_conf = df_config[df_config['Fase école'] == fase_e]
 
                             if not school_conf.empty and school_conf.iloc[0]['Extrascolaire'] == 'Oui':
-                                cfg_badge = """<span style="background:#4ade80; color:#1e293b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">✓ Utilise extrascolaire</span>"""
+                                cfg_badge = """<span style="background:#4ade80; color:#1e293b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">✓ Utilise l'extrascolaire</span>"""
                             elif not school_conf.empty:
                                 # Correction appliquée ici :
                                 cfg_badge = """<span style="background:#64748b; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">○ Pas d'extrascolaire</span>"""
