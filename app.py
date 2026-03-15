@@ -275,31 +275,23 @@ try:
 except Exception:
     df_config = pd.DataFrame(columns=_config_cols)
 
-# Fallback data_fwb : si feuille Commune vide/échouée → utiliser EcolesConfig (Province+Commune)
-if not data_fwb:
-    data_fwb = _build_data_fwb(df_config)
-    if data_fwb:
-        st.session_state['_data_fwb_cache'] = data_fwb
-# Fallback ultime : session_state (cache inter-reruns)
-if not data_fwb:
-    data_fwb = st.session_state.get('_data_fwb_cache', {})
-# Mettre en cache si on vient de réussir
-if data_fwb:
+# ── SOURCE PRINCIPALE : df_ecoles a maintenant une colonne Province ──
+# On reconstruit data_fwb depuis df_ecoles (1099 écoles, toutes les communes)
+if not df_ecoles.empty and 'Province' in df_ecoles.columns and 'Commune' in df_ecoles.columns:
+    data_fwb = _build_data_fwb(df_ecoles)
     st.session_state['_data_fwb_cache'] = data_fwb
 
-# ── Enrichissement TOUJOURS : ajouter les communes de df_config dans data_fwb ──
-if not df_config.empty and 'Province' in df_config.columns and 'Commune' in df_config.columns:
-    for _, _cfgrow in df_config.iterrows():
-        _prov = str(_cfgrow.get('Province', '')).strip()
-        _comm = str(_cfgrow.get('Commune', '')).strip()
-        if _prov and _comm and not is_province(_comm):
-            if _prov not in data_fwb:
-                data_fwb[_prov] = []
-            if _comm not in data_fwb[_prov]:
-                data_fwb[_prov].append(_comm)
-    data_fwb = {p: sorted(v) for p, v in data_fwb.items()}
-    if data_fwb:
-        st.session_state['_data_fwb_cache'] = data_fwb
+# Fallback 1 : EcolesConfig (si df_ecoles n'a pas encore Province)
+if not data_fwb:
+    data_fwb = _build_data_fwb(df_config)
+
+# Fallback 2 : session_state (cache inter-reruns)
+if not data_fwb:
+    data_fwb = st.session_state.get('_data_fwb_cache', {})
+
+# Mettre en cache si réussi
+if data_fwb:
+    st.session_state['_data_fwb_cache'] = data_fwb
 
 # ── Garantir que toutes les provinces sont présentes (au moins clé vide) ──
 for _p in PROVINCES_STATIC:
