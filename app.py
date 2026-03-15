@@ -46,6 +46,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. DONNÉES DE RÉFÉRENCE ---
+# Provinces statiques (données administratives belges immuables) — fallback ultime
+PROVINCES_STATIC = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"]
+
 # data_fwb sera construit dynamiquement depuis Google Sheets ci-dessous
 
 # --- FONCTION GÉNÉRATION HTML IMPRESSION (Tab 2) ---
@@ -284,6 +287,27 @@ if not data_fwb:
 if data_fwb:
     st.session_state['_data_fwb_cache'] = data_fwb
 
+# ── Fallback croisé : communes de df_ecoles matchées via df_config ──
+if not data_fwb or all(not v for v in data_fwb.values()):
+    if not df_config.empty and 'Province' in df_config.columns and 'Commune' in df_config.columns:
+        comm_prov_map = dict(zip(df_config['Commune'].astype(str), df_config['Province'].astype(str)))
+        rebuilt = {p: [] for p in PROVINCES_STATIC}
+        if not df_ecoles.empty:
+            for comm in df_ecoles['Commune'].dropna().unique():
+                cs = str(comm).strip()
+                if not is_province(cs):
+                    pv = comm_prov_map.get(cs)
+                    if pv and pv in rebuilt:
+                        rebuilt[pv].append(cs)
+        data_fwb = {p: sorted(v) for p, v in rebuilt.items()}
+        if data_fwb:
+            st.session_state['_data_fwb_cache'] = data_fwb
+
+# ── Garantir que toutes les provinces sont présentes (au moins clé vide) ──
+for _p in PROVINCES_STATIC:
+    if _p not in data_fwb:
+        data_fwb[_p] = []
+
 # Écoles actives (Extrascolaire = Oui) — source de vérité pour Tab 1
 df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy() if not df_config.empty else pd.DataFrame(columns=_config_cols)
 active_communes = set(df_active['Commune'].unique()) if not df_active.empty else set()
@@ -353,7 +377,7 @@ with tab1:
             .v-val {{ font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
             .item-row {{ padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }}
             .item-commune {{ font-weight: bold; color: #4169E1; margin-bottom: 5px; }}
-            .counts-container {{ display: flex; flex-direction: column; gap: 3px; margin-top: 3px; }}
+            .counts-container {{ display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px; margin-top: 5px; }}
             .cnt {{ padding: 2px 10px; border-radius: 4px; color: white; font-size: 11px; font-weight: 500; display: inline-block; width: fit-content; }}
         </style></head><body onload="init()">
     <div id="left">
@@ -412,6 +436,9 @@ with tab1:
         }}
         function doSearch() {{ const v = document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item-row').forEach(r => {{ r.style.display = r.innerText.toLowerCase().includes(v) ? 'flex' : 'none'; }}); }}
     </script></body></html>"""
+    _has_map_data = any(len(v) > 0 for v in data_fwb.values()) if data_fwb else False
+    if not _has_map_data:
+        st.info("🗺️ La carte sera disponible après le premier chargement des données (feuille Commune). En attendant, la liste de droite affiche bien les communes configurées.")
     components.html(html_map, height=750)
 
 
@@ -465,9 +492,10 @@ with tab3:
         col_p3, col_c3, col_s3, col_btn3 = st.columns([2, 3, 3, 1.5])
 
         with col_p3:
+            _prov_opts3 = sorted(set(list(data_fwb.keys()) + PROVINCES_STATIC))
             prov_tab3 = st.selectbox(
-                "🗺️ Province",
-                ["Toutes les provinces"] + list(data_fwb.keys()),
+                "🗺️ Province / Région",
+                ["Toutes les provinces"] + _prov_opts3,
                 key=f"t3_prov_{st.session_state.t3_rc}"
             )
 
@@ -476,6 +504,10 @@ with tab3:
         else:
             communes_prov = data_fwb.get(prov_tab3, [])
             base_list = sorted([c for c in communes_prov if c in df_ecoles['Commune'].values])
+            # Fallback : communes via df_config si data_fwb incomplet
+            if not base_list and not df_config.empty and 'Province' in df_config.columns:
+                _cfg_comms = df_config[df_config['Province'] == prov_tab3]['Commune'].dropna().unique()
+                base_list = sorted([c for c in _cfg_comms if c in df_ecoles['Commune'].values and not is_province(c)])
             # Inclure la Province elle-même si elle est un PO dans les écoles
             if prov_tab3 in df_ecoles['Commune'].values and prov_tab3 not in base_list:
                 base_list = sorted(base_list + [prov_tab3])
@@ -663,21 +695,27 @@ with tab4:
         s1, s2, s3, s4 = st.columns([2, 2, 3, 1])
 
         with s1:
+            # Toujours avoir la liste complète des provinces
+            _all_provs4 = sorted(set(list(data_fwb.keys()) + PROVINCES_STATIC))
             # Valider que la valeur en session_state est toujours une clé valide
-            if st.session_state.get("t4_prov") not in list(data_fwb.keys()) and data_fwb:
-                st.session_state["t4_prov"] = list(data_fwb.keys())[0]
+            if st.session_state.get("t4_prov") not in _all_provs4:
+                st.session_state["t4_prov"] = _all_provs4[0] if _all_provs4 else None
             p_sel4 = st.selectbox(
                 "1. Province / Région",
-                list(data_fwb.keys()) if data_fwb else ["— Aucune donnée —"],
+                _all_provs4 if _all_provs4 else ["— Aucune donnée —"],
                 key="t4_prov"
             )
 
         with s2:
             if not df_ecoles.empty:
-                base_p4 = sorted([c for c in data_fwb.get(p_sel4, []) if c in df_ecoles['Commune'].values]) if p_sel4 in data_fwb else []
+                base_p4 = sorted([c for c in data_fwb.get(p_sel4, []) if c in df_ecoles['Commune'].values and not is_province(c)]) if p_sel4 in data_fwb else []
+                # Fallback : communes via df_config quand data_fwb incomplet pour cette province
+                if not base_p4 and not df_config.empty and 'Province' in df_config.columns:
+                    _cfg_c4 = df_config[df_config['Province'] == p_sel4]['Commune'].dropna().unique()
+                    base_p4 = sorted([c for c in _cfg_c4 if c in df_ecoles['Commune'].values and not is_province(c)])
                 # Inclure les PO "Province de X" qui correspondent à la province sélectionnée
                 province_pos = [c for c in df_ecoles['Commune'].dropna().unique()
-                                if is_province(c) and p_sel4.lower() in c.lower()]
+                                if is_province(c) and p_sel4 and p_sel4.lower() in c.lower()]
                 for pp in province_pos:
                     if pp not in base_p4:
                         base_p4 = sorted(base_p4 + [pp])
