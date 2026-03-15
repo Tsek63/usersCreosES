@@ -232,28 +232,28 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Feuille Commune (Province → Communes) pour data_fwb
 try:
-    df_gsheets = conn.read(worksheet="Commune", ttl=600).dropna(how="all")
+    df_gsheets = conn.read(worksheet="Commune", ttl=3600).dropna(how="all")
 except Exception:
     df_gsheets = pd.DataFrame()
 
-# Construire data_fwb dynamiquement depuis df_gsheets (Province → liste Communes)
-# Utilise session_state comme cache de secours si quota API dépassé
-if not df_gsheets.empty and 'Province' in df_gsheets.columns and 'Commune' in df_gsheets.columns:
-    data_fwb = {
+# Première tentative de construction de data_fwb depuis la feuille Commune
+def _build_data_fwb(df):
+    """Construit le dict Province→[Communes] depuis un DataFrame avec colonnes Province/Commune."""
+    if df.empty or 'Province' not in df.columns or 'Commune' not in df.columns:
+        return {}
+    result = {
         prov: sorted([c for c in grp['Commune'].dropna().unique().tolist()
                       if not str(c).startswith('Province')])
-        for prov, grp in df_gsheets.groupby('Province')
+        for prov, grp in df.groupby('Province')
         if prov and str(prov).strip()
     }
-    if data_fwb:
-        st.session_state['_data_fwb_cache'] = data_fwb
-else:
-    # Fallback: utiliser le cache session si dispo (quota dépassé)
-    data_fwb = st.session_state.get('_data_fwb_cache', {})
+    return {k: v for k, v in result.items() if v}  # exclure provinces sans communes
+
+data_fwb = _build_data_fwb(df_gsheets)
 
 # Feuille Ecoles
 try:
-    df_ecoles = conn.read(worksheet="Ecoles", ttl=600).dropna(how="all")
+    df_ecoles = conn.read(worksheet="Ecoles", ttl=3600).dropna(how="all")
     for col in ['Fase PO', 'Fase école', 'Code postal']:
         if col in df_ecoles.columns:
             df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
@@ -264,13 +264,25 @@ except Exception as e:
 # Feuille EcolesConfig (Tab 4)
 _config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
 try:
-    df_config = conn.read(worksheet="EcolesConfig", ttl=600).dropna(how="all")
+    df_config = conn.read(worksheet="EcolesConfig", ttl=3600).dropna(how="all")
     if df_config.empty or not all(c in df_config.columns for c in _config_cols):
         df_config = pd.DataFrame(columns=_config_cols)
     else:
         df_config['Fase école'] = df_config['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
 except Exception:
     df_config = pd.DataFrame(columns=_config_cols)
+
+# Fallback data_fwb : si feuille Commune vide/échouée → utiliser EcolesConfig (Province+Commune)
+if not data_fwb:
+    data_fwb = _build_data_fwb(df_config)
+    if data_fwb:
+        st.session_state['_data_fwb_cache'] = data_fwb
+# Fallback ultime : session_state (cache inter-reruns)
+if not data_fwb:
+    data_fwb = st.session_state.get('_data_fwb_cache', {})
+# Mettre en cache si on vient de réussir
+if data_fwb:
+    st.session_state['_data_fwb_cache'] = data_fwb
 
 # Écoles actives (Extrascolaire = Oui) — source de vérité pour Tab 1
 df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy() if not df_config.empty else pd.DataFrame(columns=_config_cols)
@@ -339,9 +351,10 @@ with tab1:
             .col-half {{ flex: 1; }}
             .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 11px; }}
             .v-val {{ font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
-            .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; }}
-            .counts-container {{ display: flex; gap: 5px; align-items: center; }}
-            .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; }}
+            .item-row {{ padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }}
+            .item-commune {{ font-weight: bold; color: #4169E1; margin-bottom: 5px; }}
+            .counts-container {{ display: flex; flex-direction: column; gap: 3px; margin-top: 3px; }}
+            .cnt {{ padding: 2px 10px; border-radius: 4px; color: white; font-size: 11px; font-weight: 500; display: inline-block; width: fit-content; }}
         </style></head><body onload="init()">
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
@@ -390,8 +403,8 @@ with tab1:
                     const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px'; h.style.fontSize='11px'; h.innerText = p; listDiv.appendChild(h);
                     filtered.forEach(x => {{
                         const row = document.createElement('div'); row.className = 'item-row';
-                        const counts = `<div class="counts-container"><span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ Oui : ${{x.NbOui}}</span><span class="cnt" style="background:#ef4444" title="N'utilisent pas Creos">✗ Non : ${{x.NbNon}}</span><span class="cnt" style="background:#94a3b8" title="Sans configuration">? N/C : ${{x.NbSans}}</span></div>`;
-                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span>${{counts}}`;
+                        const counts = `<div class="counts-container"><span class="cnt" style="background:#22c55e">✓ Utilise l'extrascolaire : ${{x.NbOui}}</span><span class="cnt" style="background:#ef4444">✗ N'utilise pas l'extrascolaire : ${{x.NbNon}}</span><span class="cnt" style="background:#94a3b8">? Pas encore de choix : ${{x.NbSans}}</span></div>`;
+                        row.innerHTML = `<div class="item-commune">${{x.Commune}}</div>${{counts}}`;
                         listDiv.appendChild(row);
                     }});
                 }}
