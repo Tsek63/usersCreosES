@@ -237,8 +237,11 @@ def generate_print_html_ecoles(df_print, fl_p, fl_m, fl_s):
 # --- 3. CONNEXION GSHEETS & CHARGEMENT DES DONNÉES ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Feuille principale (Tab 2 compat)
-df_gsheets = conn.read(ttl=0).dropna(how="all")
+# Feuille principale (Tab 2 compat) — lecture protégée (non utilisée directement mais conservée pour compatibilité)
+try:
+    df_gsheets = conn.read(ttl=0).dropna(how="all")
+except Exception:
+    df_gsheets = pd.DataFrame()
 
 # Feuille Ecoles
 try:
