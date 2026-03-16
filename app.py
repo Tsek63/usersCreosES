@@ -22,10 +22,9 @@ st.title("Gestion des écoles")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 import streamlit as st
+import AppTimeTracking
 
 st.set_page_config(layout="wide")
-
-st.title("Test App")
 
 tab1, tab2 = st.tabs(["Test", "Time Tracking"])
 
@@ -33,7 +32,7 @@ with tab1:
     st.write("L'app fonctionne")
 
 with tab2:
-    st.write("Time tracking ici")
+    AppTimeTracking.run()
 
 
 
