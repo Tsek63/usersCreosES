@@ -279,6 +279,15 @@ try:
 except Exception:
     df_config = pd.DataFrame(columns=_config_cols)
 
+# Feuille Contacts (Tab 3 — contacts extrascolaire par commune)
+_contacts_cols = ["Province", "Commune", "Titre", "Nom", "Téléphone", "Email"]
+try:
+    df_contacts = conn.read(worksheet="Contacts", ttl=0).dropna(how="all")
+    if df_contacts.empty or not all(c in df_contacts.columns for c in _contacts_cols):
+        df_contacts = pd.DataFrame(columns=_contacts_cols)
+except Exception:
+    df_contacts = pd.DataFrame(columns=_contacts_cols)
+
 # Écoles actives (Extrascolaire = Oui) — source de vérité pour Tab 1
 df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy() if not df_config.empty else pd.DataFrame(columns=_config_cols)
 active_communes = set(df_active['Commune'].unique()) if not df_active.empty else set()
@@ -546,6 +555,67 @@ with tab3:
             all_badges_html = services_badges_html + paiement_badge_html + active_badge_html
 
             st.markdown(f'<div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"><div style="display:flex; align-items:center; gap:16px;"><span style="font-size:20px; font-weight:bold;">&#127963; {commune_tab3}</span><span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span><span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> &#233;cole(s)</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">{all_badges_html}</div></div>', unsafe_allow_html=True)
+
+            # --- CONTACTS EXTRASCOLAIRE ---
+            contacts_comm = df_contacts[df_contacts['Commune'] == commune_tab3].copy() if not df_contacts.empty else pd.DataFrame(columns=_contacts_cols)
+
+            # Affichage contacts existants
+            if not contacts_comm.empty:
+                st.markdown("<div style='font-size:13px; font-weight:700; color:#7c3aed; margin-bottom:8px; margin-top:4px;'>👤 Contacts extrascolaire de cette commune</div>", unsafe_allow_html=True)
+                cols_c = st.columns(min(len(contacts_comm), 3), gap="medium")
+                for ci, (cidx, ct) in enumerate(contacts_comm.iterrows()):
+                    with cols_c[ci % 3]:
+                        titre = str(ct.get('Titre', '') or '').strip()
+                        nom   = str(ct.get('Nom', '') or '').strip()
+                        tel   = str(ct.get('Téléphone', '') or '').strip()
+                        mail  = str(ct.get('Email', '') or '').strip()
+                        tel_html  = f'<a href="tel:{tel}" style="color:#7c3aed;text-decoration:none;">{tel}</a>' if tel else '<span style="color:#94a3b8;">—</span>'
+                        mail_html = f'<a href="mailto:{mail}" style="color:#7c3aed;text-decoration:none;">{mail}</a>' if mail else '<span style="color:#94a3b8;">—</span>'
+                        st.markdown(
+                            f'<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:10px;padding:14px 16px;margin-bottom:10px;">'
+                            f'<div style="font-size:13px;font-weight:bold;color:#7c3aed;">👤 {titre} {nom}</div>'
+                            f'<div style="font-size:11px;color:#334155;margin-top:6px;line-height:1.9;">'
+                            f'📞&nbsp;{tel_html}<br>✉️&nbsp;{mail_html}'
+                            f'</div></div>',
+                            unsafe_allow_html=True
+                        )
+                        if st.button(f"🗑️ Supprimer", key=f"del_contact_{cidx}", use_container_width=True):
+                            df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
+                            conn.update(worksheet="Contacts", data=df_contacts_upd)
+                            st.cache_data.clear()
+                            st.rerun()
+
+            # Expander ajout d'un contact
+            with st.expander("➕ Ajouter un contact extrascolaire"):
+                with st.form("form_add_contact", clear_on_submit=True):
+                    fc1, fc2 = st.columns(2)
+                    with fc1:
+                        ct_titre = st.text_input("Titre (ex: M., Mme, Dr.)")
+                        ct_nom   = st.text_input("Nom et prénom")
+                    with fc2:
+                        ct_tel   = st.text_input("Téléphone")
+                        ct_mail  = st.text_input("Adresse mail")
+                    submitted_contact = st.form_submit_button("💾 Enregistrer ce contact", use_container_width=True)
+                    if submitted_contact:
+                        if not ct_nom.strip():
+                            st.warning("Le nom est obligatoire.")
+                        else:
+                            prov_contact = df_ecoles[df_ecoles['Commune'] == commune_tab3]['Province'].iloc[0] if not df_ecoles[df_ecoles['Commune'] == commune_tab3].empty else ''
+                            new_contact = pd.DataFrame([{
+                                "Province": prov_contact,
+                                "Commune": commune_tab3,
+                                "Titre": ct_titre.strip(),
+                                "Nom": ct_nom.strip(),
+                                "Téléphone": ct_tel.strip(),
+                                "Email": ct_mail.strip()
+                            }])
+                            df_contacts_upd = pd.concat([df_contacts, new_contact], ignore_index=True)
+                            conn.update(worksheet="Contacts", data=df_contacts_upd)
+                            st.cache_data.clear()
+                            st.success(f"✅ Contact '{ct_nom.strip()}' ajouté !")
+                            st.rerun()
+
+            st.markdown("<hr style='margin:16px 0 10px;'>", unsafe_allow_html=True)
 
             if search_ecole:
                 mask = (
