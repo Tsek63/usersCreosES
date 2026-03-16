@@ -5,7 +5,7 @@ from streamlit_gsheets import GSheetsConnection
 import AppTimeTracking
 
 # -------------------------------------------------
-# CONFIG
+# CONFIG PAGE
 # -------------------------------------------------
 
 st.set_page_config(
@@ -21,18 +21,8 @@ st.title("Gestion des écoles")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-tab1, tab2 = st.tabs(["Test", "Time Tracking"])
-
-with tab1:
-    st.write("L'app fonctionne")
-
-with tab2:
-    AppTimeTracking.run(conn)
-
-
-
 # -------------------------------------------------
-# CHARGEMENT DES DONNEES
+# CHARGEMENT DES ECOLES
 # -------------------------------------------------
 
 try:
@@ -45,14 +35,14 @@ except:
 # -------------------------------------------------
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Tableau de bord et Carte",
-    "🏫 Écoles par Commune",
-    "⚙️ Gestion des Écoles",
+    "📊 Tableau de bord",
+    "🏫 Écoles par commune",
+    "⚙️ Gestion des écoles",
     "⏱️ Time Tracking"
 ])
 
 # -------------------------------------------------
-# TAB 1
+# TAB 1 : DASHBOARD
 # -------------------------------------------------
 
 with tab1:
@@ -66,7 +56,7 @@ with tab1:
         st.dataframe(df_ecoles)
 
 # -------------------------------------------------
-# TAB 2
+# TAB 2 : ECOLES PAR COMMUNE
 # -------------------------------------------------
 
 with tab2:
@@ -85,7 +75,7 @@ with tab2:
         st.dataframe(df_filtre)
 
 # -------------------------------------------------
-# TAB 3
+# TAB 3 : GESTION ECOLES
 # -------------------------------------------------
 
 with tab3:
@@ -102,4 +92,5 @@ with tab3:
 # -------------------------------------------------
 
 with tab4:
+
     AppTimeTracking.run(conn)
