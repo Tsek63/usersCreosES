@@ -26,153 +26,145 @@ LISTE_TACHES = [
     "NETTOYAGES DES DONNEES CREOS", "Briefing DEV"
 ]
 
-# --- CONFIGURATION DE LA PAGE ---
+# --- CONFIGURATION PAGE ---
 st.set_page_config(layout="wide", page_title="Creos Extrascolaire", page_icon="📊")
 
-# --- FONCTIONS DE CONNEXION ---
-@st.cache_resource
+# --- CONNEXION CORRIGÉE ---
 def get_tt_gsheet():
-    """Connexion via gspread pour l'écriture (Time Tracking)"""
+    """Utilise les secrets harmonisés pour gspread"""
     try:
-        # On récupère les infos directement depuis le bloc connections.gsheets
-        creds_info = st.secrets["connections"]["gsheets"]
+        # On va chercher les infos dans le bloc connections.gsheets
+        info = st.secrets["connections"]["gsheets"]
         scope = ["https://www.googleapis.com/auth/spreadsheets"]
-        creds = Credentials.from_service_account_info(creds_info, scopes=scope)
+        creds = Credentials.from_service_account_info(info, scopes=scope)
         client = gspread.authorize(creds)
         return client.open_by_key(TT_SHEET_ID).worksheet(TT_SHEET_NAME)
     except Exception as e:
-        st.error(f"Erreur connexion Gspread : {e}")
+        st.error(f"Erreur connexion Time Tracking : {e}")
         return None
 
-# Initialisation de la connexion standard Streamlit (Lecture seule / Cache)
+# Connexion standard pour les onglets Ecoles
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_tt_data():
-    """Charge les données du Time Tracking"""
+    columns = ["date", "intervenante", "tache", "quantite", "nb_ecoles"]
     try:
         ws = get_tt_gsheet()
         if ws:
             data = ws.get_all_records()
             df = pd.DataFrame(data)
-            if not df.empty:
-                df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
-                return df.dropna(subset=['date'])
+            if df.empty: return pd.DataFrame(columns=columns)
+            df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
+            return df.dropna(subset=['date'])
     except:
         pass
-    return pd.DataFrame(columns=["date", "intervenante", "tache", "quantite", "nb_ecoles"])
+    return pd.DataFrame(columns=columns)
 
-# --- CHARGEMENT DES DONNÉES ÉCOLES (ONGLET 1, 2, 3) ---
+# --- CHARGEMENT DES DONNÉES ÉCOLES ---
 try:
     df_ecoles = conn.read(worksheet="Ecoles", ttl=600).dropna(how="all")
-    # Nettoyage des codes FASE et CP
     for col in ['Fase PO', 'Fase école', 'Code postal']:
         if col in df_ecoles.columns:
             df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
 except Exception as e:
-    st.error(f"⚠️ Erreur de lecture de l'onglet 'Ecoles' : {e}")
+    st.error(f"⚠️ Erreur chargement onglet Ecoles : {e}")
     df_ecoles = pd.DataFrame()
 
-# --- INTERFACE PRINCIPALE ---
-st.title("📊 Creos Extrascolaire - Pilotage")
-
-tab1, tab2, tab3, tab4 = st.tabs(["🏫 Suivi Écoles", "📈 Statistiques", "🗺️ Cartographie", "⏱️ Time Tracking"])
-
-# --- TAB 1 : SUIVI ÉCOLES ---
-with tab1:
-    if not df_ecoles.empty:
-        st.subheader("Base de données des écoles")
-        # Filtres simples
-        search = st.text_input("Rechercher une école ou une commune :")
-        if search:
-            mask = df_ecoles.apply(lambda r: search.lower() in str(r).lower(), axis=1)
-            display_df = df_ecoles[mask]
-        else:
-            display_df = df_ecoles
-        st.dataframe(display_df, use_container_width=True)
-    else:
-        st.info("Chargez des données dans l'onglet 'Ecoles' de votre Google Sheet.")
-
-# --- TAB 2 : STATISTIQUES ---
-with tab2:
-    st.subheader("Analyse globale")
-    if not df_ecoles.empty:
-        col_stat1, col_stat2 = st.columns(2)
-        with col_stat1:
-            if 'Statut' in df_ecoles.columns:
-                fig_statut = px.pie(df_ecoles, names='Statut', title="Répartition par Statut", hole=0.4)
-                st.plotly_chart(fig_statut)
-        with col_stat2:
-            if 'Réseau' in df_ecoles.columns:
-                fig_reseau = px.bar(df_ecoles['Réseau'].value_counts(), title="Nombre d'écoles par Réseau")
-                st.plotly_chart(fig_reseau)
-    else:
-        st.warning("Données insuffisantes pour les statistiques.")
-
-# --- TAB 3 : CARTOGRAPHIE ---
-with tab3:
-    st.subheader("Géolocalisation des implantations")
-    if not df_ecoles.empty and 'latitude' in df_ecoles.columns and 'longitude' in df_ecoles.columns:
-        # Nettoyage coordonnées
-        df_map = df_ecoles.dropna(subset=['latitude', 'longitude'])
-        st.map(df_map)
-    else:
-        st.info("Les colonnes 'latitude' et 'longitude' sont nécessaires pour afficher la carte.")
-
-# --- TAB 4 : TIME TRACKING ---
-with tab4:
-    st.header("⏱️ Gestion du Temps")
-    
-    # Formulaire d'encodage
-    with st.expander("➕ Enregistrer une nouvelle activité", expanded=True):
-        with st.form("tt_form", clear_on_submit=True):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                f_date = st.date_input("Date", date.today())
-                f_intv = st.selectbox("Intervenante", LISTE_REDACTEURS)
-            with c2:
-                f_tache = st.selectbox("Tâche", LISTE_TACHES)
-                f_quant = st.number_input("Quantité (minutes/heures)", min_value=0.0, step=0.5)
-            with c3:
-                f_nb = st.number_input("Nb écoles impactées", min_value=0, step=1)
-            
-            if st.form_submit_button("Valider l'encodage"):
-                ws = get_tt_gsheet()
-                if ws:
-                    ws.append_row([str(f_date), f_intv, f_tache, f_quant, f_nb])
-                    st.success("Données envoyées avec succès !")
-                    st.cache_data.clear()
-
-    # Visualisation et Export
-    st.divider()
-    df_tt = load_tt_data()
-    if not df_tt.empty:
-        # Filtres de période
-        col_f1, col_f2 = st.columns(2)
-        with col_f1: start_d = st.date_input("Depuis le", df_tt['date'].min())
-        with col_f2: end_d = st.date_input("Jusqu'au", date.today())
-        
-        mask_tt = (df_tt['date'] >= start_d) & (df_tt['date'] <= end_d)
-        df_filtered = df_tt[mask_tt]
-
-        st.subheader("Historique filtré")
-        st.dataframe(df_filtered, use_container_width=True)
-        
-        # Petit résumé graphique
-        fig_tt = px.bar(df_filtered, x='tache', y='quantite', color='intervenante', 
-                        title="Temps passé par tâche", barmode='group',
-                        color_discrete_map=COULEURS_MAP)
-        st.plotly_chart(fig_tt, use_container_width=True)
-    else:
-        st.info("Aucune donnée de tracking pour le moment.")
-
-# --- STYLE ---
+# --- CSS PERSONNALISÉ (Identique à votre v16) ---
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { 
-        height: 50px; white-space: pre-wrap; background-color: #ffffff; 
-        border-radius: 5px; padding: 10px;
+    [data-testid="stMetric"] { background-color: #ffffff; border-radius: 10px; padding: 15px; border: 1px solid #e2e8f0; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] {
+        height: 60px; background-color: #ffffff; border-radius: 8px 8px 0 0;
+        padding: 10px 20px; font-weight: 600; color: #64748b;
     }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] { color: #2563eb; border-bottom: 3px solid #2563eb; }
     </style>
 """, unsafe_allow_html=True)
+
+# --- LOGIQUE DES ONGLETS ---
+tab1, tab2, tab3, tab4 = st.tabs(["📋 SUIVI ÉCOLES", "📊 STATISTIQUES", "🗺️ CARTOGRAPHIE", "⏱️ TIME TRACKING"])
+
+# --- TAB 1 : SUIVI ÉCOLES (Votre logique v16) ---
+with tab1:
+    st.subheader("Base de données des établissements")
+    if not df_ecoles.empty:
+        # Filtres
+        c1, c2 = st.columns(2)
+        with c1: search = st.text_input("🔍 Recherche rapide (École, Commune, CP...)", "")
+        with c2: 
+            statuts = ["Tous"] + sorted(df_ecoles['Statut'].unique().tolist()) if 'Statut' in df_ecoles.columns else ["Tous"]
+            sel_statut = st.selectbox("Filtrer par statut", statuts)
+        
+        df_f = df_ecoles.copy()
+        if search:
+            df_f = df_f[df_f.apply(lambda row: search.lower() in row.astype(str).str.lower().values, axis=1)]
+        if sel_statut != "Tous":
+            df_f = df_f[df_f['Statut'] == sel_statut]
+        
+        st.dataframe(df_f, use_container_width=True, height=500)
+    else:
+        st.info("Aucune donnée école disponible.")
+
+# --- TAB 2 : STATISTIQUES (Votre logique v16) ---
+with tab2:
+    if not df_ecoles.empty:
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Total Écoles", len(df_ecoles))
+        if 'Statut' in df_ecoles.columns:
+            fait = len(df_ecoles[df_ecoles['Statut'] == 'Fait'])
+            col_m2.metric("Déploiements Terminés", fait)
+            col_m3.metric("% Avancement", f"{(fait/len(df_ecoles)*100):.1f}%")
+        
+        # Graphiques Plotly
+        c_g1, c_g2 = st.columns(2)
+        with c_g1:
+            fig1 = px.pie(df_ecoles, names='Statut', title="Répartition par Statut", hole=0.4)
+            st.plotly_chart(fig1, use_container_width=True)
+        with c_g2:
+            fig2 = px.bar(df_ecoles['Commune'].value_counts().head(10), title="Top 10 Communes")
+            st.plotly_chart(fig2, use_container_width=True)
+
+# --- TAB 3 : CARTOGRAPHIE ---
+with tab3:
+    if not df_ecoles.empty and 'latitude' in df_ecoles.columns:
+        df_map = df_ecoles.dropna(subset=['latitude', 'longitude'])
+        st.map(df_map)
+
+# --- TAB 4 : TIME TRACKING (Votre logique v16 réintégrée) ---
+with tab4:
+    st.header("Gestion du Temps")
+    
+    # Formulaire
+    with st.expander("➕ Encoder une nouvelle activité", expanded=True):
+        with st.form("form_tt", clear_on_submit=True):
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                f_date = st.date_input("Date", date.today())
+                f_intv = st.selectbox("Intervenante", LISTE_REDACTEURS)
+            with col_b:
+                f_tache = st.selectbox("Tâche", LISTE_TACHES)
+                f_quant = st.number_input("Temps (en min/h)", min_value=0.0, step=0.5)
+            with col_c:
+                f_nb = st.number_input("Nombre d'écoles", min_value=0, step=1)
+            
+            if st.form_submit_button("Enregistrer"):
+                ws = get_tt_gsheet()
+                if ws:
+                    ws.append_row([str(f_date), f_intv, f_tache, f_quant, f_nb])
+                    st.success("Activité enregistrée !")
+                    st.cache_data.clear()
+
+    # Affichage & Export Excel
+    df_tt = load_tt_data()
+    if not df_tt.empty:
+        st.divider()
+        st.dataframe(df_tt.tail(10), use_container_width=True)
+        
+        # Bouton d'export (Logique simplifiée pour éviter les erreurs de buffer)
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_tt.to_excel(writer, sheet_name='Tracking', index=False)
+        st.download_button("📥 Télécharger tout l'historique Excel", buffer.getvalue(), "tracking.xlsx")
