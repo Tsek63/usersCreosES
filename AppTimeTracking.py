@@ -145,7 +145,7 @@ def run(conn):
             
             with g2:
                 try:
-                    fig2 = px.pie(df_f, names='tache', values='quantite",
+                    fig2 = px.pie(df_f, names='tache', values='quantite',
                                 title="Répartition par Tâche",
                                 color_discrete_sequence=px.colors.qualitative.Safe)
                     st.plotly_chart(fig2, use_container_width=True)
