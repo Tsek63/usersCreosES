@@ -6,9 +6,9 @@ def run(conn):
 
     st.subheader("⏱️ Time Tracking")
 
-    # --------------------------------------------
-    # CHARGEMENT DATA
-    # --------------------------------------------
+    # -------------------------------------------------
+    # LECTURE DES DONNEES
+    # -------------------------------------------------
 
     try:
         df = conn.read(worksheet="Data", ttl=0)
@@ -20,43 +20,51 @@ def run(conn):
         st.warning("Aucune donnée dans l'onglet Data")
         return
 
-    # --------------------------------------------
-    # FILTRES
-    # --------------------------------------------
+    # -------------------------------------------------
+    # SELECTION INTERVENANTE
+    # -------------------------------------------------
 
-    utilisateurs = sorted(df["Utilisateur"].dropna().unique())
+    intervenantes = sorted(df["intervenante"].dropna().unique())
 
     user = st.selectbox(
-        "Utilisateur",
-        utilisateurs
+        "Intervenante",
+        intervenantes
     )
 
-    df_user = df[df["Utilisateur"] == user]
+    df_user = df[df["intervenante"] == user]
 
-    # --------------------------------------------
-    # AJOUT D'UNE LIGNE
-    # --------------------------------------------
+    # -------------------------------------------------
+    # HISTORIQUE
+    # -------------------------------------------------
+
+    st.markdown("### Historique")
+
+    st.dataframe(df_user)
+
+    # -------------------------------------------------
+    # AJOUT NOUVELLE ENTREE
+    # -------------------------------------------------
 
     st.markdown("### Ajouter une entrée")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
         jour = st.date_input("Date", value=date.today())
+        tache = st.text_input("Tâche")
 
     with col2:
-        heures = st.number_input("Heures", 0.0, 24.0)
-
-    with col3:
-        ecole = st.text_input("École")
+        quantite = st.number_input("Quantité", 0)
+        nb_ecoles = st.number_input("Nombre d'écoles", 0)
 
     if st.button("Ajouter"):
 
         new_row = pd.DataFrame({
-            "Date": [jour],
-            "Utilisateur": [user],
-            "Ecole": [ecole],
-            "Heures": [heures]
+            "date": [jour],
+            "intervenante": [user],
+            "tache": [tache],
+            "quantite": [quantite],
+            "nb_ecoles": [nb_ecoles]
         })
 
         df = pd.concat([df, new_row], ignore_index=True)
@@ -67,11 +75,3 @@ def run(conn):
         )
 
         st.success("Entrée ajoutée")
-
-    # --------------------------------------------
-    # TABLEAU
-    # --------------------------------------------
-
-    st.markdown("### Historique")
-
-    st.dataframe(df_user)
