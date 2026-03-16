@@ -1,23 +1,25 @@
 def run(conn):
     import streamlit as st
+    from streamlit_gsheets import GSheetsConnection
     import pandas as pd
     from datetime import date
     import plotly.express as px
-    import io
 
     st.subheader("⏱️ Time Tracking")
 
-    # -------------------------------
-    # Lecture des données depuis Google Sheet
-    # -------------------------------
+    # --- CONNEXION SPÉCIFIQUE AU SHEET TIMETRACKING ---
+    # (On peut utiliser la connexion passée en paramètre si c'est le bon sheet)
+    # Sinon, créer une nouvelle connexion avec un ID de sheet différent
+    
+    # Essayer d'abord avec la connexion fournie
     try:
         df = conn.read(worksheet="Data", ttl=0)
+        if df.empty:
+            st.info("Aucune donnée dans la feuille TimeTracking/Data")
+            return
     except Exception as e:
-        st.error(f"Erreur chargement Data : {e}")
-        return
-
-    if df.empty:
-        st.warning("Aucune donnée")
+        st.error(f"❌ Erreur : {e}")
+        st.warning("⚠️ Assurez-vous que la connexion pointe vers le bon Google Sheet (ID: 195v8jf2n1jjVQuWlw1s_ka32bu0K13mGrTUnksEp3GU)")
         return
 
     # --- PARAMÈTRES ---
@@ -43,22 +45,16 @@ def run(conn):
     with c1:
         st.subheader("📝 Encodage")
         
-        # Sélection de l'intervenante
         intervenantes = sorted(df["intervenante"].dropna().unique())
         user = st.selectbox("Intervenante", intervenantes)
-
-        # Sélection de la date
         selected_date = st.date_input("Date", value=date.today())
-
-        # Sélection de la tâche
         tache = st.selectbox("Tâche", LISTE_TACHES)
 
-        # Formulaire d'encodage
         with st.form("form_saisie", clear_on_submit=True):
-            quantite = st.number_input("Quantité", min_value=1, step=1)
+            quantite = st.number_input("Quantité", min_value=1, step=1, value=1)
             nb_ecoles = 0
             if tache == "NETTOYAGES DES DONNEES CREOS":
-                nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1)
+                nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1, value=1)
             
             if st.form_submit_button("💾 Enregistrer"):
                 new_row = {
@@ -70,7 +66,7 @@ def run(conn):
                 }
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 conn.update(worksheet="Data", data=df)
-                st.success("Entrée ajoutée avec succès !")
+                st.success("✅ Entrée ajoutée avec succès !")
                 st.rerun()
 
     # --- COLONNE 2 : DÉTAILS DU JOUR ---
@@ -83,21 +79,18 @@ def run(conn):
         if not df_j.empty:
             for i, row in df_j.iterrows():
                 ca, cb = st.columns([5, 1])
-                ca.write(f"**{row['intervenante']}** | {row['tache']} ({row['quantite']})")
-                # Note: suppression non implémentée (nécessite direct access à gsheet)
+                ca.write(f"**{row['intervenante']}** | {row['tache']} ({int(row['quantite'])})")
         else:
             st.info("Aucune donnée pour ce jour.")
 
-    # --- SECTION STATISTIQUES & SYNTHÈSE ---
+    # --- SECTION STATISTIQUES ---
     st.divider()
     st.header("📊 Statistiques & Synthèse")
 
-    # Conversion des dates
     df_copy = df.copy()
     df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
 
     if not df_copy.empty:
-        # Filtres
         f1, f2, f3 = st.columns([1, 1, 1.5])
         with f1:
             per = st.date_input("Sélectionnez la période", 
@@ -113,7 +106,6 @@ def run(conn):
         with f3:
             f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES)
 
-        # Appliquer les filtres
         df_f = df_copy.copy()
         df_f = df_f[(df_f['date'] >= date_start) & (df_f['date'] <= date_end)]
         
@@ -123,7 +115,6 @@ def run(conn):
             df_f = df_f[df_f['tache'].isin(f_tac)]
 
         if not df_f.empty:
-            # Graphiques
             g1, g2 = st.columns(2)
             with g1:
                 fig1 = px.pie(df_f, names='intervenante', values='quantite', 
@@ -138,7 +129,6 @@ def run(conn):
 
             st.markdown("---")
             
-            # Synthèse par tâche
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
             
