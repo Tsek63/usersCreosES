@@ -24,24 +24,27 @@ def run(conn):
     intervenantes = sorted(df["intervenante"].dropna().unique())
     user = st.selectbox("Intervenante", intervenantes)
 
-    # Convertir la colonne 'date' en datetime
-df_user["date"] = pd.to_datetime(df_user["date"], errors="coerce")
+    df_user = df[df["intervenante"] == user]
 
-# Filtrage sur période
-col1, col2 = st.columns(2)
-with col1:
-    start_date = st.date_input("Date de début", value=date.today() - timedelta(days=7))
-with col2:
-    end_date = st.date_input("Date de fin", value=date.today())
+    # --------------------------------------------
+    # Convertir 'date' en datetime pour filtrage
+    # --------------------------------------------
+    df_user["date"] = pd.to_datetime(df_user["date"], errors="coerce")
 
-# Conversion en datetime
-df_user["date"] = pd.to_datetime(df_user["date"], errors="coerce")
+    # --------------------------------------------
+    # Filtrage sur période
+    # --------------------------------------------
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("Date de début", value=date.today() - timedelta(days=7))
+    with col2:
+        end_date = st.date_input("Date de fin", value=date.today())
 
-mask = (df_user["date"] >= pd.to_datetime(start_date)) & (df_user["date"] <= pd.to_datetime(end_date))
-df_filtered = df_user.loc[mask]
+    mask = (df_user["date"] >= pd.to_datetime(start_date)) & (df_user["date"] <= pd.to_datetime(end_date))
+    df_filtered = df_user.loc[mask]
 
-st.markdown("### Historique")
-st.dataframe(df_filtered)
+    st.markdown("### Historique")
+    st.dataframe(df_filtered)
 
     # --------------------------------------------
     # Ajouter une nouvelle entrée
@@ -77,16 +80,9 @@ st.dataframe(df_filtered)
 
         df = pd.concat([df, df_new], ignore_index=True)
 
-        # mise à jour de la Google Sheet
         conn.update(
             worksheet="Data",
             data=df
         )
 
         st.success("Entrées ajoutées avec succès !")
-
-    # --------------------------------------------
-    # Affichage final
-    # --------------------------------------------
-    st.markdown("### Historique complet filtré")
-    st.dataframe(df_filtered)
