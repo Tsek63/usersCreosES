@@ -1,7 +1,7 @@
 def run(conn):
     import streamlit as st
     import pandas as pd
-    from datetime import date, timedelta
+    from datetime import date
 
     st.subheader("⏱️ Time Tracking")
 
@@ -24,65 +24,79 @@ def run(conn):
     intervenantes = sorted(df["intervenante"].dropna().unique())
     user = st.selectbox("Intervenante", intervenantes)
 
-    df_user = df[df["intervenante"] == user]
+    # --------------------------------------------
+    # Sélection de la date
+    # --------------------------------------------
+    selected_date = st.date_input("Date", value=date.today())
 
     # --------------------------------------------
-    # Convertir 'date' en datetime pour filtrage
+    # Sélection de la tâche / action
     # --------------------------------------------
-    df_user["date"] = pd.to_datetime(df_user["date"], errors="coerce")
+    taches = sorted(df["tache"].dropna().unique())
+    tache = st.selectbox("Tâche", taches)
 
     # --------------------------------------------
-    # Filtrage sur période
+    # Encodage des nombres
     # --------------------------------------------
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input("Date de début", value=date.today() - timedelta(days=7))
-    with col2:
-        end_date = st.date_input("Date de fin", value=date.today())
-
-    mask = (df_user["date"] >= pd.to_datetime(start_date)) & (df_user["date"] <= pd.to_datetime(end_date))
-    df_filtered = df_user.loc[mask]
-
-    st.markdown("### Historique")
-    st.dataframe(df_filtered)
-
-    # --------------------------------------------
-    # Ajouter une nouvelle entrée
-    # --------------------------------------------
-    st.markdown("### Ajouter une entrée")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        jour = st.date_input("Date", value=date.today())
-        tache = st.text_input("Tâche")
-
-    with col2:
         quantite = st.number_input("Quantité", 0)
-        nb_ecoles = st.number_input("Nombre d'écoles", 0)
 
-    with col3:
-        # choix multiple pour les écoles
-        ecoles = df["Ecole"].dropna().unique().tolist()
-        selected_ecoles = st.multiselect("Écoles", options=ecoles)
+    with col2:
+        nb_ecoles = 0
+        if tache == "NETTOYAGE DES DONNEES":
+            nb_ecoles = st.number_input("Nombre d'écoles", 0)
 
+    # --------------------------------------------
+    # Bouton d'ajout
+    # --------------------------------------------
     if st.button("Ajouter entrée"):
-        new_rows = []
-        for ecole in selected_ecoles:
-            new_rows.append({
-                "date": jour,
-                "intervenante": user,
-                "tache": tache,
-                "quantite": quantite,
-                "nb_ecoles": nb_ecoles,
-                "Ecole": ecole
-            })
-        df_new = pd.DataFrame(new_rows)
 
-        df = pd.concat([df, df_new], ignore_index=True)
+        # Préparer la nouvelle ligne
+        new_row = pd.DataFrame({
+            "date": [selected_date],
+            "intervenante": [user],
+            "tache": [tache],
+            "quantite": [quantite],
+            "nb_ecoles": [nb_ecoles]
+        })
 
+        # Ajouter à la table existante
+        df = pd.concat([df, new_row], ignore_index=True)
+
+        # Mise à jour Google Sheet
         conn.update(
             worksheet="Data",
             data=df
         )
 
-        st.success("Entrées ajoutées avec succès !")
+        st.success("Entrée ajoutée avec succès !")
+
+    # --------------------------------------------
+    # Filtrer pour affichage des graphiques et synthèse
+    # --------------------------------------------
+    df_filtered = df[df["intervenante"] == user]
+    df_filtered = df_filtered[df_filtered["date"] == pd.to_datetime(selected_date)]
+
+    st.markdown("### Historique de l'intervenante pour la date sélectionnée")
+    st.dataframe(df_filtered)
+
+    # --------------------------------------------
+    # Graphiques et synthèse par tâche
+    # --------------------------------------------
+    if not df_filtered.empty:
+        st.markdown("### Graphiques par tâche")
+        # Graphique 1 : quantite par tâche
+        fig1 = px.bar(df_filtered, x="tache", y="quantite", title="Quantité par tâche")
+        st.plotly_chart(fig1, use_container_width=True)
+
+        # Graphique 2 : nombre d'écoles par tâche (pour NETTOYAGE DES DONNEES)
+        df_nb_ecoles = df_filtered[df_filtered["tache"] == "NETTOYAGE DES DONNEES"]
+        if not df_nb_ecoles.empty:
+            fig2 = px.bar(df_nb_ecoles, x="tache", y="nb_ecoles", title="Nombre d'écoles par tâche")
+            st.plotly_chart(fig2, use_container_width=True)
+
+        # Synthèse par tâche
+        st.markdown("### Synthèse par tâche")
+        summary = df_filtered.groupby("tache").agg({"quantite":"sum","nb_ecoles":"sum"}).reset_index()
+        st.dataframe(summary)
