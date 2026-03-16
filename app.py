@@ -6,6 +6,7 @@ import streamlit.components.v1 as components
 import io
 import base64
 import plotly.express as px
+import AppTimeTracking
 
 
 # Helper : détecte si un PO est une Province
@@ -314,10 +315,11 @@ else:
 
 
 # --- 4. TABS ---
-tab1, tab3, tab4 = st.tabs([
+tab1, tab3, tab4, tab5 = st.tabs([
     "📊 Tableau de bord et Carte",
     "🏫 Écoles par Commune",
-    "⚙️ Gestion des Écoles"
+    "⚙️ Gestion des Écoles",
+     "👥 Time Tracking"
 ])
 
 # ============================================================
@@ -1051,6 +1053,11 @@ with tab4:
         else:
             st.warning("Aucun résultat pour ces filtres.")
 
+with tab5:
+    try:
+        AppTimeTracking.run(conn)
+    except Exception as e:
+        st.error(f"Erreur Time Tracking : {e}")
 
 
 # --- FOOTER ---
