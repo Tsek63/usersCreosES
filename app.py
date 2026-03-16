@@ -5,13 +5,10 @@ from streamlit_gsheets import GSheetsConnection
 import AppTimeTracking
 
 # -------------------------------------------------
-# CONFIG PAGE
+# CONFIG
 # -------------------------------------------------
 
-st.set_page_config(
-    page_title="Gestion des écoles",
-    layout="wide"
-)
+st.set_page_config(layout="wide")
 
 st.title("Gestion des écoles")
 
@@ -22,7 +19,7 @@ st.title("Gestion des écoles")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # -------------------------------------------------
-# CHARGEMENT DES ECOLES
+# CHARGEMENT DES DONNEES
 # -------------------------------------------------
 
 try:
@@ -30,19 +27,30 @@ try:
 except:
     df_ecoles = pd.DataFrame()
 
+try:
+    df_contacts = conn.read(worksheet="Contacts", ttl=0)
+except:
+    df_contacts = pd.DataFrame()
+
+try:
+    df_config = conn.read(worksheet="EcolesConfig", ttl=0)
+except:
+    df_config = pd.DataFrame()
+
 # -------------------------------------------------
 # TABS
 # -------------------------------------------------
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Tableau de bord",
-    "🏫 Écoles par commune",
-    "⚙️ Gestion des écoles",
+    "🏫 Écoles",
+    "👥 Contacts",
+    "⚙️ Configuration",
     "⏱️ Time Tracking"
 ])
 
 # -------------------------------------------------
-# TAB 1 : DASHBOARD
+# TAB 1
 # -------------------------------------------------
 
 with tab1:
@@ -50,47 +58,53 @@ with tab1:
     st.subheader("Tableau de bord")
 
     if df_ecoles.empty:
-        st.warning("Aucune donnée")
+        st.warning("Pas de données")
     else:
         st.write("Nombre d'écoles :", len(df_ecoles))
-        st.dataframe(df_ecoles)
 
 # -------------------------------------------------
-# TAB 2 : ECOLES PAR COMMUNE
+# TAB 2
 # -------------------------------------------------
 
 with tab2:
 
-    st.subheader("Écoles par commune")
+    st.subheader("Écoles")
 
     if df_ecoles.empty:
         st.warning("Pas de données")
     else:
-        communes = sorted(df_ecoles["Commune"].dropna().unique())
-
-        commune = st.selectbox("Choisir une commune", communes)
-
-        df_filtre = df_ecoles[df_ecoles["Commune"] == commune]
-
-        st.dataframe(df_filtre)
+        st.dataframe(df_ecoles)
 
 # -------------------------------------------------
-# TAB 3 : GESTION ECOLES
+# TAB 3
 # -------------------------------------------------
 
 with tab3:
 
-    st.subheader("Gestion des écoles")
+    st.subheader("Contacts")
 
-    if df_ecoles.empty:
-        st.warning("Pas de données")
+    if df_contacts.empty:
+        st.warning("Pas de contacts")
     else:
-        st.data_editor(df_ecoles)
+        st.dataframe(df_contacts)
 
 # -------------------------------------------------
-# TAB 4 : TIME TRACKING
+# TAB 4
 # -------------------------------------------------
 
 with tab4:
+
+    st.subheader("Configuration écoles")
+
+    if df_config.empty:
+        st.warning("Pas de configuration")
+    else:
+        st.dataframe(df_config)
+
+# -------------------------------------------------
+# TAB 5
+# -------------------------------------------------
+
+with tab5:
 
     AppTimeTracking.run(conn)
