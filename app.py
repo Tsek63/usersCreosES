@@ -993,24 +993,39 @@ with tab4:
         # --- Ligne 2: Liste avec boutons suppression + Graphiques ---
         col_list4, col_viz4 = st.columns([6, 4], gap="medium")
         with col_list4:
+            # Couleurs des services
+            _svc_colors4 = {
+                "Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00",
+                "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"
+            }
             # En-tête
-            h1, h2, h3, h4, h5 = st.columns([2, 2, 3, 2, 1])
-            h1.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>Commune</div>", unsafe_allow_html=True)
-            h2.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>Paiement</div>", unsafe_allow_html=True)
-            h3.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>École</div>", unsafe_allow_html=True)
-            h4.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>Services</div>", unsafe_allow_html=True)
-            h5.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'></div>", unsafe_allow_html=True)
+            h1, h2, h3, h4, h5 = st.columns([2, 2, 3, 3, 1])
+            hdr_style = "font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:6px;border-bottom:2px solid #e2e8f0;"
+            h1.markdown(f"<div style='{hdr_style}'>Commune</div>", unsafe_allow_html=True)
+            h2.markdown(f"<div style='{hdr_style}'>Paiement</div>", unsafe_allow_html=True)
+            h3.markdown(f"<div style='{hdr_style}'>École</div>", unsafe_allow_html=True)
+            h4.markdown(f"<div style='{hdr_style}'>Services</div>", unsafe_allow_html=True)
+            h5.markdown(f"<div style='{hdr_style}'></div>", unsafe_allow_html=True)
             # Lignes
+            row_style = "font-size:14px;padding:8px 2px;"
             for _, row4 in df_sorted4.iterrows():
-                r1, r2, r3, r4, r5 = st.columns([2, 2, 3, 2, 1])
-                r1.markdown(f"<div style='font-size:12px;padding:6px 2px;border-bottom:1px solid #f1f5f9;'>{row4.get('Commune','')}</div>", unsafe_allow_html=True)
+                r1, r2, r3, r4, r5 = st.columns([2, 2, 3, 3, 1])
+                r1.markdown(f"<div style='{row_style}'>{row4.get('Commune','')}</div>", unsafe_allow_html=True)
                 pay4 = row4.get('Paiement','')
                 pay_color = '#ec4899' if 'Pré' in str(pay4) else '#38bdf8'
-                r2.markdown(f"<div style='font-size:11px;padding:6px 2px;border-bottom:1px solid #f1f5f9;color:{pay_color};font-weight:600;'>{pay4}</div>", unsafe_allow_html=True)
-                r3.markdown(f"<div style='font-size:12px;padding:6px 2px;border-bottom:1px solid #f1f5f9;'>{row4.get('Ecole', row4.get('Fase école',''))}</div>", unsafe_allow_html=True)
-                svc4 = str(row4.get('Services',''))
-                svc_short = svc4[:30] + '…' if len(svc4) > 30 else svc4
-                r4.markdown(f"<div style='font-size:11px;padding:6px 2px;border-bottom:1px solid #f1f5f9;color:#475569;' title='{svc4}'>{svc_short}</div>", unsafe_allow_html=True)
+                r2.markdown(f"<div style='{row_style}color:{pay_color};font-weight:600;'>{pay4}</div>", unsafe_allow_html=True)
+                r3.markdown(f"<div style='{row_style}'>{row4.get('Ecole', row4.get('Fase école',''))}</div>", unsafe_allow_html=True)
+                svc4_raw = str(row4.get('Services',''))
+                svc4_list = [s.strip() for s in svc4_raw.split('|') if s.strip()]
+                if svc4_list:
+                    svc4_html = ' '.join([
+                        f'<span style="background:{_svc_colors4.get(s,"#94a3b8")};color:white;padding:2px 7px;'
+                        f'border-radius:4px;font-size:12px;font-weight:bold;display:inline-block;margin:1px;">{s}</span>'
+                        for s in svc4_list
+                    ])
+                else:
+                    svc4_html = '<span style="color:#94a3b8;font-size:13px;">—</span>'
+                r4.markdown(f"<div style='padding:6px 2px;'>{svc4_html}</div>", unsafe_allow_html=True)
                 fase4 = str(row4.get('Fase école',''))
                 if r5.button("🗑️", key=f"del4_{fase4}", help=f"Supprimer {row4.get('Ecole', fase4)}"):
                     df_upd_del = df_config[df_config['Fase école'].astype(str) != fase4].reset_index(drop=True)
