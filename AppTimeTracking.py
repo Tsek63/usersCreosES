@@ -2,6 +2,8 @@ def run(conn):
     import streamlit as st
     import pandas as pd
     from datetime import date
+    import plotly.express as px
+    import io
 
     st.subheader("⏱️ Time Tracking")
 
@@ -18,81 +20,133 @@ def run(conn):
         st.warning("Aucune donnée")
         return
 
-    # -------------------------------
-    # Sélection de l'intervenante
-    # -------------------------------
-    intervenantes = sorted(df["intervenante"].dropna().unique())
-    user = st.selectbox("Intervenante", intervenantes)
+    # --- PARAMÈTRES ---
+    LISTE_TACHES = [
+        "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
+        "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
+        "MAIL DIVERS", "MODIFICATIONS FICHIER PO", "JOURNEE DE FORMATION",
+        "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT", 
+        "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
+        "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
+        "NETTOYAGES DES DONNEES CREOS", "Briefing DEV"
+    ]
 
-    # -------------------------------
-    # Sélection de la date
-    # -------------------------------
-    selected_date = st.date_input("Date", value=date.today())
+    COULEURS_MAP = {
+        "Véronique Maigrié": "#FF00FF",
+        "Sylvie Nyssen": "#008080"
+    }
 
-    # -------------------------------
-    # Filtrer pour l'intervenante et la date
-    # -------------------------------
-    df_user = df[df["intervenante"] == user]
-    df_user["date"] = pd.to_datetime(df_user["date"], errors="coerce")
-    df_filtered = df_user[df_user["date"] == pd.to_datetime(selected_date)]
+    # --- LAYOUT EN 2 COLONNES ---
+    c1, c2 = st.columns([1, 1.2])
 
-    # -------------------------------
-    # Sélection de la tâche/action
-    # -------------------------------
-    taches = sorted(df["tache"].dropna().unique())
-    tache = st.selectbox("Tâche", taches)
+    # --- COLONNE 1 : ENCODAGE ---
+    with c1:
+        st.subheader("📝 Encodage")
+        
+        # Sélection de l'intervenante
+        intervenantes = sorted(df["intervenante"].dropna().unique())
+        user = st.selectbox("Intervenante", intervenantes)
 
-    # -------------------------------
-    # Encodage des valeurs
-    # -------------------------------
-    col1, col2, col3 = st.columns(3)
+        # Sélection de la date
+        selected_date = st.date_input("Date", value=date.today())
 
-    with col1:
-        quantite = st.number_input("Quantité", 0)
-    with col2:
-        nb_ecoles = 0
-        if tache == "NETTOYAGE DES DONNEES":
-            nb_ecoles = st.number_input("Nombre d'écoles", 0)
-    with col3:
-        # choix multiple pour d'autres options si nécessaire
-        st.markdown("Choix multiples / paramètres supplémentaires (facultatif)")
+        # Sélection de la tâche
+        tache = st.selectbox("Tâche", LISTE_TACHES)
 
-    # -------------------------------
-    # Bouton Ajouter
-    # -------------------------------
-    if st.button("Ajouter entrée"):
-        new_row = {
-            "date": selected_date,
-            "intervenante": user,
-            "tache": tache,
-            "quantite": quantite,
-            "nb_ecoles": nb_ecoles
-        }
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        # Formulaire d'encodage
+        with st.form("form_saisie", clear_on_submit=True):
+            quantite = st.number_input("Quantité", min_value=1, step=1)
+            nb_ecoles = 0
+            if tache == "NETTOYAGES DES DONNEES CREOS":
+                nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1)
+            
+            if st.form_submit_button("💾 Enregistrer"):
+                new_row = {
+                    "date": str(selected_date),
+                    "intervenante": user,
+                    "tache": tache,
+                    "quantite": int(quantite),
+                    "nb_ecoles": int(nb_ecoles)
+                }
+                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                conn.update(worksheet="Data", data=df)
+                st.success("Entrée ajoutée avec succès !")
+                st.rerun()
 
-        # Mise à jour de la Google Sheet
-        conn.update(worksheet="Data", data=df)
+    # --- COLONNE 2 : DÉTAILS DU JOUR ---
+    with c2:
+        st.subheader(f"📋 Détails du {selected_date.strftime('%d/%m/%Y')}")
+        df_copy = df.copy()
+        df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
+        df_j = df_copy[df_copy["date"] == selected_date].copy()
+        
+        if not df_j.empty:
+            for i, row in df_j.iterrows():
+                ca, cb = st.columns([5, 1])
+                ca.write(f"**{row['intervenante']}** | {row['tache']} ({row['quantite']})")
+                # Note: suppression non implémentée (nécessite direct access à gsheet)
+        else:
+            st.info("Aucune donnée pour ce jour.")
 
-        st.success("Entrée ajoutée avec succès !")
+    # --- SECTION STATISTIQUES & SYNTHÈSE ---
+    st.divider()
+    st.header("📊 Statistiques & Synthèse")
 
-    # -------------------------------
-    # Graphiques et synthèse
-    # -------------------------------
-    st.markdown("### Graphiques et synthèse")
-    if not df_filtered.empty:
-        import plotly.express as px
+    # Conversion des dates
+    df_copy = df.copy()
+    df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
 
-        # Graphique 1 : Quantité par tâche
-        fig1 = px.bar(df_filtered, x="tache", y="quantite", title="Quantité par tâche")
-        st.plotly_chart(fig1, use_container_width=True)
+    if not df_copy.empty:
+        # Filtres
+        f1, f2, f3 = st.columns([1, 1, 1.5])
+        with f1:
+            per = st.date_input("Sélectionnez la période", 
+                               [min(df_copy['date']), max(df_copy['date'])])
+        
+        date_start = per[0] if isinstance(per, (list, tuple)) else per
+        date_end = per[1] if isinstance(per, (list, tuple)) and len(per) == 2 else date_start
+        
+        with f2:
+            intervenantes_list = sorted(df_copy["intervenante"].dropna().unique())
+            f_int = st.multiselect("Filtrer Intervenantes", intervenantes_list, 
+                                   default=intervenantes_list)
+        with f3:
+            f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES)
 
-        # Graphique 2 : Nombre d'écoles pour NETTOYAGE DES DONNEES
-        df_nb = df_filtered[df_filtered["tache"] == "NETTOYAGE_DES_DONNEES"]
-        if not df_nb.empty:
-            fig2 = px.bar(df_nb, x="tache", y="nb_ecoles", title="Nombre d'écoles")
-            st.plotly_chart(fig2, use_container_width=True)
+        # Appliquer les filtres
+        df_f = df_copy.copy()
+        df_f = df_f[(df_f['date'] >= date_start) & (df_f['date'] <= date_end)]
+        
+        if f_int: 
+            df_f = df_f[df_f['intervenante'].isin(f_int)]
+        if f_tac: 
+            df_f = df_f[df_f['tache'].isin(f_tac)]
 
-        # Synthèse par tâche
-        summary = df_filtered.groupby("tache").agg({"quantite":"sum","nb_ecoles":"sum"}).reset_index()
-        st.markdown("### Synthèse par tâche")
-        st.dataframe(summary)
+        if not df_f.empty:
+            # Graphiques
+            g1, g2 = st.columns(2)
+            with g1:
+                fig1 = px.pie(df_f, names='intervenante', values='quantite', 
+                            color='intervenante', color_discrete_map=COULEURS_MAP,
+                            title="Répartition par Intervenante")
+                st.plotly_chart(fig1, use_container_width=True)
+            with g2:
+                fig2 = px.pie(df_f, names='tache', values='quantite',
+                            title="Répartition par Tâche",
+                            color_discrete_sequence=px.colors.qualitative.Safe)
+                st.plotly_chart(fig2, use_container_width=True)
+
+            st.markdown("---")
+            
+            # Synthèse par tâche
+            df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
+            df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
+            
+            st.subheader("📋 Synthèse par tâche")
+            st.table(df_synth)
+            st.metric(label="TOTAL GÉNÉRAL", value=int(df_synth["Total Quantité"].sum()))
+            
+        else:
+            st.warning("Aucune donnée pour les filtres sélectionnés.")
+    else:
+        st.info("La base est vide.")
