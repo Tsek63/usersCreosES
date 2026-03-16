@@ -1,3 +1,4 @@
+
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -15,7 +16,7 @@ from datetime import date
 
 # --- TIME TRACKING : ID de la feuille Google Sheets ---
 # ⚠️ Mettre ici l'ID de Creos_DB après avoir copié l'onglet "Data" dedans
-TT_SHEET_ID = "195v8jf2n1jjVQuWlw1s_ka32bu0K13mGrTUnksEp3GU"  # À remplacer par l'ID de Creos_DB
+TT_SHEET_ID = "1Eu-k4-jGVfRVNYJcCKV_dIlqkIFaRUK-J5rtV0c6z8E"  # À remplacer par l'ID de Creos_DB
 TT_SHEET_NAME = "Data"
 
 LISTE_REDACTEURS = ["Véronique Maigrié", "Sylvie Nyssen"]
