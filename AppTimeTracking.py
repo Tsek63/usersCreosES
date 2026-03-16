@@ -24,22 +24,24 @@ def run(conn):
     intervenantes = sorted(df["intervenante"].dropna().unique())
     user = st.selectbox("Intervenante", intervenantes)
 
-    df_user = df[df["intervenante"] == user]
+    # Convertir la colonne 'date' en datetime
+df_user["date"] = pd.to_datetime(df_user["date"], errors="coerce")
 
-    # --------------------------------------------
-    # Filtrage sur période
-    # --------------------------------------------
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input("Date de début", value=date.today() - timedelta(days=7))
-    with col2:
-        end_date = st.date_input("Date de fin", value=date.today())
+# Filtrage sur période
+col1, col2 = st.columns(2)
+with col1:
+    start_date = st.date_input("Date de début", value=date.today() - timedelta(days=7))
+with col2:
+    end_date = st.date_input("Date de fin", value=date.today())
 
-    mask = (df_user["date"] >= pd.to_datetime(start_date)) & (df_user["date"] <= pd.to_datetime(end_date))
-    df_filtered = df_user.loc[mask]
+# Conversion en datetime
+df_user["date"] = pd.to_datetime(df_user["date"], errors="coerce")
 
-    st.markdown("### Historique")
-    st.dataframe(df_filtered)
+mask = (df_user["date"] >= pd.to_datetime(start_date)) & (df_user["date"] <= pd.to_datetime(end_date))
+df_filtered = df_user.loc[mask]
+
+st.markdown("### Historique")
+st.dataframe(df_filtered)
 
     # --------------------------------------------
     # Ajouter une nouvelle entrée
