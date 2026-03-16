@@ -6,10 +6,6 @@ def run(conn):
 
     st.subheader("⏱️ Time Tracking")
 
-    # -------------------------------------------------
-    # LECTURE DES DONNEES
-    # -------------------------------------------------
-
     try:
         df = conn.read(worksheet="Data", ttl=0)
     except Exception as e:
@@ -17,33 +13,16 @@ def run(conn):
         return
 
     if df.empty:
-        st.warning("Aucune donnée dans l'onglet Data")
+        st.warning("Aucune donnée")
         return
-
-    # -------------------------------------------------
-    # SELECTION INTERVENANTE
-    # -------------------------------------------------
 
     intervenantes = sorted(df["intervenante"].dropna().unique())
 
-    user = st.selectbox(
-        "Intervenante",
-        intervenantes
-    )
+    user = st.selectbox("Intervenante", intervenantes)
 
     df_user = df[df["intervenante"] == user]
 
-    # -------------------------------------------------
-    # HISTORIQUE
-    # -------------------------------------------------
-
-    st.markdown("### Historique")
-
     st.dataframe(df_user)
-
-    # -------------------------------------------------
-    # AJOUT NOUVELLE ENTREE
-    # -------------------------------------------------
 
     st.markdown("### Ajouter une entrée")
 
