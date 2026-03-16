@@ -35,14 +35,10 @@ st.markdown("""
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .header-title { font-size: 24px; font-weight: bold; margin: 0; }
-        .tt-button {
-            background-color: white; color: #4169E1; padding: 8px 18px;
-            border-radius: 5px; text-decoration: none; font-weight: bold;
-        }
+       # ✅ CODE MODIFIÉ
     </style>
     <div class="main-header">
         <div class="header-title">Utilisateurs de Creos Extrascolaire</div>
-        <a href="https://timetracking-az7ibzngb3zrfbgmrgygn8.streamlit.app" target="_blank" class="tt-button">⏱️ Time Tracking</a>
     </div>
 """, unsafe_allow_html=True)
 
