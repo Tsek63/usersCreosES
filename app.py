@@ -1,4 +1,3 @@
-
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -11,12 +10,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date
 
-
-
-
-# --- TIME TRACKING : ID de la feuille Google Sheets ---
-# ⚠️ Mettre ici l'ID de Creos_DB après avoir copié l'onglet "Data" dedans
-TT_SHEET_ID = "1Eu-k4-jGVfRVNYJcCKV_dIlqkIFaRUK-J5rtV0c6z8E"  # À remplacer par l'ID de Creos_DB
+# --- CONFIGURATION & IDENTIFIANTS ---
+TT_SHEET_ID = "1Eu-k4-jGVfRVNYJcCKV_dIlqkIFaRUK-J5rtV0c6z8E"
 TT_SHEET_NAME = "Data"
 
 LISTE_REDACTEURS = ["Véronique Maigrié", "Sylvie Nyssen"]
@@ -30,6 +25,58 @@ LISTE_TACHES = [
     "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
     "NETTOYAGES DES DONNEES CREOS", "Briefing DEV"
 ]
+
+# --- HARMONISATION DE LA CONNEXION ---
+@st.cache_resource
+def get_google_creds():
+    """Récupère les identifiants depuis le bloc unique des secrets"""
+    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+    return Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+
+def get_tt_gsheet():
+    try:
+        creds = get_google_creds()
+        client = gspread.authorize(creds)
+        return client.open_by_key(TT_SHEET_ID).worksheet(TT_SHEET_NAME)
+    except Exception as e:
+        st.error(f"Erreur connexion Time Tracking : {e}")
+        return None
+
+def load_tt_data():
+    columns = ["date", "intervenante", "tache", "quantite", "nb_ecoles"]
+    try:
+        ws = get_tt_gsheet()
+        if ws:
+            data = ws.get_all_records()
+            df = pd.DataFrame(data)
+            if df.empty:
+                return pd.DataFrame(columns=columns)
+            df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
+            return df.dropna(subset=['date'])
+    except:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(columns=columns)
+
+# --- INITIALISATION DE L'APP ---
+st.set_page_config(layout="wide", page_title="Creos Extrascolaire")
+
+# Connexion standard GSheets utilisant le même bloc de secrets
+# On force l'utilisation du dictionnaire gcp_service_account
+conn = st.connection("gsheets", type=GSheetsConnection, **st.secrets["gcp_service_account"])
+
+# --- CHARGEMENT DES FEUILLES ---
+try:
+    df_ecoles = conn.read(worksheet="Ecoles", ttl=600).dropna(how="all")
+    for col in ['Fase PO', 'Fase école', 'Code postal']:
+        if col in df_ecoles.columns:
+            df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
+except Exception as e:
+    df_ecoles = pd.DataFrame()
+    st.error(f"⚠️ Impossible de lire la feuille 'Ecoles' : {e}")
+
+# ... (Le reste du code pour les fonctions de génération HTML et les onglets reste identique)
+# Veillez simplement à ce que l'appel load_tt_data() soit présent 
+# dans l'initialisation du session_state du Tab Time Tracking.
 
 def get_tt_gsheet():
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
