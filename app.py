@@ -1054,10 +1054,7 @@ with tab4:
             st.warning("Aucun résultat pour ces filtres.")
 
 with tab5:
-    try:
-        AppTimeTracking.run(conn)
-    except Exception as e:
-        st.error(f"Erreur Time Tracking : {e}")
+    AppTimeTracking.run(conn)
 
 
 # --- FOOTER ---
