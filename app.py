@@ -1,8 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-# ... tous tes autres imports originaux
-import AppTimeTracking  # <-- ajouté pour le nouvel onglet
+# tes autres imports...
+import AppTimeTracking
+
+# <-- nouveau import pour la connexion Google Sheets
+from st_gsheets_connection import GSheetsConnection
 
 # Configuration page
 st.set_page_config(layout="wide")
