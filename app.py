@@ -990,10 +990,33 @@ with tab4:
             _btn_html4 += f'<script>{_js_fn4}</script>'
             components.html(_btn_html4, height=50)
 
-        # --- Ligne 2: Tableau + Graphiques ---
+        # --- Ligne 2: Liste avec boutons suppression + Graphiques ---
         col_list4, col_viz4 = st.columns([6, 4], gap="medium")
         with col_list4:
-            st.dataframe(df_display4, use_container_width=True, hide_index=True, height=450)
+            # En-tête
+            h1, h2, h3, h4, h5 = st.columns([2, 2, 3, 2, 1])
+            h1.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>Commune</div>", unsafe_allow_html=True)
+            h2.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>Paiement</div>", unsafe_allow_html=True)
+            h3.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>École</div>", unsafe_allow_html=True)
+            h4.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'>Services</div>", unsafe_allow_html=True)
+            h5.markdown("<div style='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid #e2e8f0;'></div>", unsafe_allow_html=True)
+            # Lignes
+            for _, row4 in df_sorted4.iterrows():
+                r1, r2, r3, r4, r5 = st.columns([2, 2, 3, 2, 1])
+                r1.markdown(f"<div style='font-size:12px;padding:6px 2px;border-bottom:1px solid #f1f5f9;'>{row4.get('Commune','')}</div>", unsafe_allow_html=True)
+                pay4 = row4.get('Paiement','')
+                pay_color = '#ec4899' if 'Pré' in str(pay4) else '#38bdf8'
+                r2.markdown(f"<div style='font-size:11px;padding:6px 2px;border-bottom:1px solid #f1f5f9;color:{pay_color};font-weight:600;'>{pay4}</div>", unsafe_allow_html=True)
+                r3.markdown(f"<div style='font-size:12px;padding:6px 2px;border-bottom:1px solid #f1f5f9;'>{row4.get('Ecole', row4.get('Fase école',''))}</div>", unsafe_allow_html=True)
+                svc4 = str(row4.get('Services',''))
+                svc_short = svc4[:30] + '…' if len(svc4) > 30 else svc4
+                r4.markdown(f"<div style='font-size:11px;padding:6px 2px;border-bottom:1px solid #f1f5f9;color:#475569;' title='{svc4}'>{svc_short}</div>", unsafe_allow_html=True)
+                fase4 = str(row4.get('Fase école',''))
+                if r5.button("🗑️", key=f"del4_{fase4}", help=f"Supprimer {row4.get('Ecole', fase4)}"):
+                    df_upd_del = df_config[df_config['Fase école'].astype(str) != fase4].reset_index(drop=True)
+                    conn.update(worksheet="EcolesConfig", data=df_upd_del)
+                    st.cache_data.clear()
+                    st.rerun()
         with col_viz4:
             p_c4 = df_display4['Paiement'].value_counts().reset_index()
             fig_p4 = px.pie(p_c4, values='count', names='Paiement', hole=0.4, title="Modes de Paiement",
