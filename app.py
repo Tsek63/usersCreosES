@@ -5,7 +5,7 @@ import plotly.express as px
 import AppTimeTracking
 
 # <-- nouveau import pour la connexion Google Sheets
-from st_gsheets_connection import GSheetsConnection
+from streamlit_gsheets import GSheetsConnection
 
 # Configuration page
 st.set_page_config(layout="wide")
