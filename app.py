@@ -6,7 +6,54 @@ import streamlit.components.v1 as components
 import io
 import base64
 import plotly.express as px
+import gspread
+from google.oauth2.service_account import Credentials
+from datetime import date
 
+
+
+
+# --- TIME TRACKING : ID de la feuille Google Sheets ---
+# ⚠️ Mettre ici l'ID de Creos_DB après avoir copié l'onglet "Data" dedans
+TT_SHEET_ID = "195v8jf2n1jjVQuWlw1s_ka32bu0K13mGrTUnksEp3GU"  # À remplacer par l'ID de Creos_DB
+TT_SHEET_NAME = "Data"
+
+LISTE_REDACTEURS = ["Véronique Maigrié", "Sylvie Nyssen"]
+COULEURS_MAP = {"Véronique Maigrié": "#FF00FF", "Sylvie Nyssen": "#008080"}
+LISTE_TACHES = [
+    "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
+    "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
+    "MAIL DIVERS", "MODIFICATIONS FICHIER PO", "JOURNEE DE FORMATION",
+    "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT",
+    "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
+    "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
+    "NETTOYAGES DES DONNEES CREOS", "Briefing DEV"
+]
+
+def get_tt_gsheet():
+    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+    try:
+        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+        client = gspread.authorize(creds)
+        return client.open_by_key(TT_SHEET_ID).worksheet(TT_SHEET_NAME)
+    except Exception as e:
+        st.error(f"Erreur connexion Time Tracking : {e}")
+        return None
+
+def load_tt_data():
+    columns = ["date", "intervenante", "tache", "quantite", "nb_ecoles"]
+    try:
+        ws = get_tt_gsheet()
+        if ws:
+            data = ws.get_all_records()
+            df = pd.DataFrame(data)
+            if df.empty:
+                return pd.DataFrame(columns=columns)
+            df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
+            return df.dropna(subset=['date'])
+    except:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(columns=columns)
 
 # Helper : détecte si un PO est une Province
 def is_province(name):
@@ -41,7 +88,7 @@ st.markdown("""
     </style>
     <div class="main-header">
         <div class="header-title">Utilisateurs de Creos Extrascolaire</div>
-        <a href="https://timetracking-az7ibzngb3zrfbgmrgygn8.streamlit.app" target="_blank" class="tt-button">⏱️ Time Tracking</a>
+
     </div>
 """, unsafe_allow_html=True)
 
@@ -314,10 +361,14 @@ else:
 
 
 # --- 4. TABS ---
-tab1, tab3, tab4 = st.tabs([
+# Initialisation session_state Time Tracking
+if 'df_act' not in st.session_state:
+    st.session_state.df_act = load_tt_data()
+tab1, tab3, tab4, tab_tt = st.tabs([
     "📊 Tableau de bord et Carte",
     "🏫 Écoles par Commune",
-    "⚙️ Gestion des Écoles"
+    "⚙️ Gestion des Écoles",
+    "⏱️ Time Tracking"
 ])
 
 # ============================================================
@@ -1051,6 +1102,141 @@ with tab4:
         else:
             st.warning("Aucun résultat pour ces filtres.")
 
+
+
+
+# ============================================================
+# --- TAB TIME TRACKING ---
+# ============================================================
+with tab_tt:
+    st.markdown("""
+        <style>
+        .tt-header { background: linear-gradient(135deg, #1e293b, #334155);
+            color: white; padding: 16px 24px; border-radius: 10px; margin-bottom: 18px; }
+        </style>
+        <div class="tt-header">
+            <span style="font-size:22px; font-weight:bold;">⏱️ Creos Extrascolaire — Time Tracking</span>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Contrôles inline (remplace la sidebar)
+    ctrl1, ctrl2, ctrl3 = st.columns([1, 1, 0.5])
+    with ctrl1:
+        tt_date = st.date_input("📅 Date", date.today(), key="tt_date")
+    with ctrl2:
+        tt_inter = st.selectbox("👤 Intervenante", LISTE_REDACTEURS, key="tt_inter")
+    with ctrl3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 Rafraîchir", key="tt_refresh"):
+            st.session_state.df_act = load_tt_data()
+            st.rerun()
+
+    st.divider()
+
+    # Encodage + Récap du jour
+    enc_col, recap_col = st.columns([1, 1.2])
+
+    with enc_col:
+        st.subheader("📝 Encodage")
+        t_sel = st.selectbox("Action", LISTE_TACHES, key="tt_tache")
+        with st.form("form_tt_saisie", clear_on_submit=True):
+            qte = st.number_input("Quantité", min_value=1, step=1, key="tt_qte")
+            ecoles = 0
+            if t_sel == "NETTOYAGES DES DONNEES CREOS":
+                ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1, key="tt_ecoles")
+            if st.form_submit_button("💾 Enregistrer"):
+                ws = get_tt_gsheet()
+                if ws:
+                    ws.append_row([str(tt_date), tt_inter, t_sel, int(qte), int(ecoles)])
+                    st.session_state.df_act = load_tt_data()
+                    st.success("Donnée ajoutée !")
+                    st.rerun()
+
+    with recap_col:
+        st.subheader(f"📋 Détails du {tt_date.strftime('%d/%m/%Y')}")
+        df_j = st.session_state.df_act[st.session_state.df_act['date'] == tt_date].copy()
+        if not df_j.empty:
+            for i, row in df_j.iterrows():
+                ca, cb = st.columns([5, 1])
+                ca.write(f"**{row['intervenante']}** | {row['tache']} ({row['quantite']})")
+                if cb.button("🗑️", key=f"tt_del_{i}"):
+                    ws = get_tt_gsheet()
+                    if ws:
+                        ws.delete_rows(int(i) + 2)
+                        st.session_state.df_act = load_tt_data()
+                        st.rerun()
+        else:
+            st.info("Aucune donnée pour ce jour.")
+
+    st.divider()
+    st.header("📊 Statistiques & Synthèse")
+
+    if not st.session_state.df_act.empty:
+        ff1, ff2, ff3 = st.columns([1, 1, 1.5])
+        with ff1:
+            tt_per = st.date_input(
+                "Sélectionnez la période",
+                [min(st.session_state.df_act['date']), max(st.session_state.df_act['date'])],
+                key="tt_period"
+            )
+        with ff2:
+            tt_f_int = st.multiselect("Filtrer Intervenantes", LISTE_REDACTEURS, default=LISTE_REDACTEURS, key="tt_f_int")
+        with ff3:
+            tt_f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES, key="tt_f_tac")
+
+        df_f = st.session_state.df_act.copy()
+        p_start, p_end = (tt_per[0], tt_per[1]) if len(tt_per) == 2 else (tt_per[0], tt_per[0])
+        df_f = df_f[(df_f['date'] >= p_start) & (df_f['date'] <= p_end)]
+        if tt_f_int: df_f = df_f[df_f['intervenante'].isin(tt_f_int)]
+        if tt_f_tac: df_f = df_f[df_f['tache'].isin(tt_f_tac)]
+
+        if not df_f.empty:
+            g1, g2 = st.columns(2)
+            with g1:
+                fig1 = px.pie(df_f, names='intervenante', values='quantite',
+                              color='intervenante', color_discrete_map=COULEURS_MAP,
+                              title="Répartition par Intervenante")
+                st.plotly_chart(fig1, use_container_width=True)
+            with g2:
+                fig2 = px.pie(df_f, names='tache', values='quantite',
+                              title="Répartition par Tâche",
+                              color_discrete_sequence=px.colors.qualitative.Safe)
+                st.plotly_chart(fig2, use_container_width=True)
+
+            st.markdown("---")
+            df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
+            df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
+
+            # Export Excel
+            tt_output = io.BytesIO()
+            with pd.ExcelWriter(tt_output, engine='xlsxwriter') as writer:
+                header_info = pd.DataFrame([
+                    ["TITRE :", "Creos Extrascolaire - Time tracking"],
+                    ["PÉRIODE :", f"Du {p_start} au {p_end}"],
+                    ["DATE EXPORT :", str(date.today())],
+                    []
+                ])
+                header_info.to_excel(writer, index=False, header=False, sheet_name='Synthèse', startrow=0)
+                df_synth.to_excel(writer, index=False, sheet_name='Synthèse', startrow=5)
+                df_f.to_excel(writer, index=False, sheet_name='Données Brutes')
+                writer.sheets['Synthèse'].set_column('A:C', 25)
+            tt_excel = tt_output.getvalue()
+
+            col_txt2, col_btn2 = st.columns([3, 1])
+            with col_txt2: st.subheader("📋 Synthèse par tâche")
+            with col_btn2:
+                st.download_button(
+                    label="📥 Exporter vers Excel",
+                    data=tt_excel,
+                    file_name=f"Creos_Tracking_{p_start}_{p_end}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            st.table(df_synth)
+            st.metric(label="TOTAL GÉNÉRAL", value=int(df_synth["Total Quantité"].sum()))
+        else:
+            st.warning("Aucune donnée pour les filtres sélectionnés.")
+    else:
+        st.info("La base est vide.")
 
 
 # --- FOOTER ---
