@@ -166,7 +166,31 @@ def run(conn):
                 st.subheader("📋 Synthèse par tâche")
                 st.dataframe(df_synth, use_container_width=True, hide_index=True)
             
-            with col_metric:
+# --- STYLE PERSONNALISÉ POUR LE BOUTON BLEU CANARD ---
+                st.markdown("""
+                    <style>
+                    div.stDownloadButton > button {
+                        background-color: #008080 !important;
+                        color: white !important;
+                        border: none !important;
+                    }
+                    div.stDownloadButton > button:hover {
+                        background-color: #006666 !important;
+                        color: white !important;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+
+                # --- AFFICHAGE DU BOUTON ---
+                if excel_data:
+                    st.download_button(
+                        label="📥 Export Excel",
+                        data=excel_data,
+                        file_name=f"Synthese_{date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                        # Note: on retire type="primary" pour laisser notre style CSS agir
+                    )
                 # --- PRÉPARATION DE L'EXPORT (Logique invisible) ---
                 import io
                 def to_excel(df_to_export, start_date, end_date):
