@@ -166,22 +166,49 @@ def run(conn):
                 st.subheader("📋 Synthèse par tâche")
                 st.dataframe(df_synth, use_container_width=True, hide_index=True)
             
-# --- STYLE PERSONNALISÉ POUR LE BOUTON BLEU CANARD ---
+with col_metric:
+                # 1. Préparation des données pour l'export (Logique)
+                import io
+                
+                def to_excel(df_to_export, start_date, end_date):
+                    output = io.BytesIO()
+                    try:
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            df_to_export.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
+                            workbook  = writer.book
+                            worksheet = writer.sheets['Synthese']
+                            header_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
+                            date_format = workbook.add_format({'italic': True, 'font_size': 10})
+                            worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_format)
+                            worksheet.write('A2', f"Période : du {start_date} au {end_date}")
+                            worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}", date_format)
+                            for i, col in enumerate(df_to_export.columns):
+                                column_len = max(df_to_export[col].astype(str).str.len().max(), len(col)) + 2
+                                worksheet.set_column(i, i, column_len)
+                        return output.getvalue()
+                    except:
+                        return None
+
+                # CRUCIAL : On génère la donnée AVANT de vouloir l'afficher
+                excel_data = to_excel(df_synth, date_start, date_end)
+
+                # 2. Style CSS pour le bouton bleu canard
                 st.markdown("""
                     <style>
                     div.stDownloadButton > button {
                         background-color: #008080 !important;
                         color: white !important;
                         border: none !important;
+                        height: 3em !important;
                     }
                     div.stDownloadButton > button:hover {
                         background-color: #006666 !important;
-                        color: white !important;
+                        border: none !important;
                     }
                     </style>
                 """, unsafe_allow_html=True)
 
-                # --- AFFICHAGE DU BOUTON ---
+                # 3. Affichage du bouton
                 if excel_data:
                     st.download_button(
                         label="📥 Export Excel",
@@ -189,8 +216,16 @@ def run(conn):
                         file_name=f"Synthese_{date.today()}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
-                        # Note: on retire type="primary" pour laisser notre style CSS agir
                     )
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # 4. Le total général
+                st.metric(
+                    label="TOTAL GÉNÉRAL",
+                    value=int(df_synth["Total Quantité"].sum()),
+                    delta="heures/actions"
+                )
                 # --- PRÉPARATION DE L'EXPORT (Logique invisible) ---
                 import io
                 def to_excel(df_to_export, start_date, end_date):
