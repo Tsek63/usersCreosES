@@ -275,17 +275,4 @@ def run(conn):
             output.seek(0)
             
             # Bouton d'export
-            col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 2])
-            with col_btn2:
-                st.download_button(
-                    label="📥 Exporter vers Excel",
-                    data=output.getvalue(),
-                    file_name=f"time_tracking_{date_start.strftime('%Y%m%d')}_to_{date_end.strftime('%Y%m%d')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-            
-        else:
-            st.warning("❌ Aucune donnée pour les filtres sélectionnés.")
-    else:
-        st.info("La
+            col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 2
