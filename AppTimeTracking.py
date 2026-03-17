@@ -3,6 +3,7 @@ def run(conn):
     import pandas as pd
     from datetime import date
     import plotly.express as px
+    import io
 
     st.subheader("⏱️ Time Tracking")
 
@@ -40,21 +41,14 @@ def run(conn):
     # --- COLONNE 1 : ENCODAGE ---
     with c1:
         st.subheader("📝 Encodage")
-        
-        # Sélection de l'intervenante
         intervenantes = sorted(df["intervenante"].dropna().unique().tolist())
         if not intervenantes:
             st.warning("Aucune intervenante trouvée dans les données.")
             return
         user = st.selectbox("Intervenante", intervenantes)
-        
-        # Sélection de la date
         selected_date = st.date_input("Date", value=date.today())
-        
-        # Sélection de la tâche
         tache = st.selectbox("Tâche", LISTE_TACHES)
 
-        # Formulaire d'encodage
         with st.form("form_saisie", clear_on_submit=True):
             quantite = st.number_input("Quantité", min_value=1, step=1, value=1)
             nb_ecoles = 0
@@ -80,12 +74,9 @@ def run(conn):
     # --- COLONNE 2 : DÉTAILS DU JOUR ---
     with c2:
         st.subheader(f"📋 Détails du {selected_date.strftime('%d/%m/%Y')}")
-        
-        # Conversion des dates
         df_copy = df.copy()
         df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
         df_j = df_copy[df_copy["date"] == selected_date].copy()
-        
         if not df_j.empty:
             for i, row in df_j.iterrows():
                 st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
@@ -100,14 +91,10 @@ def run(conn):
     df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
 
     if not df_copy.empty:
-        # Filtres
         f1, f2, f3 = st.columns([1, 1, 1.5])
-        
         with f1:
-            per = st.date_input("Sélectionnez la période", 
-                               [min(df_copy['date']), max(df_copy['date'])])
+            per = st.date_input("Sélectionnez la période", [min(df_copy['date']), max(df_copy['date'])])
         
-        # Gérer le cas où per est un tuple ou une date unique
         if isinstance(per, (list, tuple)) and len(per) == 2:
             date_start, date_end = per[0], per[1]
         else:
@@ -115,156 +102,66 @@ def run(conn):
         
         with f2:
             intervenantes_list = sorted(df_copy["intervenante"].dropna().unique())
-            f_int = st.multiselect("Filtrer Intervenantes", intervenantes_list, 
-                                   default=intervenantes_list)
+            f_int = st.multiselect("Filtrer Intervenantes", intervenantes_list, default=intervenantes_list)
         
         with f3:
             f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES)
 
-        # Appliquer les filtres
         df_f = df_copy.copy()
         df_f = df_f[(df_f['date'] >= date_start) & (df_f['date'] <= date_end)]
-        
-        if f_int: 
-            df_f = df_f[df_f['intervenante'].isin(f_int)]
-        if f_tac: 
-            df_f = df_f[df_f['tache'].isin(f_tac)]
+        if f_int: df_f = df_f[df_f['intervenante'].isin(f_int)]
+        if f_tac: df_f = df_f[df_f['tache'].isin(f_tac)]
 
         if not df_f.empty:
-            # Graphiques
             g1, g2 = st.columns(2)
-            
             with g1:
-                try:
-                    fig1 = px.pie(df_f, names='intervenante', values='quantite', 
-                                color='intervenante', color_discrete_map=COULEURS_MAP,
-                                title="Répartition par Intervenante")
-                    st.plotly_chart(fig1, use_container_width=True)
-                except Exception:
-                    st.info("Pas assez de données pour le graphique 'Répartition par Intervenante'")
-            
+                fig1 = px.pie(df_f, names='intervenante', values='quantite', color='intervenante', color_discrete_map=COULEURS_MAP, title="Répartition par Intervenante")
+                st.plotly_chart(fig1, use_container_width=True)
             with g2:
-                try:
-                    fig2 = px.pie(df_f, names='tache', values='quantite',
-                                title="Répartition par Tâche",
-                                color_discrete_sequence=px.colors.qualitative.Safe)
-                    st.plotly_chart(fig2, use_container_width=True)
-                except Exception:
-                    st.info("Pas assez de données pour le graphique 'Répartition par Tâche'")
+                fig2 = px.pie(df_f, names='tache', values='quantite', title="Répartition par Tâche", color_discrete_sequence=px.colors.qualitative.Safe)
+                st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
             
-            # Synthèse par tâche
+            # Calcul de la synthèse
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
             df_synth = df_synth.sort_values("Total Quantité", ascending=False)
             
-# --- SECTION SYNTHÈSE ET EXPORT ---
-            col_synth, col_metric = st.columns([3, 1.2]) # Légère augmentation de la largeur droite
-
+            # --- AFFICHAGE FINAL ---
+            col_synth, col_metric = st.columns([3, 1.2])
             with col_synth:
                 st.subheader("📋 Synthèse par tâche")
                 st.dataframe(df_synth, use_container_width=True, hide_index=True)
             
-with col_metric:
-                # 1. Préparation des données pour l'export (Logique)
-                import io
-                
+            with col_metric:
+                # Préparation du fichier Excel
                 def to_excel(df_to_export, start_date, end_date):
                     output = io.BytesIO()
                     try:
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                             df_to_export.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
-                            workbook  = writer.book
-                            worksheet = writer.sheets['Synthese']
-                            header_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
-                            date_format = workbook.add_format({'italic': True, 'font_size': 10})
-                            worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_format)
+                            workbook, worksheet = writer.book, writer.sheets['Synthese']
+                            header_fmt = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
+                            worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_fmt)
                             worksheet.write('A2', f"Période : du {start_date} au {end_date}")
-                            worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}", date_format)
+                            worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}")
                             for i, col in enumerate(df_to_export.columns):
                                 column_len = max(df_to_export[col].astype(str).str.len().max(), len(col)) + 2
                                 worksheet.set_column(i, i, column_len)
                         return output.getvalue()
-                    except:
-                        return None
-
-                # CRUCIAL : On génère la donnée AVANT de vouloir l'afficher
-                excel_data = to_excel(df_synth, date_start, date_end)
-
-                # 2. Style CSS pour le bouton bleu canard
-                st.markdown("""
-                    <style>
-                    div.stDownloadButton > button {
-                        background-color: #008080 !important;
-                        color: white !important;
-                        border: none !important;
-                        height: 3em !important;
-                    }
-                    div.stDownloadButton > button:hover {
-                        background-color: #006666 !important;
-                        border: none !important;
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
-
-                # 3. Affichage du bouton
-                if excel_data:
-                    st.download_button(
-                        label="📥 Export Excel",
-                        data=excel_data,
-                        file_name=f"Synthese_{date.today()}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                # 4. Le total général
-                st.metric(
-                    label="TOTAL GÉNÉRAL",
-                    value=int(df_synth["Total Quantité"].sum()),
-                    delta="heures/actions"
-                )
-                # --- PRÉPARATION DE L'EXPORT (Logique invisible) ---
-                import io
-                def to_excel(df_to_export, start_date, end_date):
-                    output = io.BytesIO()
-                    try:
-                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            df_to_export.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
-                            workbook  = writer.book
-                            worksheet = writer.sheets['Synthese']
-                            header_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
-                            date_format = workbook.add_format({'italic': True, 'font_size': 10})
-                            worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_format)
-                            worksheet.write('A2', f"Période : du {start_date} au {end_date}")
-                            worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}", date_format)
-                            for i, col in enumerate(df_to_export.columns):
-                                column_len = max(df_to_export[col].astype(str).str.len().max(), len(col)) + 2
-                                worksheet.set_column(i, i, column_len)
-                        return output.getvalue()
-                    except:
-                        return None
+                    except: return None
 
                 excel_data = to_excel(df_synth, date_start, date_end)
 
-                # --- AFFICHAGE DANS LA COLONNE DROITE ---
-                # Le bouton placé AU-DESSUS du metric
+                # Style du bouton
+                st.markdown("""<style> div.stDownloadButton > button { background-color: #008080 !important; color: white !important; height: 3em !important; } </style>""", unsafe_allow_html=True)
+
                 if excel_data:
-                    st.download_button(
-                        label="📥 Export Excel",
-                        data=excel_data,
-                        file_name=f"Synthese_{date.today()}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        type="primary" # Utilise la couleur principale (souvent bleu/bleu canard par défaut)
-                    )
+                    st.download_button(label="📥 Export Excel", data=excel_data, file_name=f"Synthese_{date.today()}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
                 
-                st.markdown("<br>", unsafe_allow_html=True) # Petit espace visuel
-                
-                st.metric(
-                    label="TOTAL GÉNÉRAL",
-                    value=int(df_synth["Total Quantité"].sum()),
-                    delta="heures/actions"
-                )
+                st.metric(label="TOTAL GÉNÉRAL", value=int(df_synth["Total Quantité"].sum()), delta="heures/actions")
+        else:
+            st.warning("❌ Aucune donnée pour les filtres sélectionnés.")
+    else:
+        st.info("La base est vide. Commencez par ajouter des entrées !")
