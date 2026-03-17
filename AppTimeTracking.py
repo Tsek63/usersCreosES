@@ -172,48 +172,53 @@ def run(conn):
                     value=total_gen,
                     delta="heures/actions"
                 )
+# --- SECTION SYNTHÈSE ET EXPORT ---
+            col_synth, col_metric = st.columns([3, 1.2]) # Légère augmentation de la largeur droite
 
-            # --- FONCTION D'EXPORT EXCEL ---
-            import io
+            with col_synth:
+                st.subheader("📋 Synthèse par tâche")
+                st.dataframe(df_synth, use_container_width=True, hide_index=True)
             
-            # Fonction pour transformer le dataframe en fichier Excel formaté
-            def to_excel(df_to_export, start_date, end_date):
-                output = io.BytesIO()
-                try:
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        df_to_export.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
-                        
-                        workbook  = writer.book
-                        worksheet = writer.sheets['Synthese']
-                        
-                        # Formats de cellule
-                        header_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
-                        date_format = workbook.add_format({'italic': True, 'font_size': 10})
+            with col_metric:
+                # --- PRÉPARATION DE L'EXPORT (Logique invisible) ---
+                import io
+                def to_excel(df_to_export, start_date, end_date):
+                    output = io.BytesIO()
+                    try:
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            df_to_export.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
+                            workbook  = writer.book
+                            worksheet = writer.sheets['Synthese']
+                            header_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
+                            date_format = workbook.add_format({'italic': True, 'font_size': 10})
+                            worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_format)
+                            worksheet.write('A2', f"Période : du {start_date} au {end_date}")
+                            worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}", date_format)
+                            for i, col in enumerate(df_to_export.columns):
+                                column_len = max(df_to_export[col].astype(str).str.len().max(), len(col)) + 2
+                                worksheet.set_column(i, i, column_len)
+                        return output.getvalue()
+                    except:
+                        return None
 
-                        # Ajout des informations demandées en haut du fichier
-                        worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_format)
-                        worksheet.write('A2', f"Période : du {start_date} au {end_date}")
-                        worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}", date_format)
-                        
-                        # Ajustement automatique de la largeur des colonnes
-                        for i, col in enumerate(df_to_export.columns):
-                            column_len = max(df_to_export[col].astype(str).str.len().max(), len(col)) + 2
-                            worksheet.set_column(i, i, column_len)
-                            
-                    return output.getvalue()
-                except Exception as e:
-                    return None
+                excel_data = to_excel(df_synth, date_start, date_end)
 
-            # Préparation et affichage du bouton
-            excel_data = to_excel(df_synth, date_start, date_end)
-            
-            if excel_data:
-                st.download_button(
-                    label="📥 Exporter la synthèse vers Excel",
-                    data=excel_data,
-                    file_name=f"Synthese_TimeTracking_{date.today()}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
+                # --- AFFICHAGE DANS LA COLONNE DROITE ---
+                # Le bouton placé AU-DESSUS du metric
+                if excel_data:
+                    st.download_button(
+                        label="📥 Export Excel",
+                        data=excel_data,
+                        file_name=f"Synthese_{date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        type="primary" # Utilise la couleur principale (souvent bleu/bleu canard par défaut)
+                    )
+                
+                st.markdown("<br>", unsafe_allow_html=True) # Petit espace visuel
+                
+                st.metric(
+                    label="TOTAL GÉNÉRAL",
+                    value=int(df_synth["Total Quantité"].sum()),
+                    delta="heures/actions"
                 )
-            else:
-                st.error("Erreur lors de la préparation de l'export (vérifiez si 'xlsxwriter' est installé).")
