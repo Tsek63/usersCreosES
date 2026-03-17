@@ -159,19 +159,6 @@ def run(conn):
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
             df_synth = df_synth.sort_values("Total Quantité", ascending=False)
             
-# --- SYNTHÈSE ET EXPORT ---
-            col_synth, col_metric = st.columns([3, 1])
-            with col_synth:
-                st.subheader("📋 Synthèse par tâche")
-                st.dataframe(df_synth, use_container_width=True, hide_index=True)
-            
-            with col_metric:
-                total_gen = int(df_synth["Total Quantité"].sum())
-                st.metric(
-                    label="TOTAL GÉNÉRAL",
-                    value=total_gen,
-                    delta="heures/actions"
-                )
 # --- SECTION SYNTHÈSE ET EXPORT ---
             col_synth, col_metric = st.columns([3, 1.2]) # Légère augmentation de la largeur droite
 
