@@ -315,7 +315,7 @@ tab1, tab3, tab4, tab5 = st.tabs([
     "📊 Tableau de bord et Carte",
     "🏫 Écoles par Commune",
     "⚙️ Gestion des Écoles",
-     "👥 Time Tracking"
+     "⏱️ Time Tracking"
 ])
 
 # ============================================================
