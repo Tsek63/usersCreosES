@@ -7,16 +7,17 @@ def run(conn):
 
     st.subheader("⏱️ Time Tracking")
 
-# --- CONFIGURATION ET PARAMÈTRES ---
-LISTE_TACHES = sorted([
-    "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
-    "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
-    "MAIL DIVERS", "MODIFICATIONS FICHIER PO", "JOURNEE DE FORMATION",
-    "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT", 
-    "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
-    "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
-    "NETTOYAGES DES DONNEES CREOS", "BRIEFING DEV"
-])
+    # --- CONFIGURATION ET PARAMÈTRES ---
+    # La liste est maintenant triée par ordre alphabétique dès le départ
+    LISTE_TACHES = sorted([
+        "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
+        "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
+        "MAIL DIVERS", "MODIFICATIONS FICHIER PO", "JOURNEE DE FORMATION",
+        "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT", 
+        "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
+        "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
+        "NETTOYAGES DES DONNEES CREOS", "BRIEFING DEV"
+    ])
 
     COULEURS_MAP = {
         "Véronique Maigrié": "#FF00FF",
@@ -126,6 +127,8 @@ LISTE_TACHES = sorted([
             # Calcul de la synthèse
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
+            
+            # Tri par nom de tâche au lieu de la quantité
             df_synth = df_synth.sort_values("Action / Tâche", ascending=True)
             
             # --- AFFICHAGE FINAL ---
@@ -154,7 +157,6 @@ LISTE_TACHES = sorted([
 
                 excel_data = to_excel(df_synth, date_start, date_end)
 
-                # Style du bouton
                 st.markdown("""<style> div.stDownloadButton > button { background-color: #008080 !important; color: white !important; height: 3em !important; } </style>""", unsafe_allow_html=True)
 
                 if excel_data:
