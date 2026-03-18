@@ -78,28 +78,33 @@ def run(conn):
         df_copy = df.copy()
         df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
         
-        # On récupère les indices originaux pour pouvoir supprimer la bonne ligne
         df_j = df_copy[df_copy["date"] == selected_date]
         
         if not df_j.empty:
             for i, row in df_j.iterrows():
-                # Création de deux colonnes : une pour le texte, une petite pour le bouton
-                col_txt, col_btn = st.columns([0.85, 0.15])
+                col_txt, col_btn = st.columns([0.80, 0.20])
                 
                 with col_txt:
                     st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
                 
                 with col_btn:
-                    # Bouton poubelle avec une clé unique basée sur l'index
+                    # État de confirmation spécifique à chaque ligne
                     if st.button("🗑️", key=f"del_{i}"):
-                        # Suppression de la ligne par son index
-                        df_updated = df.drop(i)
-                        try:
-                            conn.update(worksheet="TimeTracking", data=df_updated)
-                            st.success("Supprimé !")
+                        st.session_state[f"confirm_{i}"] = True
+                    
+                    if st.session_state.get(f"confirm_{i}"):
+                        st.warning("Supprimer ?")
+                        if st.button("OUI ✅", key=f"yes_{i}"):
+                            df_updated = df.drop(i)
+                            try:
+                                conn.update(worksheet="TimeTracking", data=df_updated)
+                                del st.session_state[f"confirm_{i}"] # Nettoyage
+                                st.rerun()
+                            except Exception as e_del:
+                                st.error(f"Erreur : {e_del}")
+                        if st.button("NON ❌", key=f"no_{i}"):
+                            del st.session_state[f"confirm_{i}"]
                             st.rerun()
-                        except Exception as e_del:
-                            st.error(f"Erreur : {e_del}")
         else:
             st.info("Aucune donnée pour ce jour.")
 
