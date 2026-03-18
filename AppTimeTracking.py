@@ -162,32 +162,59 @@ def run(conn):
                 st.dataframe(df_synth, use_container_width=True, hide_index=True)
             
             with col_metric:
-                # Préparation du fichier Excel
-                def to_excel(df_to_export, start_date, end_date):
+                # --- Préparation du fichier Excel avec Graphique ---
+                def to_excel(df_to_export, df_source, start_date, end_date):
                     output = io.BytesIO()
                     try:
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            # 1. Export des données de synthèse
                             df_to_export.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
-                            workbook, worksheet = writer.book, writer.sheets['Synthese']
+                            
+                            workbook = writer.book
+                            worksheet = writer.sheets['Synthese']
+                            
+                            # Formats
                             header_fmt = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
+                            
+                            # En-têtes
                             worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_fmt)
                             worksheet.write('A2', f"Période : du {start_date} au {end_date}")
                             worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}")
+                            
+                            # Ajustement colonnes
                             for i, col in enumerate(df_to_export.columns):
                                 column_len = max(df_to_export[col].astype(str).str.len().max(), len(col)) + 2
                                 worksheet.set_column(i, i, column_len)
+
+                            # --- AJOUT DU GRAPHIQUE ---
+                            fig_export = px.pie(df_source, names='tache', values='quantite', 
+                                                title="Répartition par Tâche", 
+                                                color_discrete_sequence=px.colors.qualitative.Safe)
+                            
+                            # Conversion en image PNG
+                            img_data = fig_export.to_image(format="png", width=600, height=450)
+                            img_result = io.BytesIO(img_data)
+                            
+                            # Insertion à droite du tableau (E5)
+                            worksheet.insert_image('E5', 'plot.png', {'image_data': img_result})
+                            
                         return output.getvalue()
-                    except: return None
+                    except Exception as e:
+                        return None
 
-                excel_data = to_excel(df_synth, date_start, date_end)
+                # ATTENTION : Notez bien l'ajout de "df_f" ici dans l'appel
+                excel_data = to_excel(df_synth, df_f, date_start, date_end)
 
+                # Style du bouton
                 st.markdown("""<style> div.stDownloadButton > button { background-color: #008080 !important; color: white !important; height: 3em !important; } </style>""", unsafe_allow_html=True)
 
                 if excel_data:
-                    st.download_button(label="📥 Export Excel", data=excel_data, file_name=f"Synthese_{date.today()}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+                    st.download_button(
+                        label="📥 Export Excel + Graph", 
+                        data=excel_data, 
+                        file_name=f"Synthese_Complete_{date.today()}.xlsx", 
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                        use_container_width=True
+                    )
                 
                 st.metric(label="TOTAL GÉNÉRAL", value=int(df_synth["Total Quantité"].sum()), delta="heures/actions")
-        else:
-            st.warning("❌ Aucune donnée pour les filtres sélectionnés.")
-    else:
-        st.info("La base est vide. Commencez par ajouter des entrées !")
