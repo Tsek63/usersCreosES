@@ -210,7 +210,7 @@ def run(conn):
 
                 if excel_data:
                     st.download_button(
-                        label="📥 Export Excel + Graph", 
+                        label="📥 Export vers Excel", 
                         data=excel_data, 
                         file_name=f"Synthese_Complete_{date.today()}.xlsx", 
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
