@@ -7,16 +7,16 @@ def run(conn):
 
     st.subheader("⏱️ Time Tracking")
 
-    # --- CONFIGURATION ET PARAMÈTRES ---
-    LISTE_TACHES = [
-        "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
-        "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
-        "MAIL DIVERS", "MODIFICATIONS FICHIER PO", "JOURNEE DE FORMATION",
-        "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT", 
-        "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
-        "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
-        "NETTOYAGES DES DONNEES CREOS", "BRIEFING DEV"
-    ]
+# --- CONFIGURATION ET PARAMÈTRES ---
+LISTE_TACHES = sorted([
+    "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
+    "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
+    "MAIL DIVERS", "MODIFICATIONS FICHIER PO", "JOURNEE DE FORMATION",
+    "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT", 
+    "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
+    "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
+    "NETTOYAGES DES DONNEES CREOS", "BRIEFING DEV"
+])
 
     COULEURS_MAP = {
         "Véronique Maigrié": "#FF00FF",
@@ -126,7 +126,7 @@ def run(conn):
             # Calcul de la synthèse
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
-            df_synth = df_synth.sort_values("Total Quantité", ascending=False)
+            df_synth = df_synth.sort_values("Action / Tâche", ascending=True)
             
             # --- AFFICHAGE FINAL ---
             col_synth, col_metric = st.columns([3, 1.2])
