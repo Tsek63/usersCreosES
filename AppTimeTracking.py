@@ -98,7 +98,7 @@ def run(conn):
                 with col_txt:
                     st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
                 
-                with col_btn:
+          with col_btn:
     # État de confirmation spécifique à chaque ligne
     if st.button("🗑️", key=f"del_{i}"):
         st.session_state[f"confirm_{i}"] = True
@@ -116,7 +116,7 @@ def run(conn):
                 st.error(f"Erreur : {e_del}")
         if st.button("NON ❌", key=f"no_{i}"):
             del st.session_state[f"confirm_{i}"]
-            st.rerun()
+            st.rerun()      
         else:
             st.info("Aucune donnée pour ce jour.")
 
