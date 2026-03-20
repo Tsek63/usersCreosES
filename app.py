@@ -579,11 +579,54 @@ with tab3:
                             f'</div></div>',
                             unsafe_allow_html=True
                         )
-                        if st.button(f"🗑️ Supprimer", key=f"del_contact_{cidx}", use_container_width=True):
-                            df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
-                            conn.update(worksheet="Contacts", data=df_contacts_upd)
-                            st.cache_data.clear()
-                            st.rerun()
+                        btn_col1, btn_col2 = st.columns(2)
+                        with btn_col1:
+                            if st.button("✏️ Modifier", key=f"edit_contact_{cidx}", use_container_width=True):
+                                st.session_state[f"editing_contact"] = cidx
+                        with btn_col2:
+                            if st.button("🗑️ Supprimer", key=f"del_contact_{cidx}", use_container_width=True):
+                                # Annuler l'édition si on supprime le contact en cours
+                                if st.session_state.get("editing_contact") == cidx:
+                                    del st.session_state["editing_contact"]
+                                df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
+                                conn.update(worksheet="Contacts", data=df_contacts_upd)
+                                st.cache_data.clear()
+                                st.rerun()
+
+                        # Formulaire de modification inline
+                        if st.session_state.get("editing_contact") == cidx:
+                            with st.form(key=f"form_edit_contact_{cidx}"):
+                                st.markdown("**✏️ Modifier ce contact**")
+                                ef1, ef2 = st.columns(2)
+                                with ef1:
+                                    e_titre = st.text_input("Titre", value=titre, key=f"e_titre_{cidx}")
+                                    e_nom   = st.text_input("Nom et prénom", value=nom, key=f"e_nom_{cidx}")
+                                    e_tel   = st.text_input("Téléphone", value=tel, key=f"e_tel_{cidx}")
+                                with ef2:
+                                    e_gsm   = st.text_input("GSM", value=gsm, key=f"e_gsm_{cidx}")
+                                    e_mail  = st.text_input("Email", value=mail, key=f"e_mail_{cidx}")
+                                save_col, cancel_col = st.columns(2)
+                                with save_col:
+                                    submitted_edit = st.form_submit_button("💾 Enregistrer", use_container_width=True)
+                                with cancel_col:
+                                    cancelled_edit = st.form_submit_button("✖️ Annuler", use_container_width=True)
+                                if submitted_edit:
+                                    if not e_nom.strip():
+                                        st.warning("Le nom est obligatoire.")
+                                    else:
+                                        df_contacts.at[cidx, 'Titre']     = e_titre.strip()
+                                        df_contacts.at[cidx, 'Nom']       = e_nom.strip()
+                                        df_contacts.at[cidx, 'Téléphone'] = e_tel.strip()
+                                        df_contacts.at[cidx, 'GSM']       = e_gsm.strip()
+                                        df_contacts.at[cidx, 'Email']     = e_mail.strip()
+                                        conn.update(worksheet="Contacts", data=df_contacts)
+                                        st.cache_data.clear()
+                                        del st.session_state["editing_contact"]
+                                        st.success("✅ Contact mis à jour !")
+                                        st.rerun()
+                                if cancelled_edit:
+                                    del st.session_state["editing_contact"]
+                                    st.rerun()
 
             # Expander ajout d'un contact
             with st.expander("➕ Ajouter un contact extrascolaire"):
