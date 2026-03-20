@@ -230,7 +230,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Feuille Ecoles (chargée en premier — contient Province depuis la mise à jour)
 try:
-    df_ecoles = conn.read(worksheet="Ecoles", ttl=600).dropna(how="all")
+    df_ecoles = conn.read(worksheet="Ecoles", ttl=60).dropna(how="all")
     for col in ['Fase PO', 'Fase école', 'Code postal']:
         if col in df_ecoles.columns:
             df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
@@ -268,7 +268,7 @@ else:
 # Feuille EcolesConfig (Tab 4)
 _config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
 try:
-    df_config = conn.read(worksheet="EcolesConfig", ttl=0).dropna(how="all")
+    df_config = conn.read(worksheet="EcolesConfig", ttl=60).dropna(how="all")
     if df_config.empty or not all(c in df_config.columns for c in _config_cols):
         df_config = pd.DataFrame(columns=_config_cols)
     else:
@@ -280,7 +280,7 @@ except Exception:
 # Feuille Contacts (Tab 3 — contacts extrascolaire par commune)
 _contacts_cols = ["Province", "Commune", "Titre", "Nom", "Téléphone", "Email"]
 try:
-    df_contacts = conn.read(worksheet="Contacts", ttl=0).dropna(how="all")
+    df_contacts = conn.read(worksheet="Contacts", ttl=60).dropna(how="all")
     if df_contacts.empty or not all(c in df_contacts.columns for c in _contacts_cols):
         df_contacts = pd.DataFrame(columns=_contacts_cols)
 except Exception:
