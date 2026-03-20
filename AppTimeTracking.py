@@ -99,24 +99,24 @@ def run(conn):
                     st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
                 
                 with col_btn:
-                    # État de confirmation spécifique à chaque ligne
-                    if st.button("🗑️", key=f"del_{i}"):
-                        st.session_state[f"confirm_{i}"] = True
-                    
-                    if st.session_state.get(f"confirm_{i}"):
-                        st.warning("Supprimer ?")
-                       if st.button("OUI ✅", key=f"yes_{i}"):
-    df_updated = df.drop(i)
-    try:
-        conn.update(worksheet="TimeTracking", data=df_updated)
-        st.cache_data.clear()     # 🔥 IMPORTANT : recharge propre
-        del st.session_state[f"confirm_{i}"]
-        st.rerun()
-    except Exception as e_del:
-        st.error(f"Erreur : {e_del}")
-                        if st.button("NON ❌", key=f"no_{i}"):
-                            del st.session_state[f"confirm_{i}"]
-                            st.rerun()
+    # État de confirmation spécifique à chaque ligne
+    if st.button("🗑️", key=f"del_{i}"):
+        st.session_state[f"confirm_{i}"] = True
+
+    if st.session_state.get(f"confirm_{i}"):
+        st.warning("Supprimer ?")
+        if st.button("OUI ✅", key=f"yes_{i}"):
+            df_updated = df.drop(i)
+            try:
+                conn.update(worksheet="TimeTracking", data=df_updated)
+                st.cache_data.clear()     # 🔥 IMPORTANT : recharge propre
+                del st.session_state[f"confirm_{i}"]
+                st.rerun()
+            except Exception as e_del:
+                st.error(f"Erreur : {e_del}")
+        if st.button("NON ❌", key=f"no_{i}"):
+            del st.session_state[f"confirm_{i}"]
+            st.rerun()
         else:
             st.info("Aucune donnée pour ce jour.")
 
