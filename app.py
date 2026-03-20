@@ -8,6 +8,7 @@ import base64
 import plotly.express as px
 import AppTimeTracking
 
+from safe_gsheets import safe_write
 
 # Helper : détecte si un PO est une Province
 def is_province(name):
@@ -589,7 +590,7 @@ with tab3:
                                 if st.session_state.get("editing_contact") == cidx:
                                     del st.session_state["editing_contact"]
                                 df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
-                                safe_write("EcolesConfig", contacts)
+                                safe_write(conn, "Contacts", df_contacts_upd)
                                 st.cache_data.clear()
                                 st.rerun()
 
@@ -619,7 +620,7 @@ with tab3:
                                         df_contacts.at[cidx, 'Téléphone'] = e_tel.strip()
                                         df_contacts.at[cidx, 'GSM']       = e_gsm.strip()
                                         df_contacts.at[cidx, 'Email']     = e_mail.strip()
-                                        safe_write("EcolesConfig", df_upd4)(worksheet="Contacts", data=df_contacts)
+                                        safe_write(conn, "Contacts", df_contacts)
                                         st.cache_data.clear()
                                         del st.session_state["editing_contact"]
                                         st.success("✅ Contact mis à jour !")
@@ -655,7 +656,7 @@ with tab3:
                                 "Email": ct_mail.strip()
                             }])
                             df_contacts_upd = pd.concat([df_contacts, new_contact], ignore_index=True)
-                            safe_write("EcolesConfig", df_upd4)(worksheet="Contacts", data=df_contacts_upd)
+                            safe_write(conn, "Contacts", df_contacts_upd)
                             st.cache_data.clear()
                             st.success(f"✅ Contact '{ct_nom.strip()}' ajouté !")
                             st.rerun()
@@ -903,7 +904,7 @@ with tab4:
                         ignore_index=True
                     )
                     try:
-                        safe_write("EcolesConfig", df_upd4)(worksheet="EcolesConfig", data=df_upd4)
+                        safe_write(conn, "EcolesConfig", df_upd4)
                         st.success("✅ Enregistré !")
                         st.cache_data.clear()
                         st.rerun()
@@ -913,7 +914,7 @@ with tab4:
                 if deleted4:
                     df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
                     try:
-                        safe_write("EcolesConfig", df_upd4)(worksheet="EcolesConfig", data=df_upd4)
+                        safe_write(conn, "EcolesConfig", df_upd4)
                         st.success("🗑️ Supprimé !")
                         st.cache_data.clear()
                         st.rerun()
@@ -1072,7 +1073,7 @@ with tab4:
                 fase4 = str(row4.get('Fase école',''))
                 if r5.button("🗑️", key=f"del4_{fase4}", help=f"Supprimer {row4.get('Ecole', fase4)}"):
                     df_upd_del = df_config[df_config['Fase école'].astype(str) != fase4].reset_index(drop=True)
-                    safe_write("EcolesConfig", df_upd4)(worksheet="EcolesConfig", data=df_upd_del)
+                    safe_write(conn, "EcolesConfig", df_upd4)
                     st.cache_data.clear()
                     st.rerun()
         with col_viz4:
