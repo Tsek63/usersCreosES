@@ -77,7 +77,7 @@ def run(conn):
 
                 try:
                     conn.update(worksheet="TimeTracking", data=df_updated)
-                    st.cache_data.clear()   # 🔥 IMPORTANT : recharge propre
+                    st.cache_data.clear()
                     st.success("✅ Entrée ajoutée avec succès !")
                     st.rerun()
                 except Exception as e_update:
@@ -88,35 +88,35 @@ def run(conn):
         st.subheader(f"📋 Détails du {selected_date.strftime('%d/%m/%Y')}")
         df_copy = df.copy()
         df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
-        
+
         df_j = df_copy[df_copy["date"] == selected_date]
-        
+
         if not df_j.empty:
             for i, row in df_j.iterrows():
                 col_txt, col_btn = st.columns([0.80, 0.20])
-                
+
                 with col_txt:
                     st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
-                
-          with col_btn:
-    # État de confirmation spécifique à chaque ligne
-    if st.button("🗑️", key=f"del_{i}"):
-        st.session_state[f"confirm_{i}"] = True
 
-    if st.session_state.get(f"confirm_{i}"):
-        st.warning("Supprimer ?")
-        if st.button("OUI ✅", key=f"yes_{i}"):
-            df_updated = df.drop(i)
-            try:
-                conn.update(worksheet="TimeTracking", data=df_updated)
-                st.cache_data.clear()     # 🔥 IMPORTANT : recharge propre
-                del st.session_state[f"confirm_{i}"]
-                st.rerun()
-            except Exception as e_del:
-                st.error(f"Erreur : {e_del}")
-        if st.button("NON ❌", key=f"no_{i}"):
-            del st.session_state[f"confirm_{i}"]
-            st.rerun()      
+                with col_btn:
+                    if st.button("🗑️", key=f"del_{i}"):
+                        st.session_state[f"confirm_{i}"] = True
+
+                    if st.session_state.get(f"confirm_{i}"):
+                        st.warning("Supprimer ?")
+                        if st.button("OUI ✅", key=f"yes_{i}"):
+                            df_updated = df.drop(i)
+                            try:
+                                conn.update(worksheet="TimeTracking", data=df_updated)
+                                st.cache_data.clear()
+                                del st.session_state[f"confirm_{i}"]
+                                st.rerun()
+                            except Exception as e_del:
+                                st.error(f"Erreur : {e_del}")
+
+                        if st.button("NON ❌", key=f"no_{i}"):
+                            del st.session_state[f"confirm_{i}"]
+                            st.rerun()
         else:
             st.info("Aucune donnée pour ce jour.")
 
@@ -129,106 +129,127 @@ def run(conn):
 
     if not df_copy.empty:
         f1, f2, f3 = st.columns([1, 1, 1.5])
+
         with f1:
             per = st.date_input("Sélectionnez la période", [min(df_copy['date']), max(df_copy['date'])])
-        
+
         if isinstance(per, (list, tuple)) and len(per) == 2:
             date_start, date_end = per[0], per[1]
         else:
             date_start = date_end = per
-        
+
         with f2:
             intervenantes_list = sorted(df_copy["intervenante"].dropna().unique())
             f_int = st.multiselect("Filtrer Intervenantes", intervenantes_list, default=intervenantes_list)
-        
+
         with f3:
             f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES)
 
         df_f = df_copy.copy()
         df_f = df_f[(df_f['date'] >= date_start) & (df_f['date'] <= date_end)]
-        if f_int: df_f = df_f[df_f['intervenante'].isin(f_int)]
-        if f_tac: df_f = df_f[df_f['tache'].isin(f_tac)]
+        if f_int:
+            df_f = df_f[df_f['intervenante'].isin(f_int)]
+        if f_tac:
+            df_f = df_f[df_f['tache'].isin(f_tac)]
 
         if not df_f.empty:
             g1, g2 = st.columns(2)
+
             with g1:
-                fig1 = px.pie(df_f, names='intervenante', values='quantite', color='intervenante', color_discrete_map=COULEURS_MAP, title="Répartition par Intervenante")
+                fig1 = px.pie(
+                    df_f,
+                    names='intervenante',
+                    values='quantite',
+                    color='intervenante',
+                    color_discrete_map=COULEURS_MAP,
+                    title="Répartition par Intervenante"
+                )
                 st.plotly_chart(fig1, use_container_width=True)
+
             with g2:
-                fig2 = px.pie(df_f, names='tache', values='quantite', title="Répartition par Tâche", color_discrete_sequence=px.colors.qualitative.Safe)
+                fig2 = px.pie(
+                    df_f,
+                    names='tache',
+                    values='quantite',
+                    title="Répartition par Tâche",
+                    color_discrete_sequence=px.colors.qualitative.Safe
+                )
                 st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
-            
-            # Calcul de la synthèse
+
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
-            
-            # Tri par nom de tâche au lieu de la quantité
             df_synth = df_synth.sort_values("Action / Tâche", ascending=True)
-            
-            # --- AFFICHAGE FINAL ---
+
             col_synth, col_metric = st.columns([3, 1.2])
+
             with col_synth:
                 st.subheader("📋 Synthèse par tâche")
                 df_synth["Total Quantité"] = df_synth["Total Quantité"].fillna(0).astype(int)
                 df_synth["Total Écoles"] = df_synth["Total Écoles"].fillna(0).astype(int)
                 st.table(df_synth)
-            
+
             with col_metric:
-                # --- Préparation du fichier Excel avec Graphique ---
+
                 def to_excel(df_to_export, df_source, start_date, end_date):
                     output = io.BytesIO()
                     try:
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            # 1. Export des données de synthèse
                             df_to_export.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
-                            
+
                             workbook = writer.book
                             worksheet = writer.sheets['Synthese']
-                            
-                            # Formats
+
                             header_fmt = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#008080'})
-                            
-                            # En-têtes
+
                             worksheet.write('A1', "Creos Extrascolaire - Time tracking", header_fmt)
                             worksheet.write('A2', f"Période : du {start_date} au {end_date}")
                             worksheet.write('A3', f"Date de l'export : {date.today().strftime('%d/%m/%Y')}")
-                            
-                            # Ajustement colonnes
+
                             for i, col in enumerate(df_to_export.columns):
                                 column_len = max(df_to_export[col].astype(str).str.len().max(), len(col)) + 2
                                 worksheet.set_column(i, i, column_len)
 
-                            # --- AJOUT DU GRAPHIQUE ---
-                            fig_export = px.pie(df_source, names='tache', values='quantite', 
-                                                title="Répartition par Tâche", 
-                                                color_discrete_sequence=px.colors.qualitative.Safe)
-                            
-                            # Conversion en image PNG
+                            fig_export = px.pie(
+                                df_source,
+                                names='tache',
+                                values='quantite',
+                                title="Répartition par Tâche",
+                                color_discrete_sequence=px.colors.qualitative.Safe
+                            )
+
                             img_data = fig_export.to_image(format="png", width=600, height=450)
                             img_result = io.BytesIO(img_data)
-                            
-                            # Insertion à droite du tableau (E5)
+
                             worksheet.insert_image('E5', 'plot.png', {'image_data': img_result})
-                            
+
                         return output.getvalue()
-                    except Exception as e:
+                    except Exception:
                         return None
 
-                # ATTENTION : Notez bien l'ajout de "df_f" ici dans l'appel
                 excel_data = to_excel(df_synth, df_f, date_start, date_end)
 
-                # Style du bouton
-                st.markdown("""<style> div.stDownloadButton > button { background-color: #008080 !important; color: white !important; height: 3em !important; } </style>""", unsafe_allow_html=True)
+                st.markdown(
+                    """<style> div.stDownloadButton > button {
+                        background-color: #008080 !important;
+                        color: white !important;
+                        height: 3em !important;
+                    } </style>""",
+                    unsafe_allow_html=True
+                )
 
                 if excel_data:
                     st.download_button(
-                        label="📥 Export vers Excel", 
-                        data=excel_data, 
-                        file_name=f"Synthese_Complete_{date.today()}.xlsx", 
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                        label="📥 Export vers Excel",
+                        data=excel_data,
+                        file_name=f"Synthese_Complete_{date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
-                
-                st.metric(label="TOTAL GÉNÉRAL", value=int(df_synth["Total Quantité"].sum()), delta="heures/actions")
+
+                st.metric(
+                    label="TOTAL GÉNÉRAL",
+                    value=int(df_synth["Total Quantité"].sum()),
+                    delta="heures/actions"
+                )
