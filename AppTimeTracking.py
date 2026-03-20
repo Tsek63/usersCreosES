@@ -159,6 +159,8 @@ def run(conn):
             col_synth, col_metric = st.columns([3, 1.2])
             with col_synth:
                 st.subheader("📋 Synthèse par tâche")
+                df_synth["Total Quantité"] = df_synth["Total Quantité"].fillna(0).astype(int)
+                df_synth["Total Écoles"] = df_synth["Total Écoles"].fillna(0).astype(int)
                 st.table(df_synth)
             
             with col_metric:
