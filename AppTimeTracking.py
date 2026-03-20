@@ -251,5 +251,5 @@ def run(conn):
                 st.metric(
                     label="TOTAL GÉNÉRAL",
                     value=int(df_synth["Total Quantité"].sum()),
-                    delta="heures/actions"
+                    delta="actions"
                 )
