@@ -230,8 +230,8 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Feuille Ecoles (chargée en premier — contient Province depuis la mise à jour)
 @st.cache_data(ttl=60)
-def load_ecoles(conn):
-    df = conn.read(worksheet="Ecoles", ttl=60).dropna(how="all")
+def load_ecoles(_conn):
+    df = _conn.read(worksheet="Ecoles", ttl=60).dropna(how="all")
     for col in ['Fase PO', 'Fase école', 'Code postal']:
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True)
@@ -291,6 +291,16 @@ except Exception as e:
 @st.cache_data(ttl=60)
 def load_contacts(conn):
     df = conn.read(worksheet="Contacts", ttl=60).dropna(how="all")
+    _contacts_cols = ["Province", "Commune", "Titre", "Nom", "Téléphone", "Email"]
+
+    if df.empty or not all(c in df.columns for c in _contacts_cols):
+        return pd.DataFrame(columns=_contacts_cols)
+
+    return df
+
+@st.cache_data(ttl=60)
+def load_contacts(_conn):
+    df = _conn.read(worksheet="Contacts", ttl=60).dropna(how="all")
     _contacts_cols = ["Province", "Commune", "Titre", "Nom", "Téléphone", "Email"]
 
     if df.empty or not all(c in df.columns for c in _contacts_cols):
