@@ -1,19 +1,29 @@
+import streamlit as st
+import pandas as pd
+from datetime import date
+import plotly.express as px
+import io
+
+# --- CACHE POUR LA FEUILLE TIMETRACKING ---
+@st.cache_data(ttl=60)
+def load_timetracking(_conn):
+    try:
+        df = _conn.read(worksheet="TimeTracking", ttl=60).dropna(how="all")
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["date", "intervenante", "tache", "quantite", "nb_ecoles"])
+
+
 def run(conn):
-    import streamlit as st
-    import pandas as pd
-    from datetime import date
-    import plotly.express as px
-    import io
 
     st.subheader("⏱️ Time Tracking")
 
-    # --- CONFIGURATION ET PARAMÈTRES ---
-    # La liste est maintenant triée par ordre alphabétique dès le départ
+    # --- CONFIGURATION ---
     LISTE_TACHES = sorted([
         "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
         "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
         "MAIL DIVERS", "MODIFICATIONS FICHIER PO", "JOURNEE DE FORMATION",
-        "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT", 
+        "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT",
         "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
         "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
         "NETTOYAGES DES DONNEES CREOS", "BRIEFING DEV", "TEST EN ACCEPTANCE / PROD"
@@ -24,38 +34,36 @@ def run(conn):
         "Sylvie Nyssen": "#008080"
     }
 
-    # --- CHARGEMENT DES DONNÉES ---
-    try:
-        df = conn.read(worksheet="TimeTracking", ttl=0)
-    except Exception as e:
-        st.error(f"❌ Erreur chargement feuille 'TimeTracking' : {e}")
-        st.info("⚠️ Créez une feuille nommée 'TimeTracking' avec les colonnes : date, intervenante, tache, quantite, nb_ecoles")
-        return
+    # --- CHARGEMENT (CACHÉ) ---
+    df = load_timetracking(conn)
 
     if df.empty:
         st.warning("Aucune donnée enregistrée. Commencez à encoder des entrées !")
         return
 
-    # --- LAYOUT EN 2 COLONNES ---
+    # --- LAYOUT ---
     c1, c2 = st.columns([1, 1.2])
 
     # --- COLONNE 1 : ENCODAGE ---
     with c1:
         st.subheader("📝 Encodage")
+
         intervenantes = sorted(df["intervenante"].dropna().unique().tolist())
         if not intervenantes:
             st.warning("Aucune intervenante trouvée dans les données.")
             return
+
         user = st.selectbox("Intervenante", intervenantes)
         selected_date = st.date_input("Date", value=date.today())
         tache = st.selectbox("Tâche", LISTE_TACHES)
 
         with st.form("form_saisie", clear_on_submit=True):
             quantite = st.number_input("Quantité", min_value=1, step=1, value=1)
+
             nb_ecoles = 0
             if tache == "NETTOYAGES DES DONNEES CREOS":
                 nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1, value=1)
-            
+
             if st.form_submit_button("💾 Enregistrer", use_container_width=True):
                 new_row = pd.DataFrame([{
                     "date": str(selected_date),
@@ -64,9 +72,12 @@ def run(conn):
                     "quantite": int(quantite),
                     "nb_ecoles": int(nb_ecoles)
                 }])
+
                 df_updated = pd.concat([df, new_row], ignore_index=True)
+
                 try:
                     conn.update(worksheet="TimeTracking", data=df_updated)
+                    st.cache_data.clear()   # 🔥 IMPORTANT : recharge propre
                     st.success("✅ Entrée ajoutée avec succès !")
                     st.rerun()
                 except Exception as e_update:
