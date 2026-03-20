@@ -159,7 +159,7 @@ def run(conn):
             col_synth, col_metric = st.columns([3, 1.2])
             with col_synth:
                 st.subheader("📋 Synthèse par tâche")
-                st.dataframe(df_synth, use_container_width=True, hide_index=True)
+                st.table(df_synth)
             
             with col_metric:
                 # --- Préparation du fichier Excel avec Graphique ---
