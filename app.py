@@ -554,146 +554,68 @@ with tab3:
 
             st.markdown(f'<div style="background:#1e293b; color:white; padding:13px 20px; border-radius:10px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"><div style="display:flex; align-items:center; gap:16px;"><span style="font-size:20px; font-weight:bold;">&#127963; {commune_tab3}</span><span style="opacity:0.55; font-size:12px;">Fase PO : <b style="opacity:1;">{fase_po}</b></span><span style="opacity:0.55; font-size:12px;"><b style="opacity:1; color:#f8fafc;">{len(df_comm)}</b> &#233;cole(s)</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">{all_badges_html}</div></div>', unsafe_allow_html=True)
 
-            # --- CONTACTS EXTRASCOLAIRE ---
-            contacts_comm = df_contacts[df_contacts['Commune'] == commune_tab3].copy() if not df_contacts.empty else pd.DataFrame(columns=_contacts_cols)
+# --- CONTACTS EXTRASCOLAIRE ---
+contacts_comm = df_contacts[df_contacts['Commune'] == commune_tab3].copy() if not df_contacts.empty else pd.DataFrame(columns=_contacts_cols)
 
-            # Affichage contacts existants
-            if not contacts_comm.empty:
-                st.markdown("<div style='font-size:13px; font-weight:700; color:#7c3aed; margin-bottom:8px; margin-top:4px;'>👤 Contacts extrascolaire de cette commune</div>", unsafe_allow_html=True)
-                cols_c = st.columns(min(len(contacts_comm), 3), gap="medium")
-                for ci, (cidx, ct) in enumerate(contacts_comm.iterrows()):
-                    with cols_c[ci % 3]:
-                        titre = str(ct.get('Titre', '') or '').strip()
-                        nom   = str(ct.get('Nom', '') or '').strip()
-                        tel   = str(ct.get('Téléphone', '') or '').strip()
-                        mail  = str(ct.get('Email', '') or '').strip()
-                        tel_html  = f'<a href="tel:{tel}" style="color:#7c3aed;text-decoration:none;">{tel}</a>' if tel else '<span style="color:#94a3b8;">—</span>'
-                        mail_html = f'<a href="mailto:{mail}" style="color:#7c3aed;text-decoration:none;">{mail}</a>' if mail else '<span style="color:#94a3b8;">—</span>'
-                        st.markdown(
-                            f'<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:10px;padding:14px 16px;margin-bottom:10px;">'
-                            f'<div style="font-size:13px;font-weight:bold;color:#7c3aed;">👤 {titre} {nom}</div>'
-                            f'<div style="font-size:11px;color:#334155;margin-top:6px;line-height:1.9;">'
-                            f'📞&nbsp;{tel_html}<br>✉️&nbsp;{mail_html}'
-                            f'</div></div>',
-                            unsafe_allow_html=True
-                        )
-                        if st.button(f"🗑️ Supprimer", key=f"del_contact_{cidx}", use_container_width=True):
-                            df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
-                            conn.update(worksheet="Contacts", data=df_contacts_upd)
-                            st.cache_data.clear()
-                            st.rerun()
+# Affichage contacts existants
+if not contacts_comm.empty:
+    st.markdown("<div style='font-size:13px; font-weight:700; color:#7c3aed; margin-bottom:8px; margin-top:4px;'>👤 Contacts extrascolaire de cette commune</div>", unsafe_allow_html=True)
+    cols_c = st.columns(min(len(contacts_comm), 3), gap="medium")
+    for ci, (cidx, ct) in enumerate(contacts_comm.iterrows()):
+        with cols_c[ci % 3]:
+            titre = str(ct.get('Titre', '') or '').strip()
+            nom   = str(ct.get('Nom', '') or '').strip()
+            tel   = str(ct.get('Téléphone', '') or '').strip()
+            gsm   = str(ct.get('GSM', '') or '').strip()          # ← NOUVEAU
+            mail  = str(ct.get('Email', '') or '').strip()
+            tel_html  = f'<a href="tel:{tel}" style="color:#7c3aed;text-decoration:none;">{tel}</a>' if tel else '<span style="color:#94a3b8;">—</span>'
+            gsm_html  = f'<a href="tel:{gsm}" style="color:#7c3aed;text-decoration:none;">{gsm}</a>' if gsm else '<span style="color:#94a3b8;">—</span>'  # ← NOUVEAU
+            mail_html = f'<a href="mailto:{mail}" style="color:#7c3aed;text-decoration:none;">{mail}</a>' if mail else '<span style="color:#94a3b8;">—</span>'
+            st.markdown(
+                f'<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:10px;padding:14px 16px;margin-bottom:10px;">'
+                f'<div style="font-size:13px;font-weight:bold;color:#7c3aed;">👤 {titre} {nom}</div>'
+                f'<div style="font-size:11px;color:#334155;margin-top:6px;line-height:1.9;">'
+                f'📞&nbsp;{tel_html}<br>📱&nbsp;{gsm_html}<br>✉️&nbsp;{mail_html}'  # ← NOUVEAU
+                f'</div></div>',
+                unsafe_allow_html=True
+            )
+            if st.button(f"🗑️ Supprimer", key=f"del_contact_{cidx}", use_container_width=True):
+                df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
+                conn.update(worksheet="Contacts", data=df_contacts_upd)
+                st.cache_data.clear()
+                st.rerun()
 
-            # Expander ajout d'un contact
-            with st.expander("➕ Ajouter un contact extrascolaire"):
-                with st.form("form_add_contact", clear_on_submit=True):
-                    fc1, fc2 = st.columns(2)
-                    with fc1:
-                        ct_titre = st.text_input("Titre (ex: M., Mme, Dr.)")
-                        ct_nom   = st.text_input("Nom et prénom")
-                    with fc2:
-                        ct_tel   = st.text_input("Téléphone")
-                        ct_mail  = st.text_input("Adresse mail")
-                    submitted_contact = st.form_submit_button("💾 Enregistrer ce contact", use_container_width=True)
-                    if submitted_contact:
-                        if not ct_nom.strip():
-                            st.warning("Le nom est obligatoire.")
-                        else:
-                            prov_contact = df_ecoles[df_ecoles['Commune'] == commune_tab3]['Province'].iloc[0] if not df_ecoles[df_ecoles['Commune'] == commune_tab3].empty else ''
-                            new_contact = pd.DataFrame([{
-                                "Province": prov_contact,
-                                "Commune": commune_tab3,
-                                "Titre": ct_titre.strip(),
-                                "Nom": ct_nom.strip(),
-                                "Téléphone": ct_tel.strip(),
-                                "Email": ct_mail.strip()
-                            }])
-                            df_contacts_upd = pd.concat([df_contacts, new_contact], ignore_index=True)
-                            conn.update(worksheet="Contacts", data=df_contacts_upd)
-                            st.cache_data.clear()
-                            st.success(f"✅ Contact '{ct_nom.strip()}' ajouté !")
-                            st.rerun()
-
-            st.markdown("<hr style='margin:16px 0 10px;'>", unsafe_allow_html=True)
-
-            if search_ecole:
-                mask = (
-                    df_comm['Ecole'].str.contains(search_ecole, case=False, na=False) |
-                    df_comm['Directeur.rice'].str.contains(search_ecole, case=False, na=False) |
-                    df_comm['Fase école'].astype(str).str.contains(search_ecole, case=False, na=False)
-                )
-                df_display = df_comm[mask]
+# Expander ajout d'un contact
+with st.expander("➕ Ajouter un contact extrascolaire"):
+    with st.form("form_add_contact", clear_on_submit=True):
+        fc1, fc2 = st.columns(2)
+        with fc1:
+            ct_titre = st.text_input("Titre (ex: M., Mme, Dr.)")
+            ct_nom   = st.text_input("Nom et prénom")
+            ct_tel   = st.text_input("Téléphone")       # ← déplacé ici pour équilibrer
+        with fc2:
+            ct_gsm   = st.text_input("GSM")              # ← NOUVEAU
+            ct_mail  = st.text_input("Adresse mail")
+        submitted_contact = st.form_submit_button("💾 Enregistrer ce contact", use_container_width=True)
+        if submitted_contact:
+            if not ct_nom.strip():
+                st.warning("Le nom est obligatoire.")
             else:
-                df_display = df_comm
-
-            if df_display.empty:
-                st.warning("Aucune école trouvée pour cette recherche.")
-            else:
-                st.markdown(f"<div style='font-size:12px; color:#64748b; margin-bottom:10px;'><b style='color:#334155;'>{len(df_display)}</b> école(s) affichée(s)</div>", unsafe_allow_html=True)
-                for i in range(0, len(df_display), 2):
-                    cols = st.columns(2, gap="medium")
-                    for j in range(2):
-                        idx = i + j
-                        if idx >= len(df_display): break
-                        school = df_display.iloc[idx]
-                        with cols[j]:
-                            email = school.get('Email', None)
-                            phone = school.get('Téléphone', None)
-                            bte_val = school.get('Bte', None)
-                            bte = f" bte {bte_val}" if pd.notna(bte_val) and str(bte_val).strip() not in ['nan', ''] else ""
-                            num = school.get('N°', '')
-                            rue = school.get('Rue', '')
-                            cp = school.get('Code postal', '')
-                            loc = school.get('Localité', '')
-                            adresse = f"{rue} {num}{bte}, {cp} {loc}".strip()
-                            email_html = (f'<a href="mailto:{email}" style="color:#4169E1; text-decoration:none;">{email}</a>' if pd.notna(email) and str(email).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
-                            phone_html = (f'<a href="tel:{phone}" style="color:#334155; text-decoration:none;">{phone}</a>' if pd.notna(phone) and str(phone).strip() not in ['nan', ''] else '<span style="color:#94a3b8;">—</span>')
-
-                            fase_e = str(school.get('Fase école', ''))
-                            school_conf = df_config[df_config['Fase école'] == fase_e]
-
-                            if not school_conf.empty and school_conf.iloc[0]['Extrascolaire'] == 'Oui':
-                                cfg_badge = """<span style="background:#4ade80; color:#1e293b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">✓ Utilise l'extrascolaire</span>"""
-                            elif not school_conf.empty:
-                                # Correction appliquée ici :
-                                cfg_badge = """<span style="background:#64748b; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">○ Pas d'extrascolaire</span>"""
-                            else:
-                                cfg_badge = ''
-
-                            _card_html = (
-                                f'<div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px;border-left:5px solid #4169E1;box-shadow:0 2px 6px rgba(65,105,225,0.08);">' +
-                                f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">' +
-                                f'<div style="font-size:14px;font-weight:bold;color:#4169E1;line-height:1.3;">&#127963; {school["Ecole"]}</div>' +
-                                f'{cfg_badge}' +
-                                f'</div>' +
-                                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:10px;letter-spacing:0.5px;">' +
-                                f'N&#176; FASE &#201;COLE : <b style="color:#475569;font-size:11px;">{school["Fase école"]}</b>' +
-                                f'</div>' +
-                                f'<div style="border-top:1px solid #f1f5f9;padding-top:10px;font-size:12px;color:#334155;line-height:2;">' +
-                                f'<div><b style="color:#4169E1;">&#128100;</b>&nbsp;<b>{school["Directeur.rice"]}</b></div>' +
-                                f'<div><b style="color:#4169E1;">&#9993;</b>&nbsp;{email_html}</div>' +
-                                f'<div><b style="color:#4169E1;">&#128222;</b>&nbsp;{phone_html}</div>' +
-                                f'<div style="font-size:11px;color:#64748b;margin-top:4px;">&#128205;&nbsp;{adresse}</div>' +
-                                f'</div>' +
-                                f'</div>'
-                            )
-                            st.markdown(_card_html, unsafe_allow_html=True)
-
-            st.divider()
-            col_exp1, col_exp2, col_exp3 = st.columns([3, 2, 3])
-            with col_exp2:
-                buffer_e = io.BytesIO()
-                export_df = df_display.drop(columns=['Rue', 'N°', 'Bte', 'Adresse'], errors='ignore')
-                with pd.ExcelWriter(buffer_e, engine='xlsxwriter') as writer:
-                    export_df.to_excel(writer, index=False, sheet_name='Ecoles')
-                st.download_button(
-                    label="📥 Exporter les écoles",
-                    data=buffer_e.getvalue(),
-                    file_name=f"ecoles_{commune_tab3.lower().replace(' ', '_').replace('/', '-')}.xlsx",
-                    mime="application/vnd.ms-excel",
-                    use_container_width=True,
-                    key="dl_ecoles"
-                )
-
+                prov_contact = df_ecoles[df_ecoles['Commune'] == commune_tab3]['Province'].iloc[0] if not df_ecoles[df_ecoles['Commune'] == commune_tab3].empty else ''
+                new_contact = pd.DataFrame([{
+                    "Province": prov_contact,
+                    "Commune": commune_tab3,
+                    "Titre": ct_titre.strip(),
+                    "Nom": ct_nom.strip(),
+                    "Téléphone": ct_tel.strip(),
+                    "GSM": ct_gsm.strip(),               # ← NOUVEAU
+                    "Email": ct_mail.strip()
+                }])
+                df_contacts_upd = pd.concat([df_contacts, new_contact], ignore_index=True)
+                conn.update(worksheet="Contacts", data=df_contacts_upd)
+                st.cache_data.clear()
+                st.success(f"✅ Contact '{ct_nom.strip()}' ajouté !")
+                st.rerun()
 
 # ============================================================
 # --- TAB 4 : CONFIGURATION DES ÉCOLES ---
