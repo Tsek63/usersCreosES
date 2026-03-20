@@ -8,37 +8,6 @@ import base64
 import plotly.express as px
 import AppTimeTracking
 
-from datetime import datetime
-
-def safe_update_sheet(conn, worksheet_name, new_df, key_column=None):
-    current_df = conn.read(worksheet=worksheet_name, ttl=0)
-
-    if current_df is None or current_df.empty:
-        updated_df = new_df.copy()
-    else:
-        if key_column:
-            key_val = new_df.iloc[0][key_column]
-            current_df = current_df[current_df[key_column] != key_val]
-            updated_df = pd.concat([current_df, new_df], ignore_index=True)
-        else:
-            updated_df = new_df.copy()
-
-    # Sécurité anti suppression massive
-    if current_df is not None and not current_df.empty:
-        if len(updated_df) < len(current_df) - 5:
-            raise Exception("❌ Sécurité: suppression massive détectée")
-
-    # Backup automatique
-    try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_name = f"{worksheet_name}_backup_{timestamp}"
-        conn.update(worksheet=backup_name, data=current_df)
-    except:
-        pass
-
-    conn.update(worksheet=worksheet_name, data=updated_df)
-
-    return updated_df
 
 # Helper : détecte si un PO est une Province
 def is_province(name):
@@ -620,7 +589,7 @@ with tab3:
                                 if st.session_state.get("editing_contact") == cidx:
                                     del st.session_state["editing_contact"]
                                 df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
-                                conn.update(worksheet="Contacts", data=df_contacts_upd)
+                                safe_write("EcolesConfig", contacts)
                                 st.cache_data.clear()
                                 st.rerun()
 
@@ -650,7 +619,7 @@ with tab3:
                                         df_contacts.at[cidx, 'Téléphone'] = e_tel.strip()
                                         df_contacts.at[cidx, 'GSM']       = e_gsm.strip()
                                         df_contacts.at[cidx, 'Email']     = e_mail.strip()
-                                        conn.update(worksheet="Contacts", data=df_contacts)
+                                        safe_write("EcolesConfig", df_upd4)(worksheet="Contacts", data=df_contacts)
                                         st.cache_data.clear()
                                         del st.session_state["editing_contact"]
                                         st.success("✅ Contact mis à jour !")
@@ -686,7 +655,7 @@ with tab3:
                                 "Email": ct_mail.strip()
                             }])
                             df_contacts_upd = pd.concat([df_contacts, new_contact], ignore_index=True)
-                            conn.update(worksheet="Contacts", data=df_contacts_upd)
+                            safe_write("EcolesConfig", df_upd4)(worksheet="Contacts", data=df_contacts_upd)
                             st.cache_data.clear()
                             st.success(f"✅ Contact '{ct_nom.strip()}' ajouté !")
                             st.rerun()
@@ -779,23 +748,6 @@ with tab4:
         st.session_state.t4_frc = 0
 
     st.header("⚙️ Gestion des Écoles par Commune")
-
-    # --- NOUVEAU : BOUTON DE SÉCURITÉ ---
-    st.info("🛡️ **Sauvegarde de sécurité** : Téléchargez vos données avant de modifier.")
-    bak_buffer = io.BytesIO()
-    with pd.ExcelWriter(bak_buffer, engine='xlsxwriter') as writer:
-        df_config.to_excel(writer, sheet_name='EcolesConfig', index=False)
-        if 'df_contacts' in locals() or 'df_contacts' in globals():
-            df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
-    
-    st.download_button(
-        label="📥 Télécharger une copie Excel de secours",
-        data=bak_buffer.getvalue(),
-        file_name=f"backup_creos_{pd.Timestamp.now().strftime('%d-%m-%Y')}.xlsx",
-        mime="application/vnd.ms-excel"
-    )
-    st.divider()
-    # ------------------------------------
 
     # --- Calcul stats ---
     n_active4 = len(df_active)
@@ -951,7 +903,7 @@ with tab4:
                         ignore_index=True
                     )
                     try:
-                        conn.update(worksheet="EcolesConfig", data=df_upd4)
+                        safe_write("EcolesConfig", df_upd4)(worksheet="EcolesConfig", data=df_upd4)
                         st.success("✅ Enregistré !")
                         st.cache_data.clear()
                         st.rerun()
@@ -961,7 +913,7 @@ with tab4:
                 if deleted4:
                     df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
                     try:
-                        conn.update(worksheet="EcolesConfig", data=df_upd4)
+                        safe_write("EcolesConfig", df_upd4)(worksheet="EcolesConfig", data=df_upd4)
                         st.success("🗑️ Supprimé !")
                         st.cache_data.clear()
                         st.rerun()
@@ -1120,7 +1072,7 @@ with tab4:
                 fase4 = str(row4.get('Fase école',''))
                 if r5.button("🗑️", key=f"del4_{fase4}", help=f"Supprimer {row4.get('Ecole', fase4)}"):
                     df_upd_del = df_config[df_config['Fase école'].astype(str) != fase4].reset_index(drop=True)
-                    conn.update(worksheet="EcolesConfig", data=df_upd_del)
+                    safe_write("EcolesConfig", df_upd4)(worksheet="EcolesConfig", data=df_upd_del)
                     st.cache_data.clear()
                     st.rerun()
         with col_viz4:
