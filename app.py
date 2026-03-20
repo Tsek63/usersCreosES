@@ -270,26 +270,39 @@ if not df_ecoles.empty and 'Province' in df_ecoles.columns and 'Commune' in df_e
 else:
     data_fwb = st.session_state.get('_data_fwb_cache', {})
 
-# Feuille EcolesConfig (Tab 4)
-_config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
-try:
-    df_config = conn.read(worksheet="EcolesConfig", ttl=60).dropna(how="all")
-    if df_config.empty or not all(c in df_config.columns for c in _config_cols):
-        df_config = pd.DataFrame(columns=_config_cols)
-    else:
-        df_config['Fase école'] = df_config['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
-        df_config = df_config.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
-except Exception:
-    df_config = pd.DataFrame(columns=_config_cols)
+@st.cache_data(ttl=60)
+def load_config(conn):
+    df = conn.read(worksheet="EcolesConfig", ttl=60).dropna(how="all")
+    _config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
 
-# Feuille Contacts (Tab 3 — contacts extrascolaire par commune)
-_contacts_cols = ["Province", "Commune", "Titre", "Nom", "Téléphone", "Email"]
+    if df.empty or not all(c in df.columns for c in _config_cols):
+        return pd.DataFrame(columns=_config_cols)
+
+    df['Fase école'] = df['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+    df = df.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
+    return df
+
 try:
-    df_contacts = conn.read(worksheet="Contacts", ttl=60).dropna(how="all")
-    if df_contacts.empty or not all(c in df_contacts.columns for c in _contacts_cols):
-        df_contacts = pd.DataFrame(columns=_contacts_cols)
-except Exception:
+    df_config = load_config(conn)
+except Exception as e:
+    df_config = pd.DataFrame(columns=_config_cols)
+    st.warning(f"⚠️ Impossible de charger la feuille 'EcolesConfig' : {e}")
+
+@st.cache_data(ttl=60)
+def load_contacts(conn):
+    df = conn.read(worksheet="Contacts", ttl=60).dropna(how="all")
+    _contacts_cols = ["Province", "Commune", "Titre", "Nom", "Téléphone", "Email"]
+
+    if df.empty or not all(c in df.columns for c in _contacts_cols):
+        return pd.DataFrame(columns=_contacts_cols)
+
+    return df
+
+try:
+    df_contacts = load_contacts(conn)
+except Exception as e:
     df_contacts = pd.DataFrame(columns=_contacts_cols)
+    st.warning(f"⚠️ Impossible de charger la feuille 'Contacts' : {e}")
 
 # Écoles actives (Extrascolaire = Oui) — source de vérité pour Tab 1
 df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy() if not df_config.empty else pd.DataFrame(columns=_config_cols)
