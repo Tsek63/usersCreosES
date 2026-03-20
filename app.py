@@ -282,21 +282,23 @@ def load_config(conn):
     df = df.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
     return df
 
+@st.cache_data(ttl=60)
+def load_config(_conn):
+    df = _conn.read(worksheet="EcolesConfig", ttl=60).dropna(how="all")
+    _config_cols = ["Fase école", "Commune", "Province", "Extrascolaire", "Paiement", "Services"]
+
+    if df.empty or not all(c in df.columns for c in _config_cols):
+        return pd.DataFrame(columns=_config_cols)
+
+    df['Fase école'] = df['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+    df = df.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
+    return df
+
 try:
     df_config = load_config(conn)
 except Exception as e:
     df_config = pd.DataFrame(columns=_config_cols)
     st.warning(f"⚠️ Impossible de charger la feuille 'EcolesConfig' : {e}")
-
-@st.cache_data(ttl=60)
-def load_contacts(conn):
-    df = conn.read(worksheet="Contacts", ttl=60).dropna(how="all")
-    _contacts_cols = ["Province", "Commune", "Titre", "Nom", "Téléphone", "Email"]
-
-    if df.empty or not all(c in df.columns for c in _contacts_cols):
-        return pd.DataFrame(columns=_contacts_cols)
-
-    return df
 
 @st.cache_data(ttl=60)
 def load_contacts(_conn):
