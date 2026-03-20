@@ -229,14 +229,19 @@ def generate_print_html_ecoles(df_print, fl_p, fl_m, fl_s):
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Feuille Ecoles (chargée en premier — contient Province depuis la mise à jour)
-try:
-    df_ecoles = conn.read(worksheet="Ecoles", ttl=60).dropna(how="all")
+@st.cache_data(ttl=60)
+def load_ecoles(conn):
+    df = conn.read(worksheet="Ecoles", ttl=60).dropna(how="all")
     for col in ['Fase PO', 'Fase école', 'Code postal']:
-        if col in df_ecoles.columns:
-            df_ecoles[col] = df_ecoles[col].astype(str).str.replace(r'\.0$', '', regex=True)
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True)
+    return df
+
+try:
+    df_ecoles = load_ecoles(conn)
 except Exception as e:
     df_ecoles = pd.DataFrame()
-    st.warning(f"⚠️ Feuille 'Ecoles' introuvable : {e}")
+    st.warning(f"⚠️ Impossible de charger la feuille 'Ecoles' : {e}")
 
 # Construire data_fwb depuis df_ecoles (Province + Commune — source fiable, 268 communes)
 _PROV_NORM = {
