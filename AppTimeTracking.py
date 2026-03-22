@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 import plotly.express as px
 import io
+from safe_gsheets import safe_write
 
 # --- CACHE POUR LA FEUILLE TIMETRACKING ---
 @st.cache_data(ttl=60)
@@ -73,10 +74,17 @@ def run(conn):
                     "nb_ecoles": int(nb_ecoles)
                 }])
 
-                df_updated = pd.concat([df, new_row], ignore_index=True)
+                # Re-lecture fraîche avant ajout (protection multi-utilisateurs)
+                try:
+                    df_live = conn.read(worksheet="TimeTracking", ttl=0).dropna(how="all")
+                    if df_live.empty or not all(c in df_live.columns for c in ["date", "intervenante", "tache", "quantite", "nb_ecoles"]):
+                        df_live = df.copy()
+                except Exception:
+                    df_live = df.copy()
+                df_updated = pd.concat([df_live, new_row], ignore_index=True)
 
                 try:
-                    conn.update(worksheet="TimeTracking", data=df_updated)
+                    safe_write(conn, "TimeTracking", df_updated)
                     st.cache_data.clear()
                     st.success("✅ Entrée ajoutée avec succès !")
                     st.rerun()
@@ -105,9 +113,9 @@ def run(conn):
                     if st.session_state.get(f"confirm_{i}"):
                         st.warning("Supprimer ?")
                         if st.button("OUI ✅", key=f"yes_{i}"):
-                            df_updated = df.drop(i)
+                            df_updated = df.drop(i).reset_index(drop=True)
                             try:
-                                conn.update(worksheet="TimeTracking", data=df_updated)
+                                safe_write(conn, "TimeTracking", df_updated)
                                 st.cache_data.clear()
                                 del st.session_state[f"confirm_{i}"]
                                 st.rerun()
