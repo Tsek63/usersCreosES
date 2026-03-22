@@ -11,8 +11,7 @@ EXPECTED_COLUMNS = {
         "Nom", "Téléphone", "GSM", "Email"
     ],
     "TimeTracking": [
-        "Date", "Utilisateur", "Commune",
-        "Heures", "Description"
+        "date", "intervenante", "tache", "quantite", "nb_ecoles"
     ]
 }
 
@@ -33,7 +32,7 @@ def safe_write(conn, sheet_name, df_new, df_old=None):
 
     if df_old is None:
         try:
-            df_old = conn.read(worksheet=sheet_name, ttl=600).dropna(how="all")
+            df_old = conn.read(worksheet=sheet_name, ttl=0).dropna(how="all")
         except:
             df_old = df_new.copy()
 
