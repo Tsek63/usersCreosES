@@ -619,7 +619,15 @@ with tab3:
                                 # Annuler l'édition si on supprime le contact en cours
                                 if st.session_state.get("editing_contact") == cidx:
                                     del st.session_state["editing_contact"]
-                                df_contacts_upd = df_contacts.drop(index=cidx).reset_index(drop=True)
+                                # Re-lecture fraîche + suppression par clé (Commune + Nom)
+                                try:
+                                    df_contacts_live = conn.read(worksheet="Contacts", ttl=0).dropna(how="all")
+                                    if df_contacts_live.empty or not all(c in df_contacts_live.columns for c in _contacts_cols):
+                                        df_contacts_live = df_contacts.copy()
+                                except Exception:
+                                    df_contacts_live = df_contacts.copy()
+                                mask_del = ~((df_contacts_live['Commune'] == commune_tab3) & (df_contacts_live['Nom'] == nom))
+                                df_contacts_upd = df_contacts_live[mask_del].reset_index(drop=True)
                                 safe_write(conn, "Contacts", df_contacts_upd)
                                 st.cache_data.clear()
                                 st.rerun()
@@ -645,12 +653,20 @@ with tab3:
                                     if not e_nom.strip():
                                         st.warning("Le nom est obligatoire.")
                                     else:
-                                        df_contacts.at[cidx, 'Titre']     = e_titre.strip()
-                                        df_contacts.at[cidx, 'Nom']       = e_nom.strip()
-                                        df_contacts.at[cidx, 'Téléphone'] = e_tel.strip()
-                                        df_contacts.at[cidx, 'GSM']       = e_gsm.strip()
-                                        df_contacts.at[cidx, 'Email']     = e_mail.strip()
-                                        safe_write(conn, "Contacts", df_contacts)
+                                        # Re-lecture fraîche + modification par clé (Commune + Nom original)
+                                        try:
+                                            df_contacts_live = conn.read(worksheet="Contacts", ttl=0).dropna(how="all")
+                                            if df_contacts_live.empty or not all(c in df_contacts_live.columns for c in _contacts_cols):
+                                                df_contacts_live = df_contacts.copy()
+                                        except Exception:
+                                            df_contacts_live = df_contacts.copy()
+                                        mask_edit = (df_contacts_live['Commune'] == commune_tab3) & (df_contacts_live['Nom'] == nom)
+                                        df_contacts_live.loc[mask_edit, 'Titre']     = e_titre.strip()
+                                        df_contacts_live.loc[mask_edit, 'Nom']       = e_nom.strip()
+                                        df_contacts_live.loc[mask_edit, 'Téléphone'] = e_tel.strip()
+                                        df_contacts_live.loc[mask_edit, 'GSM']       = e_gsm.strip()
+                                        df_contacts_live.loc[mask_edit, 'Email']     = e_mail.strip()
+                                        safe_write(conn, "Contacts", df_contacts_live)
                                         st.cache_data.clear()
                                         del st.session_state["editing_contact"]
                                         st.success("✅ Contact mis à jour !")
@@ -685,7 +701,14 @@ with tab3:
                                 "GSM": ct_gsm.strip(),
                                 "Email": ct_mail.strip()
                             }])
-                            df_contacts_upd = pd.concat([df_contacts, new_contact], ignore_index=True)
+                            # Re-lecture fraîche avant ajout (protection multi-utilisateurs)
+                            try:
+                                df_contacts_live = conn.read(worksheet="Contacts", ttl=0).dropna(how="all")
+                                if df_contacts_live.empty or not all(c in df_contacts_live.columns for c in _contacts_cols):
+                                    df_contacts_live = df_contacts.copy()
+                            except Exception:
+                                df_contacts_live = df_contacts.copy()
+                            df_contacts_upd = pd.concat([df_contacts_live, new_contact], ignore_index=True)
                             safe_write(conn, "Contacts", df_contacts_upd)
                             st.cache_data.clear()
                             st.success(f"✅ Contact '{ct_nom.strip()}' ajouté !")
@@ -929,8 +952,17 @@ with tab4:
                         "Paiement":      pay_v4 if extra_v4 == "Oui" else "",
                         "Services":      "|".join(serv_v4) if extra_v4 == "Oui" else ""
                     }])
+                    # Re-lecture fraîche avant sauvegarde (protection multi-utilisateurs)
+                    try:
+                        df_config_live = conn.read(worksheet="EcolesConfig", ttl=0).dropna(how="all")
+                        if df_config_live.empty or not all(c in df_config_live.columns for c in _config_cols):
+                            df_config_live = df_config.copy()
+                        else:
+                            df_config_live['Fase école'] = df_config_live['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                    except Exception:
+                        df_config_live = df_config.copy()
                     df_upd4 = pd.concat(
-                        [df_config[df_config['Fase école'] != ecole_fase_sel4], new_row4],
+                        [df_config_live[df_config_live['Fase école'] != ecole_fase_sel4], new_row4],
                         ignore_index=True
                     )
                     try:
@@ -942,7 +974,16 @@ with tab4:
                         st.error(f"❌ Impossible d'enregistrer : {e_save}")
 
                 if deleted4:
-                    df_upd4 = df_config[df_config['Fase école'] != ecole_fase_sel4]
+                    # Re-lecture fraîche avant suppression (protection multi-utilisateurs)
+                    try:
+                        df_config_live = conn.read(worksheet="EcolesConfig", ttl=0).dropna(how="all")
+                        if df_config_live.empty or not all(c in df_config_live.columns for c in _config_cols):
+                            df_config_live = df_config.copy()
+                        else:
+                            df_config_live['Fase école'] = df_config_live['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                    except Exception:
+                        df_config_live = df_config.copy()
+                    df_upd4 = df_config_live[df_config_live['Fase école'] != ecole_fase_sel4]
                     try:
                         safe_write(conn, "EcolesConfig", df_upd4)
                         st.success("🗑️ Supprimé !")
@@ -1102,8 +1143,17 @@ with tab4:
                 r4.markdown(f"<div style='padding:6px 2px;'>{svc4_html}</div>", unsafe_allow_html=True)
                 fase4 = str(row4.get('Fase école',''))
                 if r5.button("🗑️", key=f"del4_{fase4}", help=f"Supprimer {row4.get('Ecole', fase4)}"):
-                    df_upd_del = df_config[df_config['Fase école'].astype(str) != fase4].reset_index(drop=True)
-                    safe_write(conn, "EcolesConfig", df_upd4)
+                    # Re-lecture fraîche + bug fix (df_upd_del au lieu de df_upd4)
+                    try:
+                        df_config_live = conn.read(worksheet="EcolesConfig", ttl=0).dropna(how="all")
+                        if df_config_live.empty or not all(c in df_config_live.columns for c in _config_cols):
+                            df_config_live = df_config.copy()
+                        else:
+                            df_config_live['Fase école'] = df_config_live['Fase école'].astype(str).str.replace(r'\.0$', '', regex=True)
+                    except Exception:
+                        df_config_live = df_config.copy()
+                    df_upd_del = df_config_live[df_config_live['Fase école'].astype(str) != fase4].reset_index(drop=True)
+                    safe_write(conn, "EcolesConfig", df_upd_del)
                     st.cache_data.clear()
                     st.rerun()
         with col_viz4:
