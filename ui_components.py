@@ -3,10 +3,8 @@ import streamlit as st
 def inject_custom_css():
     st.markdown("""
         <style>
-            /* Supprime l'espace blanc en haut */
-            .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; }
+            .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
             #MainMenu, footer, header {visibility: hidden;}
-            
             .main-header {
                 background-color: #4169E1;
                 padding: 15px 25px;
