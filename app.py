@@ -21,7 +21,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 with tab1:
-    dashboard.render(df_ecoles, df_config, data_fwb)
+    dashboard.render(df_ecoles, df_config, data_fwb, df_contacts)
 
 with tab2:
     # On envoie bien les 5 éléments requis
