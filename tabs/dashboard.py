@@ -4,22 +4,22 @@ import json
 import pandas as pd
 
 def render(df_ecoles, df_config, data_fwb):
-    # --- 1. CALCULS EXACTS (Identiques à votre original) ---
+    # --- 1. PRÉPARATION DES DONNÉES (Identique à votre original) ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
     tab1_rows = []
-    # On parcourt les communes qui ont au moins une école active
-    for comm in df_active['Commune'].unique():
-        grp = df_active[df_active['Commune'] == comm]
+    # On boucle sur les communes qui ont au moins une école active
+    for comm, grp in df_active.groupby('Commune'):
         prov = grp['Province'].iloc[0]
         nb_oui = len(grp)
         nb_non = len(df_non[df_non['Commune'] == comm])
         
-        # Calcul des écoles "Sans configuration" (présentes dans Ecoles mais pas dans Config)
-        fase_ecoles_comm = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
-        fase_config_comm = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
-        nb_sans = len([e for e in fase_ecoles_comm if e not in fase_config_comm])
+        # Calcul des écoles sans configuration (Inconnues)
+        # On compare les FASE école de la feuille Ecoles vs la feuille Config pour cette commune
+        ecoles_comm = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
+        config_comm = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
+        nb_sans = len([e for e in ecoles_comm if e not in config_comm])
         
         tab1_rows.append({
             'Commune': comm, 'Province': prov, 'NbEcoles': nb_oui,
@@ -28,7 +28,7 @@ def render(df_ecoles, df_config, data_fwb):
     
     df_tab1 = pd.DataFrame(tab1_rows) if tab1_rows else pd.DataFrame(columns=['Commune', 'Province', 'NbEcoles', 'NbOui', 'NbNon', 'NbSans'])
 
-    # --- 2. VARIABLES POUR LE DASHBOARD ---
+    # --- 2. STATS POUR LE PANNEAU DE GAUCHE ---
     t_dash = df_tab1['Commune'].nunique() if not df_tab1.empty else 0
     p_dash = len(df_active[df_active['Paiement'] == 'Prépaiement'])
     po_dash = len(df_active[df_active['Paiement'] == 'Post-paiement'])
@@ -41,22 +41,23 @@ def render(df_ecoles, df_config, data_fwb):
         "Activités":       (int(df_active['Services'].str.contains("Activités",       na=False).sum()), "#4ade80"),
     }
 
-    # --- 3. INJECTION HTML / JS (Structure Gauche/Droite) ---
+    # --- 3. BLOC HTML / JS (Fidèle à 100% à votre original) ---
     json_recs = df_tab1.to_json(orient='records')
     map_ref_json = json.dumps(data_fwb)
 
     html_map = f"""
-    <!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!DOCTYPE html><html><head><meta charset="UTF-8">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {{ --dark: #1e293b; --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; }}
-        body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background-color: white; }}
+        body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: white; }}
         #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
         #right {{ flex: 6; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
         #map-box {{ flex: 0 0 300px; background: #262730; border-radius: 8px; margin-bottom: 8px; }}
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: rgba(255,255,255,0.1); stroke-width: 0.5; opacity: 0.3; }}
         .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
-        #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; font-size: 14px; }}
+        #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; }}
         #list {{ flex: 1; overflow-y: auto; }}
         .stats-panel {{ background: var(--dark); color: white; padding: 12px; border-radius: 12px; }}
         .panel-header {{ text-align: center; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 10px; }}
@@ -66,7 +67,8 @@ def render(df_ecoles, df_config, data_fwb):
         .v-item {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 11px; }}
         .v-val {{ font-weight: bold; padding: 1px 7px; border-radius: 4px; min-width: 20px; text-align: center; }}
         .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; color: #334155; }}
-        .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; margin-left: 4px; }}
+        .counts-container {{ display: flex; gap: 5px; align-items: center; }}
+        .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; }}
     </style></head>
     <body onload="init()">
     <div id="left">
@@ -75,12 +77,12 @@ def render(df_ecoles, df_config, data_fwb):
             <div class="panel-header"><div style="font-size:11px; opacity:0.7;">COMMUNES ACTIVES</div><div class="main-count">{t_dash}</div></div>
             <div class="cols-container">
                 <div class="col-half">
-                    <div style="font-size:10px; opacity:0.5; text-align:center; margin-bottom:5px;">PAIEMENT</div>
+                    <div style="font-size:10px; opacity:0.5; text-align:center;">PAIEMENT</div>
                     <div class="v-item"><span>Prépaiement</span><span class="v-val" style="background:#ec4899">{p_dash}</span></div>
                     <div class="v-item"><span>Post-paiement</span><span class="v-val" style="background:#38bdf8">{po_dash}</span></div>
                 </div>
                 <div class="col-half">
-                    <div style="font-size:10px; opacity:0.5; text-align:center; margin-bottom:5px;">SERVICES</div>
+                    <div style="font-size:10px; opacity:0.5; text-align:center;">SERVICES</div>
                     { "".join([f'<div class="v-item"><span>{k}</span><span class="v-val" style="background:{v[1]}">{v[0]}</span></div>' for k,v in s_dash.items()]) }
                 </div>
             </div>
@@ -121,18 +123,13 @@ def render(df_ecoles, df_config, data_fwb):
                 const filtered = Array.from(db.values()).filter(x => x.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
                     const h = document.createElement('div');
-                    h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='11px'; h.style.fontWeight='bold'; h.style.color='#64748b';
-                    h.innerText = p.toUpperCase();
+                    h.style.background='#f8fafc'; h.style.padding='6px'; h.style.fontSize='11px'; h.innerText = p;
                     listDiv.appendChild(h);
                     filtered.forEach(x => {{
                         const row = document.createElement('div');
                         row.className = 'item-row';
-                        row.innerHTML = `<span><strong>${{x.Commune}}</strong></span>
-                            <div>
-                                <span class="cnt" style="background:#22c55e" title="Actives">✓ ${{x.NbOui}}</span>
-                                <span class="cnt" style="background:#ef4444" title="Non">✗ ${{x.NbNon}}</span>
-                                <span class="cnt" style="background:#94a3b8" title="Inconnu">? ${{x.NbSans}}</span>
-                            </div>`;
+                        const counts = `<div class="counts-container"><span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${{x.NbOui}}</span><span class="cnt" style="background:#ef4444" title="N'utilisent pas Creos">✗ ${{x.NbNon}}</span><span class="cnt" style="background:#94a3b8" title="Sans configuration">? ${{x.NbSans}}</span></div>`;
+                        row.innerHTML = `<span><strong style="color:#4169E1;">${{x.Commune}}</strong></span>${{counts}}`;
                         listDiv.appendChild(row);
                     }});
                 }}
