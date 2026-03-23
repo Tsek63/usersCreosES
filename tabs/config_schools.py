@@ -13,7 +13,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
 
     st.header("⚙️ Gestion des Écoles par Commune")
 
-    # --- PRÉPARATION ---
+    # --- PRÉPARATION DES DONNÉES ---
     df_config['Fase école'] = df_config['Fase école'].astype(str).str.strip()
     df_config = df_config.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
     
@@ -22,7 +22,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
     df_refus = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     svc_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
 
-    # --- MISE EN PAGE HAUT ---
+    # --- MISE EN PAGE HAUT (2/3 Formulaire | 1/3 Stats) ---
     col_l, col_r = st.columns([1.8, 1.2])
 
     with col_l:
@@ -37,7 +37,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
                                  key="cfg_c")
         
         if c_sel != "— Sélectionnez —":
-            # --- ACTIONS GROUPÉES ---
+            # --- ACTIONS GROUPÉES (POUR PREMIER ENCODAGE) ---
             with st.expander(f"⚡ Actions groupées pour {c_sel}"):
                 st.markdown("**1. Premier encodage groupé (Démarrer tout le PO)**")
                 st.info("Cette action va créer une configuration 'OUI' pour TOUTES les écoles de la commune.")
@@ -49,9 +49,8 @@ def render(conn, df_ecoles, df_config, data_fwb):
                     mass_svc = st.multiselect("Services par défaut", svc_list, key="m_svc")
                 
                 if st.button(f"🚀 Activer tout {c_sel} à 'OUI'", use_container_width=True):
-                    # 1. Identifier TOUTES les écoles de cette commune dans la liste FWB
+                    # Identifier les écoles du PO
                     f_list = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
-                    # 2. Créer les nouvelles lignes
                     new_rows = []
                     for f in f_list:
                         new_rows.append({
@@ -60,10 +59,11 @@ def render(conn, df_ecoles, df_config, data_fwb):
                             "Services": "|".join(mass_svc) if mass_svc else "-"
                         })
                     df_new_batch = pd.DataFrame(new_rows)
-                    # 3. Fusionner en remplaçant les éventuelles configs existantes pour ces écoles
+                    # Fusionner
                     df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], df_new_batch], ignore_index=True)
                     safe_write(conn, "EcolesConfig", df_upd)
-                    st.cache_data.clear(); st.rerun()
+                    st.cache_data.clear()
+                    st.rerun()
 
                 st.markdown("---")
                 st.markdown("**2. Actions rapides**")
@@ -73,11 +73,15 @@ def render(conn, df_ecoles, df_config, data_fwb):
                         f_list = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
                         new_rows = [{"Fase école": f, "Commune": c_sel, "Province": p_sel, "Extrascolaire": "Non", "Paiement": "-", "Services": "-"} for f in f_list]
                         df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], pd.DataFrame(new_rows)], ignore_index=True)
-                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                        safe_write(conn, "EcolesConfig", df_upd)
+                        st.cache_data.clear()
+                        st.rerun()
                 with ca2:
                     if st.button(f"Réinitialiser {c_sel} (Vide)", use_container_width=True, key="m_del"):
                         df_upd = df_config[df_config['Commune'] != c_sel]
-                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                        safe_write(conn, "EcolesConfig", df_upd)
+                        st.cache_data.clear()
+                        st.rerun()
 
             # --- INDIVIDUEL ---
             df_sch = df_ecoles[df_ecoles['Commune'] == c_sel].copy()
@@ -102,33 +106,23 @@ def render(conn, df_ecoles, df_config, data_fwb):
                     if st.form_submit_button("💾 ENREGISTRER L'ÉCOLE", use_container_width=True):
                         new = pd.DataFrame([{"Fase école": e_fase, "Commune": c_sel, "Province": p_sel, "Extrascolaire": v_ex, "Paiement": v_pa if v_ex == "Oui" else "-", "Services": "|".join(v_sv) if (v_ex == "Oui" and v_sv) else "-"}])
                         df_upd = pd.concat([df_config[df_config['Fase école'] != e_fase], new], ignore_index=True)
-                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                        safe_write(conn, "EcolesConfig", df_upd)
+                        st.cache_data.clear()
+                        st.rerun()
 
     with col_r:
-        # BLOCS STATS
+        # --- BLOCS STATS (Symétrie 22px) ---
+        n_pre = len(df_active[df_active['Paiement']=='Prépaiement'])
+        n_post = len(df_active[df_active['Paiement']=='Post-paiement'])
+        n_comm_act = len(active_communes)
+
         st.markdown(f"""
 <div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui Utilisent l'Extrascolaire de Creos</div>
 <div style="font-size:64px; font-weight:bold; line-height:1;">{len(df_active)}</div>
 <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); margin-top:15px; padding-top:15px;">
-<div style="text-align:center;"><b style="font-size:22px; color:#ec4899; font-weight:900;">{len(df_active[df_active['Paiement']=='Prépaiement'])}</b><br><span style="font-size:22px;">Prépaiement</span></div>
-<div style="text-align:center;"><b style="font-size:22px; color:#38bdf8; font-weight:900;">{len(df_active[df_active['Paiement']=='Post-paiement'])}</b><br><span style="font-size:22px;">Post-paiement</span></div>
-<div style="text-align:center;"><b style="font-size:22px; color:#a78bfa; font-weight:900;">{len(active_communes)}</b><br><span style="font-size:22px;">Communes</span></div>
+<div style="text-align:center;"><b style="font-size:22px; color:#ec4899; font-weight:900;">{n_pre}</b><br><span style="font-size:22px;">Prépaiement</span></div>
+<div style="text-align:center;"><b style="font-size:22px; color:#38bdf8; font-weight:900;">{n_post}</b><br><span style="font-size:22px;">Post-paiement</span></div>
+<div style="text-align:center;"><b style="font-size:22px; color:#a78bfa; font-weight:900;">{n_comm_act}</b><br><span style="font-size:22px;">Communes</span></div>
 </div></div>
-<div style="background-color:#FF43D0; padding:20px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-<div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui n'utilisent pas l'Extrascolaire de Creos</div>
-<div style="font-size:64px; font-weight:bold; line-height:1;">{len(df_refus)}</div>
-<div style="display:flex; justify-content:center; border-top:1px solid rgba(255,255,255,0.2); margin-top:15px; padding-top:15px;">
-<div style="text-align:center;"><b style="font-size:22px; font-weight:900;">{df_refus['Commune'].nunique()}</b><br><span style="font-size:22px;">Communes ont dit NON</span></div>
-</div></div>""", unsafe_allow_html=True)
-
-    # --- LISTE ---
-    st.divider()
-    view = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True)
-    target = df_active if "Utilisatrices" in view else df_refus
-    theme = "#008080" if "Utilisatrices" in view else "#FF43D0"
-    fl_p = st.multiselect("Filtrer par Province", sorted(target['Province'].unique()), key="f_p_cfg_final")
-    df_f = target.copy()
-    if fl_p: df_f = df_f[df_f['Province'].isin(fl_p)]
-    if not df_f.empty:
-        df_f =
+<div style="background-color:#FF43D0; padding:20px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
