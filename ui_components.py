@@ -1,15 +1,12 @@
 import streamlit as st
 
-def is_province(name):
-    return str(name).startswith("Province")
-
 def icon_po(name):
-    return "🏛️" if is_province(name) else "🏘️"
+    return "🏛️" if str(name).startswith("Province") else "🏘️"
 
 def inject_custom_css():
     st.markdown("""
         <style>
-            .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
+            .block-container { padding-top: 1rem !important; }
             #MainMenu, footer, header {visibility: hidden;}
             .main-header {
                 background-color: #4169E1; padding: 15px 25px; border-radius: 10px;
