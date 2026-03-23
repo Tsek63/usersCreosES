@@ -15,21 +15,22 @@ def render(df_ecoles, df_config, data_fwb):
         return p
 
     tab1_rows = []
-    for comm in df_active['Commune'].unique():
-        grp = df_active[df_active['Commune'] == comm]
-        prov_raw = grp['Province'].iloc[0] if not grp.empty else "Inconnu"
-        prov = normalize_prov(prov_raw)
-        
-        nb_oui = len(grp)
-        nb_non = len(df_non[df_non['Commune'] == comm])
-        
-        fase_fwb = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
-        fase_cfg = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
-        nb_sans = len([e for e in fase_fwb if e not in fase_cfg])
-        
-        tab1_rows.append({
-            'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans
-        })
+    if not df_active.empty:
+        for comm in df_active['Commune'].unique():
+            grp = df_active[df_active['Commune'] == comm]
+            prov_raw = grp['Province'].iloc[0] if not grp.empty else "Inconnu"
+            prov = normalize_prov(prov_raw)
+            
+            nb_oui = len(grp)
+            nb_non = len(df_non[df_non['Commune'] == comm])
+            
+            fase_fwb = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
+            fase_cfg = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
+            nb_sans = len([e for e in fase_fwb if e not in fase_cfg])
+            
+            tab1_rows.append({
+                'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans
+            })
     
     df_tab1 = pd.DataFrame(tab1_rows)
 
@@ -64,14 +65,14 @@ def render(df_ecoles, df_config, data_fwb):
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: rgba(255,255,255,0.1); stroke-width: 0.5; opacity: 0.3; cursor: help; }}
         .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
-        #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }}
+        #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; outline: none; }}
         #list {{ flex: 1; overflow-y: auto; }}
         .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 12px; }}
         .panel-header {{ text-align: center; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px; }}
-        .item-row {{ display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; align-items: center; color: #334155; }}
+        .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; align-items: center; color: #334155; }}
         .commune-name {{ flex: 0 0 150px; font-weight: bold; color: #4169E1; font-size: 13px; }}
         .counts-container {{ display: flex; gap: 4px; flex-grow: 1; justify-content: flex-end; }}
-        .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-weight: bold; white-space: nowrap; font-size: 10px; }}
+        .cnt {{ padding: 2px 10px; border-radius: 4px; color: white; font-weight: bold; white-space: nowrap; font-size: 10px; }}
     </style></head>
     <body onload="init()">
     <div id="left">
@@ -81,7 +82,7 @@ def render(df_ecoles, df_config, data_fwb):
                 <div style="font-size:12px; opacity:0.7; letter-spacing:1px;">COMMUNES ACTIVES</div>
                 <div style="font-size:42px; font-weight:bold;">{t_dash}</div>
             </div>
-            <div style="display:flex; gap:20px;">
+            <div style="display:flex; gap:25px;">
                 <div style="flex:1;">
                     <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px; letter-spacing:1px;">PAIEMENT</div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;">
