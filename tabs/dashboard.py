@@ -54,9 +54,7 @@ def render(df_ecoles, df_config, data_fwb):
     }
 
     # --- 3. PRÉPARATION DU JSON ---
-    # On normalise aussi les clés du dictionnaire de référence FWB pour Bruxelles
     data_fwb_norm = {normalize_prov(k): v for k, v in data_fwb.items()}
-    
     json_recs = df_tab1.to_json(orient='records')
     map_ref_json = json.dumps(data_fwb_norm)
 
@@ -67,17 +65,18 @@ def render(df_ecoles, df_config, data_fwb):
     <style>
         :root {{ --dark: #1e293b; }}
         body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: white; }}
-        #left {{ flex: 4; padding: 10px; display: flex; flex-direction: column; }}
-        #right {{ flex: 8; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
+        #left {{ flex: 5; padding: 10px; display: flex; flex-direction: column; }}
+        #right {{ flex: 7; padding: 10px; display: flex; flex-direction: column; background: white; border-left: 1px solid #eee; }}
         #map-box {{ flex: 0 0 300px; background: #262730; border-radius: 8px; margin-bottom: 8px; }}
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: rgba(255,255,255,0.1); stroke-width: 0.5; opacity: 0.3; cursor: help; }}
         .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
         #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }}
         #list {{ flex: 1; overflow-y: auto; }}
-        .stats-panel {{ background: var(--dark); color: white; padding: 12px; border-radius: 12px; }}
+        .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 12px; }}
+        .panel-header {{ text-align: center; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px; }}
         .item-row {{ display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; align-items: center; color: #334155; }}
-        .commune-name {{ flex: 0 0 150px; font-weight: bold; color: #4169E1; }}
+        .commune-name {{ flex: 0 0 150px; font-weight: bold; color: #4169E1; font-size: 13px; }}
         .counts-container {{ display: flex; gap: 4px; flex-grow: 1; justify-content: flex-end; }}
         .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-weight: bold; white-space: nowrap; font-size: 10px; }}
     </style></head>
@@ -85,18 +84,23 @@ def render(df_ecoles, df_config, data_fwb):
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
         <div class="stats-panel">
-            <div style="text-align:center; border-bottom:1px solid #334155; padding-bottom:5px; margin-bottom:10px;">
-                <div style="font-size:10px; opacity:0.7;">COMMUNES ACTIVES</div><div style="font-size:36px; font-weight:bold;">{t_dash}</div>
+            <div class="panel-header">
+                <div style="font-size:12px; opacity:0.7; letter-spacing:1px;">COMMUNES ACTIVES</div>
+                <div style="font-size:42px; font-weight:bold;">{t_dash}</div>
             </div>
-            <div style="display:flex; gap:15px;">
+            <div style="display:flex; gap:20px;">
                 <div style="flex:1;">
-                    <div style="font-size:10px; opacity:0.5; text-align:center; margin-bottom:5px;">PAIEMENT</div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Pré</span><span style="font-weight:bold; color:#ec4899;">{p_dash}</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Post</span><span style="font-weight:bold; color:#38bdf8;">{po_dash}</span></div>
+                    <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px; letter-spacing:1px;">PAIEMENT</div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;">
+                        <span>Prépaiement</span><span style="font-weight:bold; color:#ec4899;">{p_dash}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:13px;">
+                        <span>Post-paiement</span><span style="font-weight:bold; color:#38bdf8;">{po_dash}</span>
+                    </div>
                 </div>
                 <div style="flex:1;">
-                    <div style="font-size:10px; opacity:0.5; text-align:center; margin-bottom:5px;">SERVICES</div>
-                    {"".join([f'<div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px;"><span>{k}</span><span style="font-weight:bold; background:{v[1]}; padding:0 6px; border-radius:4px;">{v[0]}</span></div>' for k,v in s_dash.items()])}
+                    <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px; letter-spacing:1px;">SERVICES</div>
+                    {"".join([f'<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;"><span>{k}</span><span style="font-weight:bold; background:{v[1]}; padding:0 6px; border-radius:4px;">{v[0]}</span></div>' for k,v in s_dash.items()])}
                 </div>
             </div>
         </div>
@@ -165,9 +169,9 @@ def render(df_ecoles, df_config, data_fwb):
                         row.innerHTML = `
                             <div class="commune-name">${{x.Commune}}</div>
                             <div class="counts-container">
-                                <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}} Écoles avec Creos</span>
-                                <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}} Inactives</span>
-                                <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Sans choix</span>
+                                <span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${{x.NbOui}} Écoles avec Creos</span>
+                                <span class="cnt" style="background:#ef4444" title="Inactives">✗ ${{x.NbNon}} Inactives</span>
+                                <span class="cnt" style="background:#94a3b8" title="Sans choix">? ${{x.NbSans}} Inconnues</span>
                             </div>`;
                         listDiv.appendChild(row);
                     }});
