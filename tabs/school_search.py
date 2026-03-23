@@ -63,16 +63,18 @@ def render(conn, df_ecoles, df_config, data_fwb, df_contacts):
             for i, (idx, ct) in enumerate(contacts_comm.iterrows()):
                 with cols_c[i % 3]:
                     # Affichage propre avec liens
-                    tel_link = f'<a href="tel:{ct["Téléphone"]}" style="color:#7c3aed;">{ct["Téléphone"]}</a>' if ct["Téléphone"] != "-" else "-"
-                    gsm_link = f'<a href="tel:{ct["GSM"]}" style="color:#7c3aed;">{ct["GSM"]}</a>' if ct["GSM"] != "-" else "-"
-                    mail_link = f'<a href="mailto:{ct["Email"]}" style="color:#7c3aed;">{ct["Email"]}</a>' if ct["Email"] != "-" else "-"
+                    tel_link = f'<a href="tel:{ct["Téléphone"]}" style="color:#7c3aed; text-decoration:none;">{ct["Téléphone"]}</a>' if ct["Téléphone"] != "-" else "-"
+                    gsm_link = f'<a href="tel:{ct["GSM"]}" style="color:#7c3aed; text-decoration:none;">{ct["GSM"]}</a>' if ct["GSM"] != "-" else "-"
+                    mail_link = f'<a href="mailto:{ct["Email"]}" style="color:#7c3aed; text-decoration:none;">{ct["Email"]}</a>' if ct["Email"] != "-" else "-"
 
                     st.markdown(f"""
-                    <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-left:5px solid #7c3aed; border-radius:10px; padding:15px; margin-bottom:10px; color:#334155; min-height:130px;">
-                        <b style="color:#7c3aed; font-size:14px;">{ct['Titre']} {ct['Nom']}</b><br>
-                        📞 {tel_link}<br>
-                        📱 {gsm_link}<br>
-                        ✉️ {mail_link}
+                    <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-left:5px solid #7c3aed; border-radius:10px; padding:15px; margin-bottom:10px; color:#334155; min-height:150px;">
+                        <b style="color:#7c3aed; font-size:18px;">{ct['Titre']} {ct['Nom']}</b><br>
+                        <div style="margin-top:10px; font-size:14px; line-height:1.6;">
+                            📞 {tel_link}<br>
+                            📱 {gsm_link}<br>
+                            ✉️ {mail_link}
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                     
@@ -83,7 +85,6 @@ def render(conn, df_ecoles, df_config, data_fwb, df_contacts):
                         safe_write(conn, "Contacts", df_contacts.drop(idx))
                         st.cache_data.clear(); st.rerun()
                     
-                    # FORMULAIRE DE MODIFICATION COMPLET
                     if st.session_state.get(f"editing_{idx}"):
                         with st.form(f"form_edit_{idx}"):
                             st.write(f"Modification de {ct['Nom']}")
@@ -107,7 +108,6 @@ def render(conn, df_ecoles, df_config, data_fwb, df_contacts):
                                 del st.session_state[f"editing_{idx}"]
                                 st.rerun()
 
-        # --- AJOUT CONTACT ---
         with st.expander("➕ Ajouter un nouveau contact"):
             with st.form("add_new_ct"):
                 f1, f2 = st.columns(2)
@@ -135,25 +135,26 @@ def render(conn, df_ecoles, df_config, data_fwb, df_contacts):
                     fase = str(sch['Fase école'])
                     conf = df_config[df_config['Fase école'] == fase]
                     is_act = not conf.empty and conf.iloc[0]['Extrascolaire'] == 'Oui'
-                    badge = '<span style="background:#4ade80; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:bold; float:right;">✓ ACTIVE</span>' if is_act else ''
+                    badge = '<span style="background:#4ade80; color:#1e293b; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:bold; float:right;">✓ ACTIVE</span>' if is_act else ''
                     
                     with cols[j]:
                         # Liens école
                         e_mail_link = f'<a href="mailto:{sch["Email"]}" style="color:#4169E1; text-decoration:none;">{sch["Email"]}</a>' if sch["Email"] != "-" else "-"
                         e_tel_link = f'<a href="tel:{sch["Téléphone"]}" style="color:#1e293b; text-decoration:none;">{sch["Téléphone"]}</a>' if sch["Téléphone"] != "-" else "-"
 
+                        # AFFICHAGE DE LA CARTE ECOLE (AVEC unsafe_allow_html=True)
                         st.markdown(f"""
-                        <div style="background:white; border:1px solid #e2e8f0; border-left:5px solid #4169E1; border-radius:10px; padding:20px; margin-bottom:12px; color:#1e293b; box-shadow: 0 2px 4px rgba(0,0,0,0.05); min-height:160px;">
+                        <div style="background:white; border:1px solid #e2e8f0; border-left:5px solid #4169E1; border-radius:10px; padding:20px; margin-bottom:12px; color:#1e293b; box-shadow: 0 2px 4px rgba(0,0,0,0.05); min-height:180px;">
                             {badge}
-                            <b style="font-size:16px; color:#4169E1;">{sch['Ecole']}</b><br>
-                            <div style="margin-top:8px; font-size:13px; color:#64748b;">
+                            <b style="font-size:20px; color:#4169E1;">{sch['Ecole']}</b><br>
+                            <div style="margin-top:10px; font-size:14px; color:#64748b;">
                                 <b>FASE:</b> {fase} | <b>Dir:</b> {sch.get('Directeur.rice','-')}
                             </div>
-                            <div style="margin-top:8px; font-size:14px;">
+                            <div style="margin-top:10px; font-size:15px;">
                                 ✉️ {e_mail_link}<br>
                                 📞 {e_tel_link}
                             </div>
-                            <div style="margin-top:8px; font-size:12px; color:#94a3b8;">
+                            <div style="margin-top:10px; font-size:13px; color:#94a3b8;">
                                 📍 {sch.get('Rue','')} {sch.get('N°','')}, {sch.get('Code postal','')} {sch.get('Localité','')}
                             </div>
                         </div>
