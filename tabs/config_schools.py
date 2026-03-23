@@ -8,7 +8,7 @@ from ui_components import icon_po, is_province
 def render(conn, df_ecoles, df_config, data_fwb):
     st.header("⚙️ Gestion des Écoles par Commune")
 
-    # --- 1. CALCUL DES STATS (BLOC TEAL) ---
+    # --- 1. CALCUL DES STATS ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     n_active = len(df_active)
     n_comm = df_active['Commune'].nunique() if not df_active.empty else 0
@@ -16,10 +16,9 @@ def render(conn, df_ecoles, df_config, data_fwb):
     n_post = len(df_active[df_active['Paiement'] == 'Post-paiement'])
     
     svc_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-    svc_cnt = {s: int(df_active['Services'].str.contains(s, na=False).sum()) for s in svc_list}
 
-    # --- 2. MISE EN PAGE HAUT (Formulaire | Bloc Teal) ---
-    col_l, col_r = st.columns([2, 1])
+    # --- 2. MISE EN PAGE HAUT (Formulaire | Bloc Teal Agrandi) ---
+    col_l, col_r = st.columns([1.8, 1.2]) # Ajustement pour donner un peu plus de place au bloc de droite
 
     with col_l:
         st.subheader("📝 Configurer une École")
@@ -68,14 +67,24 @@ def render(conn, df_ecoles, df_config, data_fwb):
                     st.cache_data.clear(); st.rerun()
 
     with col_r:
+        # --- BLOC TEAL AGRANDI ET CORRIGÉ ---
         teal_html = f"""
-        <div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center;">
-            <div style="font-size:11px; text-transform:uppercase; opacity:0.8;">Total des écoles actives</div>
-            <div style="font-size:52px; font-weight:bold; line-height:1;">{n_active}</div>
-            <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); padding:12px 0; margin:12px 0;">
-                <div><span style="display:block; font-size:16px; font-weight:bold; color:#ec4899;">{n_prep}</span><small>Pré</small></div>
-                <div><span style="display:block; font-size:16px; font-weight:bold; color:#38bdf8;">{n_post}</span><small>Post</small></div>
-                <div><span style="display:block; font-size:16px; font-weight:bold; color:#a78bfa;">{n_comm}</span><small>Com.</small></div>
+        <div style="background-color:#008080; padding:25px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+            <div style="font-size:13px; text-transform:uppercase; opacity:0.9; font-weight:600; margin-bottom:10px;">Total des écoles qui utilisent l'Extrascolaire</div>
+            <div style="font-size:72px; font-weight:bold; line-height:1; margin-bottom:15px;">{n_active}</div>
+            <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.3); padding-top:15px;">
+                <div style="text-align:center;">
+                    <span style="display:block; font-size:22px; font-weight:bold; color:#ec4899;">{n_prep}</span>
+                    <span style="font-size:11px; opacity:0.8;">Prépaiement</span>
+                </div>
+                <div style="text-align:center;">
+                    <span style="display:block; font-size:22px; font-weight:bold; color:#38bdf8;">{n_post}</span>
+                    <span style="font-size:11px; opacity:0.8;">Post-paiement</span>
+                </div>
+                <div style="text-align:center;">
+                    <span style="display:block; font-size:22px; font-weight:bold; color:#a78bfa;">{n_comm}</span>
+                    <span style="font-size:11px; opacity:0.8;">Communes</span>
+                </div>
             </div>
         </div>"""
         st.markdown(teal_html, unsafe_allow_html=True)
@@ -97,10 +106,9 @@ def render(conn, df_ecoles, df_config, data_fwb):
     if not df_filt.empty:
         df_filt = df_filt.merge(df_ecoles[['Fase école', 'Ecole']], on='Fase école', how='left')
         
-        col_table, col_viz = st.columns([1.8, 1]) # Augmentation de la place pour le tableau
+        col_table, col_viz = st.columns([1.8, 1])
         
         with col_table:
-            # Augmentation de la largeur de la colonne Services (2.5 -> 3)
             h1, h2, h3, h4, h5 = st.columns([1.5, 1.5, 2, 3, 0.5])
             h1.write("**Commune**"); h2.write("**Paiement**"); h3.write("**École**"); h4.write("**Services**")
             
@@ -111,13 +119,11 @@ def render(conn, df_ecoles, df_config, data_fwb):
                 r2.markdown(f'<b style="color:{p_c}; font-size:13px;">{row["Paiement"]}</b>', unsafe_allow_html=True)
                 r3.write(f"{row['Ecole']} ({row['Fase école']})")
                 
-                # Badges services plus grands
                 svs = row['Services'].split('|')
                 s_badges = ""
                 colors = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
                 for s in svs:
                     if s.strip() and s.strip() != "-":
-                        # Police à 11px et padding plus généreux (4px 8px)
                         s_badges += f'<span style="background:{colors.get(s,"#999")}; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block; margin-bottom:2px;">{s}</span>'
                 r4.markdown(s_badges, unsafe_allow_html=True)
                 
@@ -135,7 +141,6 @@ def render(conn, df_ecoles, df_config, data_fwb):
             all_s = []
             for s in df_filt['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"] )
-            
             if all_s:
                 df_s_plot = pd.DataFrame(all_s, columns=['Service']).value_counts().reset_index()
                 df_s_plot.columns = ['Service', 'Nombre']
