@@ -1,9 +1,15 @@
 import streamlit as st
 
+def is_province(name):
+    """Détecte si le nom commence par Province"""
+    return str(name).startswith("Province")
+
 def icon_po(name):
-    return "🏛️" if str(name).startswith("Province") else "🏘️"
+    """Retourne l'icône 🏛️ pour une province ou 🏘️ pour une commune"""
+    return "🏛️" if is_province(name) else "🏘️"
 
 def audit_card(title, value, color, icon):
+    """Crée une carte visuelle pour l'audit en bas du tableau de bord"""
     st.markdown(f"""
         <div style="background-color:white; border:1px solid #e2e8f0; border-left:5px solid {color}; padding:15px; border-radius:10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
             <div style="font-size:24px; margin-bottom:5px;">{icon}</div>
