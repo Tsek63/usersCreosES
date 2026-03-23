@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import json
 
-def render(df_ecoles, df_config):
+def render(df_ecoles, df_config, data_fwb):
     st.subheader("📊 État du déploiement")
     
     # Calcul des stats pour la carte
