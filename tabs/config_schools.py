@@ -52,16 +52,15 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
 
                 st.markdown("---")
-                st.markdown("**2. Actions rapides**")
                 ca1, ca2 = st.columns(2)
                 with ca1:
-                    if st.button(f"Tout {c_sel} à 'NON'", use_container_width=True, key="btn_all_no"):
+                    if st.button(f"Tout {c_sel} à 'NON'", use_container_width=True, key="m_non"):
                         fases = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
                         rows_no = [{"Fase école": f, "Commune": c_sel, "Province": p_sel, "Extrascolaire": "Non", "Paiement": "-", "Services": "-"} for f in fases]
                         df_upd = pd.concat([df_config[~df_config['Fase école'].isin(fases)], pd.DataFrame(rows_no)], ignore_index=True)
                         safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
                 with ca2:
-                    if st.button(f"Réinitialiser {c_sel}", use_container_width=True, key="btn_reset_po"):
+                    if st.button(f"Réinitialiser {c_sel}", use_container_width=True, key="m_del"):
                         df_upd = df_config[df_config['Commune'] != c_sel]
                         safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
 
@@ -93,9 +92,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
 <div style="text-align:center;"><b style="font-size:22px; color:#ec4899; font-weight:900;">{len(df_active[df_active['Paiement']=='Prépaiement'])}</b><br><span style="font-size:22px;">Prépaiement</span></div>
 <div style="text-align:center;"><b style="font-size:22px; color:#38bdf8; font-weight:900;">{len(df_active[df_active['Paiement']=='Post-paiement'])}</b><br><span style="font-size:22px;">Post-paiement</span></div>
 <div style="text-align:center;"><b style="font-size:22px; color:#a78bfa; font-weight:900;">{len(active_communes)}</b><br><span style="font-size:22px;">Communes</span></div>
-</div></div>""", unsafe_allow_html=True)
-
-        st.markdown(f"""
+</div></div>
 <div style="background-color:#FF43D0; padding:20px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui n'utilisent pas l'Extrascolaire de Creos</div>
 <div style="font-size:64px; font-weight:bold; line-height:1;">{len(df_refus)}</div>
@@ -103,31 +100,23 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
 <div style="text-align:center;"><b style="font-size:22px; font-weight:900;">{df_refus['Commune'].nunique()}</b><br><span style="font-size:22px;">Communes ont dit NON</span></div>
 </div></div>""", unsafe_allow_html=True)
 
-        # --- NOUVEAU BLOC : SÉCURITÉ & SAUVEGARDE ---
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.container():
-            st.markdown("""
-            <div style="background-color:#f8fafc; border:1px dashed #4169E1; padding:15px; border-radius:10px; text-align:center;">
-                <b style="color:#4169E1;">🛡️ Sécurité des données</b><br>
-                <small style="color:gray;">Télécharger une archive complète (Excel)</small>
-            </div>""", unsafe_allow_html=True)
-            
-            # Création du fichier Excel multi-onglets
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df_config.to_excel(writer, sheet_name='Configurations', index=False)
-                df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
-                df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
-            
-            st.download_button(
-                label="📥 EXPORTER TOUTES LES DONNÉES",
-                data=buffer.getvalue(),
-                file_name=f"BACKUP_TOTAL_CREOS_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
-                mime="application/vnd.ms-excel",
-                use_container_width=True
-            )
+        # --- BOUTON DE SAUVEGARDE ULTIME ---
+        st.write("")
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_config.to_excel(writer, sheet_name='Configurations', index=False)
+            df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
+            df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
+        
+        st.download_button(
+            label="🛡️ Sécurité des données : exporter toutes vos données vers Excel",
+            data=buffer.getvalue(),
+            file_name=f"SAVE_TOTAL_CREOS_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+            mime="application/vnd.ms-excel",
+            use_container_width=True
+        )
 
-    # --- LISTE FILTRÉE ---
+    # --- LISTE ---
     st.divider()
     view = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True, key="toggle_list")
     target = df_active if "Utilisatrices" in view else df_refus
@@ -151,5 +140,3 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 r4.markdown(badges, unsafe_allow_html=True)
             if r5.button("🗑️", key=f"del_{i}_{row['Fase école']}"):
                 safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(row['Fase école'])]); st.cache_data.clear(); st.rerun()
-    else:
-        st.info("Aucune donnée.")
