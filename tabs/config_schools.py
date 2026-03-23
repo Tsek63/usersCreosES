@@ -97,37 +97,41 @@ def render(conn, df_ecoles, df_config, data_fwb):
     if not df_filt.empty:
         df_filt = df_filt.merge(df_ecoles[['Fase école', 'Ecole']], on='Fase école', how='left')
         
-        col_table, col_viz = st.columns([1.6, 1])
+        col_table, col_viz = st.columns([1.8, 1]) # Augmentation de la place pour le tableau
         
         with col_table:
-            h1, h2, h3, h4, h5 = st.columns([1.5, 1.5, 2, 2.5, 0.5])
+            # Augmentation de la largeur de la colonne Services (2.5 -> 3)
+            h1, h2, h3, h4, h5 = st.columns([1.5, 1.5, 2, 3, 0.5])
             h1.write("**Commune**"); h2.write("**Paiement**"); h3.write("**École**"); h4.write("**Services**")
+            
             for _, row in df_filt.iterrows():
-                r1, r2, r3, r4, r5 = st.columns([1.5, 1.5, 2, 2.5, 0.5])
+                r1, r2, r3, r4, r5 = st.columns([1.5, 1.5, 2, 3, 0.5])
                 r1.write(row['Commune'])
                 p_c = "#ec4899" if row['Paiement'] == "Prépaiement" else "#38bdf8"
-                r2.markdown(f'<b style="color:{p_c}">{row["Paiement"]}</b>', unsafe_allow_html=True)
+                r2.markdown(f'<b style="color:{p_c}; font-size:13px;">{row["Paiement"]}</b>', unsafe_allow_html=True)
                 r3.write(f"{row['Ecole']} ({row['Fase école']})")
+                
+                # Badges services plus grands
                 svs = row['Services'].split('|')
                 s_badges = ""
                 colors = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
                 for s in svs:
                     if s.strip() and s.strip() != "-":
-                        s_badges += f'<span style="background:{colors.get(s,"#999")}; color:white; padding:2px 5px; border-radius:4px; font-size:9px; margin-right:3px;">{s}</span>'
+                        # Police à 11px et padding plus généreux (4px 8px)
+                        s_badges += f'<span style="background:{colors.get(s,"#999")}; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block; margin-bottom:2px;">{s}</span>'
                 r4.markdown(s_badges, unsafe_allow_html=True)
+                
                 if r5.button("🗑️", key=f"trash_{row['Fase école']}"):
                     safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != row['Fase école']])
                     st.cache_data.clear(); st.rerun()
 
         with col_viz:
-            # Graphique 1 : Paiements
             fig_p = px.pie(df_filt, names='Paiement', hole=0.4, title="Modes de Paiement", 
                            color_discrete_map={'Prépaiement': '#ec4899', 'Post-paiement': '#38bdf8'},
                            color='Paiement')
             fig_p.update_layout(height=280, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=-0.1))
             st.plotly_chart(fig_p, use_container_width=True)
             
-            # Graphique 2 : Services (Comptage des services individuels)
             all_s = []
             for s in df_filt['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"] )
