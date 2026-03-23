@@ -57,7 +57,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
             if ecole_fase_sel:
                 curr = df_config[df_config['Fase école'] == ecole_fase_sel]
                 idx_ex = 0 if (not curr.empty and curr.iloc[0]['Extrascolaire'] == 'Oui') else 1
-                with st.form("form_config_final_sync"):
+                with st.form("form_config_final_mega"):
                     f1, f2 = st.columns(2)
                     v_ex = f1.radio("Utilise l'Extrascolaire ?", ["Oui", "Non"], index=idx_ex, horizontal=True)
                     v_pa = f2.radio("Mode de paiement", ["Prépaiement", "Post-paiement"], index=0 if (curr.empty or curr.iloc[0]['Paiement'] != "Post-paiement") else 1, horizontal=True)
@@ -69,7 +69,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
                         st.cache_data.clear(); st.rerun()
 
     with col_r:
-        # --- BLOC TEAL (IDENTIQUE AU FUCHSIA) ---
+        # --- BLOC TEAL (UTILISATEURS) ---
         n_pre = len(df_active[df_active['Paiement']=='Prépaiement'])
         n_post = len(df_active[df_active['Paiement']=='Post-paiement'])
         n_comm_act = df_active['Commune'].nunique()
@@ -79,31 +79,43 @@ def render(conn, df_ecoles, df_config, data_fwb):
             <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui Utilisent l'Extrascolaire de Creos</div>
             <div style="font-size:64px; font-weight:bold; line-height:1;">{len(df_active)}</div>
             <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); margin-top:15px; padding-top:15px;">
-                <div><b style="font-size:22px; color:#ec4899;">{n_pre}</b><br><span style="font-size:13px;">Prépaiement</span></div>
-                <div><b style="font-size:22px; color:#38bdf8;">{n_post}</b><br><span style="font-size:13px;">Post-paiement</span></div>
-                <div><b style="font-size:22px; color:#a78bfa;">{n_comm_act}</b><br><span style="font-size:13px;">Communes</span></div>
+                <div style="text-align:center;">
+                    <b style="font-size:22px; color:#ec4899;">{n_pre}</b><br>
+                    <span style="font-size:22px;">Prépaiement</span>
+                </div>
+                <div style="text-align:center;">
+                    <b style="font-size:22px; color:#38bdf8;">{n_post}</b><br>
+                    <span style="font-size:22px;">Post-paiement</span>
+                </div>
+                <div style="text-align:center;">
+                    <b style="font-size:22px; color:#a78bfa;">{n_comm_act}</b><br>
+                    <span style="font-size:22px;">Communes</span>
+                </div>
             </div>
         </div>""", unsafe_allow_html=True)
 
-        # --- BLOC FUCHSIA (IDENTIQUE AU TEAL) ---
+        # --- BLOC FUCHSIA (REFUS) ---
         n_comm_ref = df_refus['Commune'].nunique()
         st.markdown(f"""
         <div style="background-color:#FF43D0; padding:20px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui n'utilisent pas l'Extrascolaire de Creos</div>
             <div style="font-size:64px; font-weight:bold; line-height:1;">{len(df_refus)}</div>
             <div style="display:flex; justify-content:center; border-top:1px solid rgba(255,255,255,0.2); margin-top:15px; padding-top:15px;">
-                <div><b style="font-size:22px;">{n_comm_ref}</b><br><span style="font-size:13px;">Communes ont dit NON</span></div>
+                <div style="text-align:center;">
+                    <b style="font-size:22px;">{n_comm_ref}</b><br>
+                    <span style="font-size:22px;">Communes ont dit NON</span>
+                </div>
             </div>
         </div>""", unsafe_allow_html=True)
 
     # --- 3. FILTRES ET LISTE ---
     st.divider()
-    view_mode = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True, key="toggle_vfinal")
+    view_mode = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True, key="toggle_mega")
     target_df = df_active if "Utilisatrices" in view_mode else df_refus
     color_theme = "#008080" if "Utilisatrices" in view_mode else "#FF43D0"
 
     f1, f2, f3 = st.columns(3)
-    fl_p = f1.multiselect("Filtrer par Province", sorted(target_df['Province'].unique()), key="f_p_sync")
+    fl_p = f1.multiselect("Filtrer par Province", sorted(target_df['Province'].unique()), key="f_p_mega")
     
     df_filt = target_df.copy()
     if fl_p: df_filt = df_filt[df_filt['Province'].isin(fl_p)]
@@ -130,7 +142,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
                         s_badges += f'<span style="background:{colors.get(s,"#999")}; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block;">{s}</span>'
                 r4.markdown(s_badges, unsafe_allow_html=True)
             
-            if r5.button("🗑️", key=f"del_sync_{i}_{row['Fase école']}"):
+            if r5.button("🗑️", key=f"del_mega_{i}_{row['Fase école']}"):
                 df_final = df_config[df_config['Fase école'] != str(row['Fase école'])]
                 safe_write(conn, "EcolesConfig", df_final)
                 st.cache_data.clear(); st.rerun()
