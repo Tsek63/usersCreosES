@@ -4,8 +4,8 @@ import json
 import pandas as pd
 from ui_components import audit_card
 
-def render(df_ecoles, df_config, data_fwb, df_contacts): # Ajout de df_contacts dans les arguments
-    # --- 1. PRÉPARATION ET NORMALISATION ---
+def render(df_ecoles, df_config, data_fwb, df_contacts):
+    # --- 1. PRÉPARATION ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
@@ -28,7 +28,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts): # Ajout de df_contacts 
         
         tab1_rows.append({'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans})
     
-    df_tab1 = pd.DataFrame(tab1_rows)
+    df_tab1 = pd.DataFrame(tab1_rows) if not tab1_rows == [] else pd.DataFrame(columns=['Province','Commune','NbOui','NbNon','NbSans'])
 
     # --- 2. STATS GAUCHE ---
     t_dash = len(df_tab1)
@@ -42,7 +42,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts): # Ajout de df_contacts 
         "Activités": (int(df_active['Services'].str.contains("Activités", na=False).sum()), "#4ade80"),
     }
 
-    # --- 3. RENDU CARTE & LISTE ---
+    # --- 3. CARTE & LISTE ---
     data_fwb_norm = {normalize_prov(k): v for k, v in data_fwb.items()}
     json_recs = df_tab1.to_json(orient='records')
     map_ref_json = json.dumps(data_fwb_norm)
@@ -57,12 +57,12 @@ def render(df_ecoles, df_config, data_fwb, df_contacts): # Ajout de df_contacts 
         #map-box {{ flex: 0 0 300px; background: #262730; border-radius: 8px; margin-bottom: 8px; }}
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: rgba(255,255,255,0.1); stroke-width: 0.5; opacity: 0.3; cursor: help; }}
-        .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
+        .active {{ stroke: #ffffff !important; stroke-width: 1.5px !important; opacity: 1 !important; }}
         #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; outline: none; }}
         #list {{ flex: 1; overflow-y: auto; }}
         .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 12px; }}
         .panel-header {{ text-align: center; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px; }}
-        .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; align-items: center; color: #334155; }}
+        .item-row {{ display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; align-items: center; color: #334155; }}
         .commune-name {{ flex: 0 0 150px; font-weight: bold; color: #4169E1; font-size: 13px; }}
         .counts-container {{ display: flex; gap: 4px; flex-grow: 1; justify-content: flex-end; }}
         .cnt {{ padding: 2px 10px; border-radius: 4px; color: white; font-weight: bold; white-space: nowrap; font-size: 10px; }}
@@ -118,7 +118,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts): # Ajout de df_contacts 
                         row.innerHTML = `<div class="commune-name">${{x.Commune}}</div><div class="counts-container">
                             <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}} École(s) utilisent</span>
                             <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}} Refus</span>
-                            <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Sans choix</span>
+                            <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Pas de choix</span>
                         </div>`;
                         listDiv.appendChild(row);
                     }});
@@ -133,42 +133,26 @@ def render(df_ecoles, df_config, data_fwb, df_contacts): # Ajout de df_contacts 
     """
     components.html(html_map, height=750)
 
-    # --- 4. SECTION AUDIT (LE CENTRE D'INTELLIGENCE) ---
+    # --- 4. AUDIT ---
     st.divider()
     st.subheader("🕵️ Audit de Qualité & Prospection")
-    
-    # Calculs pour l'audit
     communes_actives = df_active['Commune'].unique()
     communes_avec_contacts = df_contacts['Commune'].unique()
-    
-    # 1. Communes actives SANS contact encodé
     sans_contact = [c for c in communes_actives if c not in communes_avec_contacts]
     
-    # 2. Écoles FWB sans aucune configuration (Inconnues)
     ecoles_fwb_total = set(df_ecoles['Fase école'].unique())
     ecoles_cfg_total = set(df_config['Fase école'].unique())
     en_attente = len(ecoles_fwb_total - ecoles_cfg_total)
-    
-    # 3. Leaderboard Province
     top_prov = df_active['Province'].value_counts().idxmax() if not df_active.empty else "N/A"
 
     aud1, aud2, aud3, aud4 = st.columns(4)
-    
-    with aud1:
-        color = "#ef4444" if sans_contact else "#22c55e"
-        audit_card("Contacts manquants", f"{len(sans_contact)} commune(s)", color, "⚠️")
-    
-    with aud2:
-        audit_card("Écoles en attente", f"{en_attente} écoles", "#3b82f6", "🔔")
-    
-    with aud3:
-        audit_card("Province Leader", top_prov, "#f59e0b", "🏆")
-        
-    with aud4:
+    with aud1: audit_card("Contacts manquants", f"{len(sans_contact)} commune(s)", "#ef4444" if sans_contact else "#22c55e", "⚠️")
+    with aud2: audit_card("Écoles en attente", f"{en_attente} écoles", "#3b82f6", "🔔")
+    with aud3: audit_card("Province Leader", top_prov, "#f59e0b", "🏆")
+    with aud4: 
         taux = round((len(df_active) / len(df_ecoles)) * 100, 1) if not df_ecoles.empty else 0
-        audit_card("Taux de pénétration", f"{taux}%", "#8b5cf6", "📈")
+        audit_card("Pénétration", f"{taux}%", "#8b5cf6", "📈")
 
-    # Liste détaillée des manques (Si besoin)
     if sans_contact:
         with st.expander("🔎 Voir les communes actives sans contact"):
             st.write(", ".join(sorted(sans_contact)))
