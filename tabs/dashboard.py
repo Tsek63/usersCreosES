@@ -2,9 +2,10 @@ import streamlit as st
 import streamlit.components.v1 as components
 import json
 import pandas as pd
+from ui_components import audit_card
 
-def render(df_ecoles, df_config, data_fwb):
-    # --- 1. PRÉPARATION ET NORMALISATION DES DONNÉES ---
+def render(df_ecoles, df_config, data_fwb, df_contacts): # Ajout de df_contacts dans les arguments
+    # --- 1. PRÉPARATION ET NORMALISATION ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
@@ -15,47 +16,39 @@ def render(df_ecoles, df_config, data_fwb):
         return p
 
     tab1_rows = []
-    if not df_active.empty:
-        for comm in df_active['Commune'].unique():
-            grp = df_active[df_active['Commune'] == comm]
-            prov_raw = grp['Province'].iloc[0] if not grp.empty else "Inconnu"
-            prov = normalize_prov(prov_raw)
-            
-            nb_oui = len(grp)
-            nb_non = len(df_non[df_non['Commune'] == comm])
-            
-            fase_fwb = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
-            fase_cfg = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
-            nb_sans = len([e for e in fase_fwb if e not in fase_cfg])
-            
-            tab1_rows.append({
-                'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans
-            })
+    for comm in df_active['Commune'].unique():
+        grp = df_active[df_active['Commune'] == comm]
+        prov = normalize_prov(grp['Province'].iloc[0] if not grp.empty else "Inconnu")
+        nb_oui = len(grp)
+        nb_non = len(df_non[df_non['Commune'] == comm])
+        
+        fase_fwb = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
+        fase_cfg = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
+        nb_sans = len([e for e in fase_fwb if e not in fase_cfg])
+        
+        tab1_rows.append({'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans})
     
     df_tab1 = pd.DataFrame(tab1_rows)
 
-    # --- 2. STATS PANNEAU DE GAUCHE ---
+    # --- 2. STATS GAUCHE ---
     t_dash = len(df_tab1)
     p_dash = len(df_active[df_active['Paiement'] == 'Prépaiement'])
     po_dash = len(df_active[df_active['Paiement'] == 'Post-paiement'])
-    
     s_dash = {
-        "Cantine Jour":    (int(df_active['Services'].str.contains("Cantine Jour",    na=False).sum()), "#FFD700"),
+        "Cantine Jour": (int(df_active['Services'].str.contains("Cantine Jour", na=False).sum()), "#FFD700"),
         "Cantine Semaine": (int(df_active['Services'].str.contains("Cantine Semaine", na=False).sum()), "#FF8C00"),
-        "Cantine Mois":    (int(df_active['Services'].str.contains("Cantine Mois",    na=False).sum()), "#FF0000"),
-        "Garderie":        (int(df_active['Services'].str.contains("Garderie",        na=False).sum()), "#38bdf8"),
-        "Activités":       (int(df_active['Services'].str.contains("Activités",       na=False).sum()), "#4ade80"),
+        "Cantine Mois": (int(df_active['Services'].str.contains("Cantine Mois", na=False).sum()), "#FF0000"),
+        "Garderie": (int(df_active['Services'].str.contains("Garderie", na=False).sum()), "#38bdf8"),
+        "Activités": (int(df_active['Services'].str.contains("Activités", na=False).sum()), "#4ade80"),
     }
 
-    # --- 3. PRÉPARATION DU JSON ---
+    # --- 3. RENDU CARTE & LISTE ---
     data_fwb_norm = {normalize_prov(k): v for k, v in data_fwb.items()}
     json_recs = df_tab1.to_json(orient='records')
     map_ref_json = json.dumps(data_fwb_norm)
 
-    # --- 4. BLOC HTML / JS ---
     html_map = f"""
-    <!DOCTYPE html><html><head><meta charset="UTF-8">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {{ --dark: #1e293b; }}
         body {{ margin: 0; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; background: white; }}
@@ -78,102 +71,104 @@ def render(df_ecoles, df_config, data_fwb):
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
         <div class="stats-panel">
-            <div class="panel-header">
-                <div style="font-size:12px; opacity:0.7; letter-spacing:1px;">COMMUNES ACTIVES</div>
-                <div style="font-size:42px; font-weight:bold;">{t_dash}</div>
-            </div>
-            <div style="display:flex; gap:25px;">
+            <div class="panel-header"><div style="font-size:12px; opacity:0.7;">COMMUNES ACTIVES</div><div style="font-size:42px; font-weight:bold;">{t_dash}</div></div>
+            <div style="display:flex; gap:20px;">
                 <div style="flex:1;">
-                    <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px; letter-spacing:1px;">PAIEMENT</div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;">
-                        <span>Prépaiement</span><span style="font-weight:bold; color:#ec4899;">{p_dash}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; font-size:13px;">
-                        <span>Post-paiement</span><span style="font-weight:bold; color:#38bdf8;">{po_dash}</span>
-                    </div>
+                    <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px;">PAIEMENT</div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;"><span>Prépaiement</span><span style="font-weight:bold; color:#ec4899;">{p_dash}</span></div>
+                    <div style="display:flex; justify-content:space-between; font-size:13px;"><span>Post-paiement</span><span style="font-weight:bold; color:#38bdf8;">{po_dash}</span></div>
                 </div>
                 <div style="flex:1;">
-                    <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px; letter-spacing:1px;">SERVICES</div>
+                    <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px;">SERVICES</div>
                     {"".join([f'<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;"><span>{k}</span><span style="font-weight:bold; background:{v[1]}; padding:0 6px; border-radius:4px;">{v[0]}</span></div>' for k,v in s_dash.items()])}
                 </div>
             </div>
         </div>
     </div>
-    <div id="right">
-        <input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()">
-        <div id="list"></div>
-    </div>
+    <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
-        const dbData = {json_recs};
-        const mapRef = {map_ref_json};
-        const dbMap = new Map();
-        dbData.forEach(item => dbMap.set(item.Commune, item));
-
+        const dbData = {json_recs}; const mapRef = {map_ref_json};
+        const dbMap = new Map(); dbData.forEach(item => dbMap.set(item.Commune, item));
         function init() {{
             const svg = document.getElementById('svg');
-            const anchors = {{
-                "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180],
-                "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400]
-            }};
-            const colors = {{
-                "bruxelles": "#ffeaa7", "brabant": "#81ecec", "hainaut": "#a29bfe",
-                "liege": "#74b9ff", "namur": "#fab1a0", "luxembourg": "#FF43D0"
-            }};
-
-            Object.entries(mapRef).forEach(([provName, list]) => {{
-                if (!anchors[provName]) return;
-                const colorKey = provName.toLowerCase().split(' ')[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                const color = colors[colorKey] || "#ccc";
+            const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
+            Object.entries(mapRef).forEach(([p, list]) => {{
+                if (!anchors[p]) return;
                 list.forEach((name, i) => {{
-                    const x = anchors[provName][0] + (i % 8 * 23);
-                    const y = anchors[provName][1] + (Math.floor(i / 8) * 21);
+                    const x = anchors[p][0] + (i % 8 * 23); const y = anchors[p][1] + (Math.floor(i / 8) * 21);
                     const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                    rect.setAttribute("x", x); rect.setAttribute("y", y);
-                    rect.setAttribute("width", 20); rect.setAttribute("height", 18); rect.setAttribute("rx", 3);
+                    rect.setAttribute("x", x); rect.setAttribute("y", y); rect.setAttribute("width", 20); rect.setAttribute("height", 18); rect.setAttribute("rx", 3);
                     rect.setAttribute("class", "commune" + (dbMap.has(name) ? " active" : ""));
-                    rect.style.fill = color;
-                    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-                    title.textContent = name;
-                    rect.appendChild(title);
+                    rect.style.fill = "#ccc";
+                    const t = document.createElementNS("http://www.w3.org/2000/svg", "title"); t.textContent = name; rect.appendChild(t);
                     svg.appendChild(rect);
                 }});
             }});
             renderList();
         }}
-
         function renderList() {{
-            const listDiv = document.getElementById('list');
-            listDiv.innerHTML = "";
+            const listDiv = document.getElementById('list'); listDiv.innerHTML = "";
             const provinces = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
             provinces.forEach(p => {{
                 const filtered = dbData.filter(d => d.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
-                    const h = document.createElement('div');
-                    h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='10px'; h.style.fontWeight='bold'; h.style.color='#94a3b8'; h.style.marginTop='10px';
-                    h.innerText = p.toUpperCase();
-                    listDiv.appendChild(h);
+                    const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='10px'; h.style.fontWeight='bold'; h.style.color='#94a3b8'; h.style.marginTop='10px'; h.innerText = p.toUpperCase(); listDiv.appendChild(h);
                     filtered.forEach(x => {{
-                        const row = document.createElement('div');
-                        row.className = 'item-row';
-                        row.innerHTML = `
-                            <div class="commune-name">${{x.Commune}}</div>
-                            <div class="counts-container">
-                                <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}} École(s) utilise(nt) l'Extrascolaire</span>
-                                <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}} N'utilise(nt) pas</span>
-                                <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Pas de choix</span>
-                            </div>`;
+                        const row = document.createElement('div'); row.className = 'item-row';
+                        row.innerHTML = `<div class="commune-name">${{x.Commune}}</div><div class="counts-container">
+                            <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}} École(s) utilisent</span>
+                            <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}} Refus</span>
+                            <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Sans choix</span>
+                        </div>`;
                         listDiv.appendChild(row);
                     }});
                 }}
             }});
         }}
-
         function doSearch() {{
             const val = document.getElementById('search').value.toLowerCase();
-            document.querySelectorAll('.item-row').forEach(row => {{
-                row.style.display = row.innerText.toLowerCase().includes(val) ? 'flex' : 'none';
-            }});
+            document.querySelectorAll('.item-row').forEach(row => {{ row.style.display = row.innerText.toLowerCase().includes(val) ? 'flex' : 'none'; }});
         }}
     </script></body></html>
     """
     components.html(html_map, height=750)
+
+    # --- 4. SECTION AUDIT (LE CENTRE D'INTELLIGENCE) ---
+    st.divider()
+    st.subheader("🕵️ Audit de Qualité & Prospection")
+    
+    # Calculs pour l'audit
+    communes_actives = df_active['Commune'].unique()
+    communes_avec_contacts = df_contacts['Commune'].unique()
+    
+    # 1. Communes actives SANS contact encodé
+    sans_contact = [c for c in communes_actives if c not in communes_avec_contacts]
+    
+    # 2. Écoles FWB sans aucune configuration (Inconnues)
+    ecoles_fwb_total = set(df_ecoles['Fase école'].unique())
+    ecoles_cfg_total = set(df_config['Fase école'].unique())
+    en_attente = len(ecoles_fwb_total - ecoles_cfg_total)
+    
+    # 3. Leaderboard Province
+    top_prov = df_active['Province'].value_counts().idxmax() if not df_active.empty else "N/A"
+
+    aud1, aud2, aud3, aud4 = st.columns(4)
+    
+    with aud1:
+        color = "#ef4444" if sans_contact else "#22c55e"
+        audit_card("Contacts manquants", f"{len(sans_contact)} commune(s)", color, "⚠️")
+    
+    with aud2:
+        audit_card("Écoles en attente", f"{en_attente} écoles", "#3b82f6", "🔔")
+    
+    with aud3:
+        audit_card("Province Leader", top_prov, "#f59e0b", "🏆")
+        
+    with aud4:
+        taux = round((len(df_active) / len(df_ecoles)) * 100, 1) if not df_ecoles.empty else 0
+        audit_card("Taux de pénétration", f"{taux}%", "#8b5cf6", "📈")
+
+    # Liste détaillée des manques (Si besoin)
+    if sans_contact:
+        with st.expander("🔎 Voir les communes actives sans contact"):
+            st.write(", ".join(sorted(sans_contact)))
