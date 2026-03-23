@@ -13,7 +13,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
 
     st.header("⚙️ Gestion des Écoles par Commune")
 
-    # --- PRÉPARATION DES DONNÉES ---
+    # --- PRÉPARATION ---
     df_config['Fase école'] = df_config['Fase école'].astype(str).str.strip()
     df_config = df_config.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
     
@@ -37,40 +37,45 @@ def render(conn, df_ecoles, df_config, data_fwb):
                                  key="cfg_c")
         
         if c_sel != "— Sélectionnez —":
-            # --- ACTIONS GROUPÉES (SERVICES ET PAIEMENT) ---
+            # --- ACTIONS GROUPÉES ---
             with st.expander(f"⚡ Actions groupées pour {c_sel}"):
-                st.markdown("**Mise à jour groupée (uniquement pour les écoles déjà à 'OUI')**")
+                st.markdown("**1. Premier encodage groupé (Démarrer tout le PO)**")
+                st.info("Cette action va créer une configuration 'OUI' pour TOUTES les écoles de la commune.")
                 
-                # NOUVEAU : SERVICES ET PAIEMENT GROUPÉS
                 g1, g2 = st.columns(2)
                 with g1:
-                    mass_svc = st.multiselect("Services à appliquer", svc_list, key="mass_svc_sel")
+                    mass_pay = st.radio("Paiement par défaut", ["Prépaiement", "Post-paiement"], horizontal=True, key="m_pay")
                 with g2:
-                    mass_pay = st.radio("Paiement à appliquer", ["Prépaiement", "Post-paiement"], horizontal=True, key="mass_pay_sel")
+                    mass_svc = st.multiselect("Services par défaut", svc_list, key="m_svc")
                 
-                if st.button(f"Mettre à jour la configuration de {c_sel}", use_container_width=True, key="btn_apply_mass"):
-                    # On cible uniquement les écoles du PO qui sont utilisatrices
-                    mask = (df_config['Commune'] == c_sel) & (df_config['Extrascolaire'] == 'Oui')
-                    if any(mask):
-                        df_config.loc[mask, 'Services'] = "|".join(mass_svc) if mass_svc else "-"
-                        df_config.loc[mask, 'Paiement'] = mass_pay
-                        safe_write(conn, "EcolesConfig", df_config)
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.warning("Aucune école active ('Oui') trouvée pour cette commune.")
-                
+                if st.button(f"🚀 Activer tout {c_sel} à 'OUI'", use_container_width=True):
+                    # 1. Identifier TOUTES les écoles de cette commune dans la liste FWB
+                    f_list = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
+                    # 2. Créer les nouvelles lignes
+                    new_rows = []
+                    for f in f_list:
+                        new_rows.append({
+                            "Fase école": f, "Commune": c_sel, "Province": p_sel,
+                            "Extrascolaire": "Oui", "Paiement": mass_pay, 
+                            "Services": "|".join(mass_svc) if mass_svc else "-"
+                        })
+                    df_new_batch = pd.DataFrame(new_rows)
+                    # 3. Fusionner en remplaçant les éventuelles configs existantes pour ces écoles
+                    df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], df_new_batch], ignore_index=True)
+                    safe_write(conn, "EcolesConfig", df_upd)
+                    st.cache_data.clear(); st.rerun()
+
                 st.markdown("---")
-                st.markdown("**Actions radicales**")
+                st.markdown("**2. Actions rapides**")
                 ca1, ca2 = st.columns(2)
                 with ca1:
-                    if st.button(f"Tout {c_sel} à 'NON'", use_container_width=True, key="mass_non"):
+                    if st.button(f"Tout {c_sel} à 'NON'", use_container_width=True, key="m_non"):
                         f_list = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
                         new_rows = [{"Fase école": f, "Commune": c_sel, "Province": p_sel, "Extrascolaire": "Non", "Paiement": "-", "Services": "-"} for f in f_list]
                         df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], pd.DataFrame(new_rows)], ignore_index=True)
                         safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
                 with ca2:
-                    if st.button(f"Réinitialiser {c_sel}", use_container_width=True, key="mass_del"):
+                    if st.button(f"Réinitialiser {c_sel} (Vide)", use_container_width=True, key="m_del"):
                         df_upd = df_config[df_config['Commune'] != c_sel]
                         safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
 
@@ -100,7 +105,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
                         safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
 
     with col_r:
-        # --- BLOCS STATS ---
+        # BLOCS STATS
         st.markdown(f"""
 <div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui Utilisent l'Extrascolaire de Creos</div>
@@ -117,31 +122,13 @@ def render(conn, df_ecoles, df_config, data_fwb):
 <div style="text-align:center;"><b style="font-size:22px; font-weight:900;">{df_refus['Commune'].nunique()}</b><br><span style="font-size:22px;">Communes ont dit NON</span></div>
 </div></div>""", unsafe_allow_html=True)
 
-    # --- LISTE FILTRÉE ---
+    # --- LISTE ---
     st.divider()
-    view = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True, key="toggle_list_final")
+    view = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True)
     target = df_active if "Utilisatrices" in view else df_refus
     theme = "#008080" if "Utilisatrices" in view else "#FF43D0"
-    
     fl_p = st.multiselect("Filtrer par Province", sorted(target['Province'].unique()), key="f_p_cfg_final")
     df_f = target.copy()
     if fl_p: df_f = df_f[df_f['Province'].isin(fl_p)]
-
     if not df_f.empty:
-        df_f = df_f.merge(df_ecoles[['Fase école', 'Ecole']].drop_duplicates(), on='Fase école', how='left').fillna("-")
-        h1, h2, h3, h4, h5 = st.columns([1.5, 1.2, 2, 3, 0.5])
-        h1.write("**Commune**"); h2.write("**Status**"); h3.write("**École**"); h4.write("**Services**" if "Utilisatrices" in view else "")
-        for i, (_, row) in enumerate(df_f.iterrows()):
-            r1, r2, r3, r4, r5 = st.columns([1.5, 1.2, 2, 3, 0.5])
-            r1.write(row['Commune']); r2.markdown(f'<b style="color:{theme}">{row["Extrascolaire"]}</b>', unsafe_allow_html=True); r3.write(f"{row['Ecole']} ({row['Fase école']})")
-            if "Utilisatrices" in view:
-                badges = ""
-                clrs = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
-                for s in str(row['Services']).split('|'):
-                    if s.strip() and s.strip() != "-":
-                        badges += f'<span style="background:{clrs.get(s,"#999")}; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block;">{s}</span>'
-                r4.markdown(badges, unsafe_allow_html=True)
-            if r5.button("🗑️", key=f"del_cfg_{i}_{row['Fase école']}"):
-                safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(row['Fase école'])]); st.cache_data.clear(); st.rerun()
-    else:
-        st.info("Aucune donnée.")
+        df_f =
