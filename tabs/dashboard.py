@@ -7,30 +7,37 @@ def render(df_ecoles, df_config, data_fwb):
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
-    # Préparation des données pour la carte JS
     tab1_rows = []
     for comm, grp in df_active.groupby('Commune'):
         prov = grp['Province'].iloc[0]
         nb_oui = len(grp)
         nb_non = len(df_non[df_non['Commune'] == comm])
-        # Écoles sans config
-        ecoles_comm = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].tolist()
-        config_comm = df_config[df_config['Commune'] == comm]['Fase école'].tolist()
+        ecoles_comm = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
+        config_comm = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
         nb_sans = len([e for e in ecoles_comm if e not in config_comm])
         tab1_rows.append({
-            'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans
+            'Commune': comm, 'Province': prov, 'NbEcoles': nb_oui,
+            'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans
         })
     
     df_tab1 = pd.DataFrame(tab1_rows)
-    json_recs = df_tab1.to_json(orient='records')
-    map_ref = json.dumps(data_fwb)
-
-    # Stats Panel
+    
+    # Stats Dashboard
     t_dash = df_tab1['Commune'].nunique() if not df_tab1.empty else 0
     p_dash = len(df_active[df_active['Paiement'] == 'Prépaiement'])
     po_dash = len(df_active[df_active['Paiement'] == 'Post-paiement'])
+    
+    s_dash = {
+        "Cantine Jour": (int(df_active['Services'].str.contains("Cantine Jour", na=False).sum()), "#FFD700"),
+        "Cantine Semaine": (int(df_active['Services'].str.contains("Cantine Semaine", na=False).sum()), "#FF8C00"),
+        "Cantine Mois": (int(df_active['Services'].str.contains("Cantine Mois", na=False).sum()), "#FF0000"),
+        "Garderie": (int(df_active['Services'].str.contains("Garderie", na=False).sum()), "#38bdf8"),
+        "Activités": (int(df_active['Services'].str.contains("Activités", na=False).sum()), "#4ade80"),
+    }
 
-    # LE CODE HTML COMPLET (AVEC LA LISTE À DROITE)
+    json_recs = df_tab1.to_json(orient='records')
+    map_ref = json.dumps(data_fwb)
+
     html_map = f"""
     <!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>
         :root {{ --dark: #1e293b; --c-bruxelles: #ffeaa7; --c-brabant: #81ecec; --c-hainaut: #a29bfe; --c-liege: #74b9ff; --c-namur: #fab1a0; --c-luxembourg: #FF43D0; }}
@@ -43,23 +50,24 @@ def render(df_ecoles, df_config, data_fwb):
         .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
         #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; }}
         #list {{ flex: 1; overflow-y: auto; }}
-        .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; color: #334155; }}
+        .stats-panel {{ background: var(--dark); color: white; padding: 12px; border-radius: 12px; }}
+        .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; align-items: center; color:#334155; }}
         .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; margin-left:4px; }}
     </style></head><body onload="init()">
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
-        <div style="background:var(--dark); color:white; padding:15px; border-radius:12px; text-align:center;">
-            <div style="font-size:10px; opacity:0.6;">COMMUNES ACTIVES</div>
-            <div style="font-size:32px; font-weight:bold;">{t_dash}</div>
+        <div class="stats-panel">
+            <div style="text-align:center; border-bottom:1px solid #334155; padding-bottom:5px; margin-bottom:10px;">
+                <div style="font-size:10px; opacity:0.7;">COMMUNES ACTIVES</div><div style="font-size:32px; font-weight:bold;">{t_dash}</div>
+            </div>
+            <div style="display:flex; justify-content:space-around; font-size:11px;">
+                <div>Prépaiement: <b>{p_dash}</b></div><div>Post-paiement: <b>{po_dash}</b></div>
+            </div>
         </div>
     </div>
-    <div id="right">
-        <input type="text" id="search" placeholder="🔍 Rechercher..." onkeyup="doSearch()">
-        <div id="list"></div>
-    </div>
+    <div id="right"><input type="text" id="search" placeholder="🔍 Rechercher une commune..." onkeyup="doSearch()"><div id="list"></div></div>
     <script>
-        const dbData = {json_recs};
-        const mapRef = {map_ref};
+        const dbData = {json_recs}; const mapRef = {map_ref};
         let db = new Map(); dbData.forEach(r => db.set(r.Commune, r));
         function init() {{
             const svg = document.getElementById('svg');
@@ -81,7 +89,7 @@ def render(df_ecoles, df_config, data_fwb):
             ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"].forEach(p => {{
                 const filtered = Array.from(db.values()).filter(x => x.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
-                    const h = document.createElement('div'); h.style.background='#f1f5f9'; h.style.padding='6px'; h.style.fontSize='11px'; h.innerText = p; listDiv.appendChild(h);
+                    const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px'; h.style.fontSize='11px'; h.innerText = p; listDiv.appendChild(h);
                     filtered.forEach(x => {{
                         const row = document.createElement('div'); row.className = 'item-row';
                         row.innerHTML = `<span><strong>${{x.Commune}}</strong></span><div><span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}}</span><span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}}</span><span class="cnt" style="background:#94a3b8">? ${{x.NbSans}}</span></div>`;
