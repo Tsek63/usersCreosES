@@ -12,7 +12,6 @@ class DataManager:
         self.conn = conn
 
     def clean_df(self, df):
-        # Supprime les .0 des FASE et remplace les vides par "-"
         for col in ['Fase école', 'Fase PO', 'Code postal']:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
@@ -23,6 +22,11 @@ class DataManager:
         df_ecoles = _self.clean_df(_self.conn.read(worksheet="Ecoles").dropna(how="all"))
         df_config = _self.clean_df(_self.conn.read(worksheet="EcolesConfig").dropna(how="all"))
         df_contacts = _self.clean_df(_self.conn.read(worksheet="Contacts").dropna(how="all"))
+        # Ajout du chargement du Time Tracking pour l'export de sécurité
+        try:
+            df_time = _self.conn.read(worksheet="TimeTracking").dropna(how="all")
+        except:
+            df_time = pd.DataFrame()
         
         data_fwb = {}
         for _, row in df_ecoles.iterrows():
@@ -33,4 +37,4 @@ class DataManager:
             if prov not in data_fwb: data_fwb[prov] = set()
             data_fwb[prov].add(comm)
         
-        return df_ecoles, df_config, df_contacts, {k: sorted(list(v)) for k, v in data_fwb.items()}
+        return df_ecoles, df_config, df_contacts, df_time, {k: sorted(list(v)) for k, v in data_fwb.items()}
