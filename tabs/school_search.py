@@ -3,47 +3,75 @@ import pandas as pd
 from safe_gsheets import safe_write
 
 def render(conn, df_ecoles, df_config, data_fwb, df_contacts):
-    st.markdown("#### 🔍 Recherche d'écoles et contacts")
+    active_communes = set(df_config[df_config['Extrascolaire'] == 'Oui']['Commune'].unique())
     
     # Filtres
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns([2, 3, 3])
     with c1:
-        prov = st.selectbox("🗺️ Choisir Province", ["Toutes"] + list(data_fwb.keys()), key="search_p")
+        prov = st.selectbox("🗺️ Province", ["Toutes"] + list(data_fwb.keys()), key="s_p")
     with c2:
         comm_opts = data_fwb.get(prov, sorted(df_ecoles['Commune'].unique())) if prov != "Toutes" else sorted(df_ecoles['Commune'].unique())
-        commune_sel = st.selectbox("🏘️ Choisir Commune", [""] + comm_opts, key="search_c")
+        commune_sel = st.selectbox("🏘️ Commune", [""] + comm_opts, key="s_c")
+    with c3:
+        search = st.text_input("🔍 Rechercher", placeholder="Nom, Fase...")
 
     if commune_sel:
-        # 1. FILTRAGE DES DONNÉES
-        df_display = df_ecoles[df_ecoles['Commune'] == commune_sel].copy()
+        # --- CONTACTS (RETOUR DU DESIGN VIOLET) ---
+        st.markdown(f"#### 👤 Contacts Extrascolaire - {commune_sel}")
+        contacts_comm = df_contacts[df_contacts['Commune'] == commune_sel]
         
-        # 2. AFFICHAGE DES CONTACTS
-        st.markdown(f"**👤 Contacts pour {commune_sel}**")
-        contacts = df_contacts[df_contacts['Commune'] == commune_sel]
-        if not contacts.empty:
+        if not contacts_comm.empty:
             cols_c = st.columns(3)
-            for i, (_, ct) in enumerate(contacts.iterrows()):
+            for i, (idx, ct) in enumerate(contacts_comm.iterrows()):
                 with cols_c[i % 3]:
-                    st.info(f"**{ct['Nom']}**\n\n📞 {ct['Téléphone']}\n\n✉️ {ct['Email']}")
-        else:
-            st.warning("Aucun contact enregistré.")
+                    st.markdown(f"""
+                    <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-left:5px solid #7c3aed; border-radius:10px; padding:12px; margin-bottom:10px; color:#334155;">
+                        <b style="color:#7c3aed;">{ct['Titre']} {ct['Nom']}</b><br>
+                        📞 <a href="tel:{ct['Téléphone']}" style="color:#7c3aed;">{ct['Téléphone']}</a><br>
+                        ✉️ <a href="mailto:{ct['Email']}" style="color:#7c3aed;">{ct['Email']}</a>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if st.button("🗑️", key=f"del_ct_{idx}"):
+                        safe_write(conn, "Contacts", df_contacts.drop(idx))
+                        st.rerun()
 
-        # 3. AFFICHAGE DES ÉCOLES EN 2 COLONNES
-        st.markdown(f"**🏫 Écoles ({len(df_display)})**")
-        if not df_display.empty:
-            for i in range(0, len(df_display), 2):
-                cols = st.columns(2)
-                for j in range(2):
-                    if i + j < len(df_display):
-                        school = df_display.iloc[i + j]
-                        fase = str(school['Fase école'])
-                        is_active = not df_config[df_config['Fase école'] == fase].empty
-                        badge = "✅" if is_active else "⚪"
-                        with cols[j]:
-                            st.markdown(f"""
-                            <div style="background:white; border:1px solid #ddd; padding:15px; border-radius:10px; margin-bottom:10px; border-left:5px solid #4169E1;">
-                                {badge} <b>{school['Ecole']}</b><br>
-                                <small>Fase: {fase}</small><br>
-                                <small>Dir: {school.get('Directeur.rice','-')}</small>
-                            </div>
-                            """, unsafe_allow_html=True)
+        # --- AJOUT CONTACT ---
+        with st.expander("➕ Ajouter un contact"):
+            with st.form("add_contact"):
+                f1, f2 = st.columns(2)
+                t = f1.text_input("Titre")
+                n = f1.text_input("Nom")
+                tel = f2.text_input("Téléphone")
+                mail = f2.text_input("Email")
+                if st.form_submit_button("💾 Enregistrer"):
+                    new_ct = pd.DataFrame([{"Province": prov, "Commune": commune_sel, "Titre": t, "Nom": n, "Téléphone": tel, "Email": mail}])
+                    safe_write(conn, "Contacts", pd.concat([df_contacts, new_ct], ignore_index=True))
+                    st.cache_data.clear()
+                    st.rerun()
+
+        # --- ÉCOLES (RETOUR DU DESIGN 2 COLONNES) ---
+        st.divider()
+        df_disp = df_ecoles[df_ecoles['Commune'] == commune_sel]
+        if search:
+            df_disp = df_disp[df_disp['Ecole'].str.contains(search, case=False, na=False)]
+
+        for i in range(0, len(df_disp), 2):
+            cols = st.columns(2)
+            for j in range(2):
+                if i + j < len(df_disp):
+                    school = df_disp.iloc[i + j]
+                    fase = str(school['Fase école'])
+                    conf = df_config[df_config['Fase école'] == fase]
+                    is_act = not conf.empty and conf.iloc[0]['Extrascolaire'] == 'Oui'
+                    badge = '<span style="background:#4ade80; color:#1e293b; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold; float:right;">✓ Active</span>' if is_act else ''
+                    
+                    with cols[j]:
+                        st.markdown(f"""
+                        <div class="school-card">
+                            {badge}
+                            <b>{school['Ecole']}</b><br>
+                            <span style="font-size:11px; color:#64748b;">FASE: {fase} | Dir: {school['Directeur.rice']}</span><br>
+                            <span style="font-size:11px;">✉️ {school['Email']} | 📞 {school['Téléphone']}</span><br>
+                            <span style="font-size:10px; color:#94a3b8;">📍 {school['Rue']} {school['N°']}, {school['Code postal']} {school['Localité']}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
