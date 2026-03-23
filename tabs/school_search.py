@@ -1,7 +1,7 @@
 import streamlit as st
 from ui_components import service_badges
 
-def render(df_ecoles, df_config, data_fwb):
+def render(conn, df_ecoles, df_config, data_fwb, df_contacts):
     st.subheader("🔍 Consultation par Commune")
     
     c1, c2 = st.columns(2)
