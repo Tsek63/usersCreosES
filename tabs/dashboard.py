@@ -4,13 +4,13 @@ import json
 import pandas as pd
 
 def render(df_ecoles, df_config, data_fwb):
-    # --- 1. CALCULS DES DONNÉES (Logique originale rétablie) ---
+    # --- 1. CALCULS DES DONNÉES ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
     tab1_rows = []
-    # On identifie les communes présentes dans la configuration active
     if not df_active.empty:
+        # On boucle sur les communes qui ont au moins une école active
         for comm in df_active['Commune'].unique():
             grp = df_active[df_active['Commune'] == comm]
             prov = grp['Province'].iloc[0] if not grp.empty else "Inconnu"
@@ -18,7 +18,7 @@ def render(df_ecoles, df_config, data_fwb):
             nb_oui = len(grp)
             nb_non = len(df_non[df_non['Commune'] == comm])
             
-            # Calcul "Sans configuration" (?) : Écoles dans Ecoles mais pas dans Config
+            # Calcul "Sans réponse" (?) : Écoles dans Ecoles mais pas dans Config
             ecoles_fase = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
             config_fase = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
             nb_sans = len([e for e in ecoles_fase if e not in config_fase])
@@ -69,8 +69,9 @@ def render(df_ecoles, df_config, data_fwb):
         #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; font-size: 14px; box-sizing: border-box; }}
         #list {{ flex: 1; overflow-y: auto; }}
         .stats-panel {{ background: var(--dark); color: white; padding: 12px; border-radius: 12px; font-size: 12px; }}
-        .item-row {{ display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; align-items: center; }}
-        .cnt {{ padding: 2px 8px; border-radius: 4px; color: white; font-size: 11px; font-weight: bold; margin-left: 4px; }}
+        .item-row {{ display: flex; flex-direction: column; padding: 12px 10px; border-bottom: 1px solid #f1f5f9; }}
+        .counts-container {{ display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }}
+        .cnt {{ padding: 3px 10px; border-radius: 4px; color: white; font-size: 10.5px; font-weight: bold; width: fit-content; }}
         .prov-header {{ background: #f8fafc; padding: 5px 10px; font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-top: 10px; }}
     </style></head>
     <body onload="init()">
@@ -120,12 +121,9 @@ def render(df_ecoles, df_config, data_fwb):
             }};
 
             Object.entries(mapRef).forEach(([provName, communes]) => {{
-                // SECURITE : Si la province n'est pas dans nos ancres, on l'ignore pour le dessin
                 if (!anchors[provName]) return; 
-
                 const colorKey = provName.toLowerCase().split(' ')[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const color = provColors[colorKey] || "#555";
-                
                 communes.forEach((name, i) => {{
                     const x = anchors[provName][0] + (i % 8 * 23);
                     const y = anchors[provName][1] + (Math.floor(i / 8) * 21);
@@ -155,11 +153,12 @@ def render(df_ecoles, df_config, data_fwb):
                     filtered.forEach(x => {{
                         const row = document.createElement('div');
                         row.className = 'item-row';
-                        row.innerHTML = `<span><strong>${{x.Commune}}</strong></span>
-                            <div>
-                                <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}}</span>
-                                <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}}</span>
-                                <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}}</span>
+                        row.innerHTML = `
+                            <span><strong style="color:#4169E1; font-size:14px;">${{x.Commune}}</strong></span>
+                            <div class="counts-container">
+                                <span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${{x.NbOui}} Écoles utilisant Creos Extrascolaire</span>
+                                <span class="cnt" style="background:#ef4444" title="N'utilisent pas Creos">✗ ${{x.NbNon}} Écoles qui ne l'utilisent pas</span>
+                                <span class="cnt" style="background:#94a3b8" title="Sans configuration">? ${{x.NbSans}} Écoles sans choix enregistré</span>
                             </div>`;
                         listDiv.appendChild(row);
                     }});
