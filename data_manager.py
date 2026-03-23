@@ -11,21 +11,19 @@ class DataManager:
     def __init__(self, conn):
         self.conn = conn
 
-    def clean_fase(self, df):
-        """Nettoyage des codes FASE et codes postaux"""
+    def clean_df(self, df):
+        # Supprime les .0 des FASE et remplace les vides par "-"
         for col in ['Fase école', 'Fase PO', 'Code postal']:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-        return df
+        return df.fillna("-").replace("nan", "-")
 
     @st.cache_data(ttl=60)
     def load_all_data(_self):
-        """Chargement centralisé de toutes les feuilles"""
-        df_ecoles = _self.clean_fase(_self.conn.read(worksheet="Ecoles").dropna(how="all"))
-        df_config = _self.clean_fase(_self.conn.read(worksheet="EcolesConfig").dropna(how="all"))
-        df_contacts = _self.conn.read(worksheet="Contacts").dropna(how="all")
+        df_ecoles = _self.clean_df(_self.conn.read(worksheet="Ecoles").dropna(how="all"))
+        df_config = _self.clean_df(_self.conn.read(worksheet="EcolesConfig").dropna(how="all"))
+        df_contacts = _self.clean_df(_self.conn.read(worksheet="Contacts").dropna(how="all"))
         
-        # Construction du dictionnaire Province -> Communes
         data_fwb = {}
         for _, row in df_ecoles.iterrows():
             p_raw = str(row.get('Province', '')).lower().strip()
