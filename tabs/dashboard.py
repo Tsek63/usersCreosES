@@ -8,7 +8,6 @@ def render(df_ecoles, df_config, data_fwb):
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
-    # Traduction pour Bruxelles (pour que la carte trouve les coordonnées)
     def normalize_prov(p):
         p = str(p)
         if "Bruxelles" in p: return "Bruxelles"
@@ -16,7 +15,6 @@ def render(df_ecoles, df_config, data_fwb):
         return p
 
     tab1_rows = []
-    # On identifie les communes actives
     for comm in df_active['Commune'].unique():
         grp = df_active[df_active['Commune'] == comm]
         prov_raw = grp['Province'].iloc[0] if not grp.empty else "Inconnu"
@@ -25,17 +23,12 @@ def render(df_ecoles, df_config, data_fwb):
         nb_oui = len(grp)
         nb_non = len(df_non[df_non['Commune'] == comm])
         
-        # Calcul des écoles sans réponse (?)
         fase_fwb = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
         fase_cfg = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
         nb_sans = len([e for e in fase_fwb if e not in fase_cfg])
         
         tab1_rows.append({
-            'Commune': comm, 
-            'Province': prov, 
-            'NbOui': nb_oui, 
-            'NbNon': nb_non, 
-            'NbSans': nb_sans
+            'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans
         })
     
     df_tab1 = pd.DataFrame(tab1_rows)
@@ -130,7 +123,6 @@ def render(df_ecoles, df_config, data_fwb):
                 if (!anchors[provName]) return;
                 const colorKey = provName.toLowerCase().split(' ')[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const color = colors[colorKey] || "#ccc";
-                
                 list.forEach((name, i) => {{
                     const x = anchors[provName][0] + (i % 8 * 23);
                     const y = anchors[provName][1] + (Math.floor(i / 8) * 21);
@@ -139,11 +131,9 @@ def render(df_ecoles, df_config, data_fwb):
                     rect.setAttribute("width", 20); rect.setAttribute("height", 18); rect.setAttribute("rx", 3);
                     rect.setAttribute("class", "commune" + (dbMap.has(name) ? " active" : ""));
                     rect.style.fill = color;
-                    
                     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
                     title.textContent = name;
                     rect.appendChild(title);
-                    
                     svg.appendChild(rect);
                 }});
             }});
@@ -154,7 +144,6 @@ def render(df_ecoles, df_config, data_fwb):
             const listDiv = document.getElementById('list');
             listDiv.innerHTML = "";
             const provinces = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
-            
             provinces.forEach(p => {{
                 const filtered = dbData.filter(d => d.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
@@ -162,16 +151,15 @@ def render(df_ecoles, df_config, data_fwb):
                     h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='10px'; h.style.fontWeight='bold'; h.style.color='#94a3b8'; h.style.marginTop='10px';
                     h.innerText = p.toUpperCase();
                     listDiv.appendChild(h);
-                    
                     filtered.forEach(x => {{
                         const row = document.createElement('div');
                         row.className = 'item-row';
                         row.innerHTML = `
                             <div class="commune-name">${{x.Commune}}</div>
                             <div class="counts-container">
-                                <span class="cnt" style="background:#22c55e" title="Utilisent Creos">✓ ${{x.NbOui}} Écoles avec Creos</span>
-                                <span class="cnt" style="background:#ef4444" title="Inactives">✗ ${{x.NbNon}} Inactives</span>
-                                <span class="cnt" style="background:#94a3b8" title="Sans choix">? ${{x.NbSans}} Inconnues</span>
+                                <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}} École(s) utilise(nt) l'Extrascolaire</span>
+                                <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}} N'utilise(nt) pas</span>
+                                <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Pas de choix</span>
                             </div>`;
                         listDiv.appendChild(row);
                     }});
