@@ -107,7 +107,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
                         st.rerun()
 
     with col_r:
-        # --- CALCULS POUR LES STATS ---
+        # --- BLOCS STATS ---
         n_act = len(df_active)
         n_pre = len(df_active[df_active['Paiement'] == 'Prépaiement'])
         n_post = len(df_active[df_active['Paiement'] == 'Post-paiement'])
@@ -115,7 +115,6 @@ def render(conn, df_ecoles, df_config, data_fwb):
         n_ref = len(df_refus)
         n_com_ref = df_refus['Commune'].nunique()
 
-        # BLOC TEAL
         st.markdown(f"""
 <div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui Utilisent l'Extrascolaire de Creos</div>
@@ -126,7 +125,6 @@ def render(conn, df_ecoles, df_config, data_fwb):
 <div style="text-align:center;"><b style="font-size:22px; color:#a78bfa; font-weight:900;">{n_com_act}</b><br><span style="font-size:22px;">Communes</span></div>
 </div></div>""", unsafe_allow_html=True)
 
-        # BLOC FUCHSIA
         st.markdown(f"""
 <div style="background-color:#FF43D0; padding:20px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui n'utilisent pas l'Extrascolaire de Creos</div>
@@ -135,7 +133,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
 <div style="text-align:center;"><b style="font-size:22px; font-weight:900;">{n_com_ref}</b><br><span style="font-size:22px;">Communes ont dit NON</span></div>
 </div></div>""", unsafe_allow_html=True)
 
-    # --- LISTE FILTRÉE ---
+    # --- 3. LISTE FILTRÉE ---
     st.divider()
     view = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True, key="toggle_list")
     target = df_active if "Utilisatrices" in view else df_refus
@@ -147,13 +145,17 @@ def render(conn, df_ecoles, df_config, data_fwb):
         df_f = df_f[df_f['Province'].isin(fl_p)]
 
     if not df_f.empty:
+        # Fusion pour avoir les noms des écoles
         df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
         df_f = df_f.merge(df_names, on='Fase école', how='left').fillna("-")
+        
+        # En-tête de la liste
         h1, h2, h3, h4, h5 = st.columns([1.5, 1.2, 2, 3, 0.5])
         h1.write("**Commune**")
         h2.write("**Status**")
         h3.write("**École**")
         h4.write("**Services**" if "Utilisatrices" in view else "")
+        h5.write("") # Colonne poubelle
         
         for i, (_, row) in enumerate(df_f.iterrows()):
             r1, r2, r3, r4, r5 = st.columns([1.5, 1.2, 2, 3, 0.5])
@@ -166,4 +168,14 @@ def render(conn, df_ecoles, df_config, data_fwb):
                 clrs = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
                 for s in str(row['Services']).split('|'):
                     if s.strip() and s.strip() != "-":
-                        badges += f'<span style="background:{clrs.get(s,"#999")}; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block;">{s}</span>'
+                        badges += f'<span style="background:{clrs.get(s,"#999")}; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block; margin-bottom:2px;">{s}</span>'
+                r4.markdown(badges, unsafe_allow_html=True)
+            
+            # LE BOUTON POUBELLE EST ICI DANS r5
+            if r5.button("🗑️", key=f"del_btn_{i}_{row['Fase école']}"):
+                df_to_save = df_config[df_config['Fase école'] != str(row['Fase école'])]
+                safe_write(conn, "EcolesConfig", df_to_save)
+                st.cache_data.clear()
+                st.rerun()
+    else:
+        st.info("Aucune donnée disponible.")
