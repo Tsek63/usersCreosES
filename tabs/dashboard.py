@@ -28,7 +28,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         
         tab1_rows.append({'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans})
     
-    df_tab1 = pd.DataFrame(tab1_rows) if not tab1_rows == [] else pd.DataFrame(columns=['Province','Commune','NbOui','NbNon','NbSans'])
+    df_tab1 = pd.DataFrame(tab1_rows) if tab1_rows else pd.DataFrame(columns=['Province','Commune','NbOui','NbNon','NbSans'])
 
     # --- 2. STATS GAUCHE ---
     t_dash = len(df_tab1)
@@ -57,7 +57,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         #map-box {{ flex: 0 0 300px; background: #262730; border-radius: 8px; margin-bottom: 8px; }}
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: rgba(255,255,255,0.1); stroke-width: 0.5; opacity: 0.3; cursor: help; }}
-        .active {{ stroke: #ffffff !important; stroke-width: 1.5px !important; opacity: 1 !important; }}
+        .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
         #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; outline: none; }}
         #list {{ flex: 1; overflow-y: auto; }}
         .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 12px; }}
@@ -92,15 +92,27 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         function init() {{
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
+            
+            // RÉTABLISSEMENT DES COULEURS DES PROVINCES
+            const provColors = {{
+                "Bruxelles": "#ffeaa7", "Brabant Wallon": "#81ecec", "Hainaut": "#a29bfe",
+                "Liège": "#74b9ff", "Namur": "#fab1a0", "Luxembourg": "#FF43D0"
+            }};
+
             Object.entries(mapRef).forEach(([p, list]) => {{
                 if (!anchors[p]) return;
+                const color = provColors[p] || "#ccc";
+                
                 list.forEach((name, i) => {{
                     const x = anchors[p][0] + (i % 8 * 23); const y = anchors[p][1] + (Math.floor(i / 8) * 21);
                     const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     rect.setAttribute("x", x); rect.setAttribute("y", y); rect.setAttribute("width", 20); rect.setAttribute("height", 18); rect.setAttribute("rx", 3);
                     rect.setAttribute("class", "commune" + (dbMap.has(name) ? " active" : ""));
-                    rect.style.fill = "#ccc";
-                    const t = document.createElementNS("http://www.w3.org/2000/svg", "title"); t.textContent = name; rect.appendChild(t);
+                    rect.style.fill = color;
+                    
+                    const t = document.createElementNS("http://www.w3.org/2000/svg", "title"); 
+                    t.textContent = name; 
+                    rect.appendChild(t);
                     svg.appendChild(rect);
                 }});
             }});
