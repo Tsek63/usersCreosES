@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-from datetime import date # <--- Nouvel import
+from datetime import date
 
 # Imports de nos fichiers
 from data_manager import DataManager
@@ -45,7 +45,7 @@ st.markdown(f"""
     <div style="position: fixed; bottom: 0; left: 0; width: 100%; background-color: white; 
                 text-align: center; padding: 10px; font-size: 12px; color: #64748b; 
                 border-top: 1px solid #e2e8f0; z-index: 100;">
-        © AJH - Creos Extrascolaire {current_year}
+        © AJH & Creos Extrascolaire {current_year}
     </div>
-    <div style="height: 50px;"></div> <!-- Espace pour éviter que le footer cache le contenu -->
+    <div style="height: 50px;"></div>
 """, unsafe_allow_html=True)
