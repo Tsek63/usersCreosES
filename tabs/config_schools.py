@@ -33,7 +33,7 @@ def render(conn, df_ecoles, df_config, data_fwb):
                                  key="cfg_c")
         
         if c_sel != "— Sélectionnez —":
-            # --- ACTIONS GROUPÉES (Refus ou Suppression) ---
+            # --- ACTIONS GROUPÉES ---
             with st.expander(f"⚡ Actions groupées pour {c_sel}"):
                 c_act1, c_act2 = st.columns(2)
                 
@@ -49,23 +49,30 @@ def render(conn, df_ecoles, df_config, data_fwb):
                 with c_act2:
                     st.markdown("**Réinitialiser (Erreur)**")
                     if st.button(f"Supprimer {c_sel} de la config", use_container_width=True, key="btn_mass_del"):
-                        # Supprime TOUTES les entrées de cette commune dans le fichier config
                         df_upd = df_config[df_config['Commune'] != c_sel]
                         safe_write(conn, "EcolesConfig", df_upd)
                         st.cache_data.clear(); st.rerun()
 
             # --- CONFIGURATION INDIVIDUELLE ---
             df_comm_schools = df_ecoles[df_ecoles['Commune'] == c_sel].copy()
-            school_opts = [f"{r['Ecole']} {'✅' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Oui')].empty else ('❌' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Non')].empty else '⭕')} — Fase {r['Fase école']}" for _, r in df_comm_schools.iterrows()]
+            school_opts = []
+            for _, r in df_comm_schools.iterrows():
+                fase = str(r['Fase école'])
+                match = df_config[df_config['Fase école'] == fase]
+                if not match.empty:
+                    icon = " ✅" if match.iloc[0]['Extrascolaire'] == 'Oui' else " ❌"
+                else:
+                    icon = " ⭕"
+                school_opts.append(f"{r['Ecole']}{icon} — Fase {fase}")
             
             ecole_label_sel = st.selectbox("3. École individuelle", school_opts, key="cfg_e")
             ecole_fase_sel = ecole_label_sel.split(" — Fase ")[-1]
 
             if ecole_fase_sel:
                 curr = df_config[df_config['Fase école'] == ecole_fase_sel]
-                idx_ex = 0 if (not curr.empty and curr.iloc[0]['Extrascolaire'] == 'Oui') else (1 if (not curr.empty and curr.iloc[0]['Extrascolaire'] == 'Non') else 1)
+                idx_ex = 0 if (not curr.empty and curr.iloc[0]['Extrascolaire'] == 'Oui') else 1
                 
-                with st.form("form_config_final"):
+                with st.form("form_config_final_v2"):
                     f1, f2 = st.columns(2)
                     v_ex = f1.radio("Utilise l'Extrascolaire ?", ["Oui", "Non"], index=idx_ex, horizontal=True)
                     v_pa = f2.radio("Mode de paiement", ["Prépaiement", "Post-paiement"], index=0 if (curr.empty or curr.iloc[0]['Paiement'] != "Post-paiement") else 1, horizontal=True)
@@ -79,35 +86,40 @@ def render(conn, df_ecoles, df_config, data_fwb):
 
     with col_r:
         # --- BLOC TEAL (UTILISATEURS) ---
+        n_pre = len(df_active[df_active['Paiement']=='Prépaiement'])
+        n_post = len(df_active[df_active['Paiement']=='Post-paiement'])
+        n_comm_act = df_active['Commune'].nunique()
+
         st.markdown(f"""
         <div style="background-color:#008080; padding:20px; border-radius:15px; color:white; text-align:center; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui Utilisent l'Extrascolaire de Creos</div>
             <div style="font-size:64px; font-weight:bold; line-height:1;">{len(df_active)}</div>
             <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); margin-top:15px; padding-top:10px; font-size:12px;">
-                <div><b style="font-size:16px; color:#ec4899;">{len(df_active[df_active['Paiement']=='Prépaiement'])}</b><br>Prépaiement</div>
-                <div><b style="font-size:16px; color:#38bdf8;">{len(df_active[df_active['Paiement']=='Post-paiement'])}</b><br>Post-paiement</div>
-                <div><b style="font-size:16px; color:#a78bfa;">{df_active['Commune'].nunique()}</b><br>Communes</div>
+                <div><b style="font-size:18px; color:#ec4899;">{n_pre}</b><br>Prépaiement</div>
+                <div><b style="font-size:18px; color:#38bdf8;">{n_post}</b><br>Post-paiement</div>
+                <div><b style="font-size:18px; color:#a78bfa;">{n_comm_act}</b><br>Communes</div>
             </div>
         </div>""", unsafe_allow_html=True)
 
         # --- BLOC FUCHSIA (REFUS) ---
+        n_comm_ref = df_refus['Commune'].nunique()
         st.markdown(f"""
         <div style="background-color:#FF43D0; padding:20px; border-radius:15px; color:white; text-align:center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <div style="font-size:16px; font-weight:bold; margin-bottom:10px;">Écoles qui n'utilisent pas l'Extrascolaire de Creos</div>
             <div style="font-size:64px; font-weight:bold; line-height:1;">{len(df_refus)}</div>
             <div style="margin-top:10px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
-                <b style="font-size:18px;">{df_refus['Commune'].nunique()}</b> communes ont dit NON
+                <b style="font-size:18px;">{n_comm_ref}</b> communes ont dit NON
             </div>
         </div>""", unsafe_allow_html=True)
 
     # --- 3. FILTRES ET LISTE ---
     st.divider()
-    view_mode = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True)
+    view_mode = st.radio("Afficher la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True, key="list_toggle")
     target_df = df_active if "Utilisatrices" in view_mode else df_refus
     color_theme = "#008080" if "Utilisatrices" in view_mode else "#FF43D0"
 
     f1, f2, f3 = st.columns(3)
-    fl_p = f1.multiselect("Filtrer par Province", sorted(target_df['Province'].unique()), key="filter_p")
+    fl_p = f1.multiselect("Filtrer par Province", sorted(target_df['Province'].unique()), key="f_p_vfinal")
     
     df_filt = target_df.copy()
     if fl_p: df_filt = df_filt[df_filt['Province'].isin(fl_p)]
@@ -134,9 +146,9 @@ def render(conn, df_ecoles, df_config, data_fwb):
                         s_badges += f'<span style="background:{colors.get(s,"#999")}; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block;">{s}</span>'
                 r4.markdown(s_badges, unsafe_allow_html=True)
             
-            if r5.button("🗑️", key=f"del_final_{i}_{row['Fase école']}"):
+            if r5.button("🗑️", key=f"del_vfinal_{i}_{row['Fase école']}"):
                 df_final = df_config[df_config['Fase école'] != str(row['Fase école'])]
                 safe_write(conn, "EcolesConfig", df_final)
                 st.cache_data.clear(); st.rerun()
     else:
-        st.info("Aucune école dans cette liste.")
+        st.info("Aucune donnée disponible.")
