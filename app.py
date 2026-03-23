@@ -21,10 +21,10 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 with tab1:
+    # On envoie les 4 arguments requis pour le dashboard + audit
     dashboard.render(df_ecoles, df_config, data_fwb, df_contacts)
 
 with tab2:
-    # On envoie bien les 5 éléments requis
     school_search.render(conn, df_ecoles, df_config, data_fwb, df_contacts)
 
 with tab3:
