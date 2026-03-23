@@ -22,7 +22,7 @@ dm = DataManager(conn)
 # On charge toutes les données proprement via le DataManager
 df_ecoles, df_config, df_contacts, data_fwb = dm.load_all()
 
-# --- CRÉATION DES ONGLETS ---
+# --- NAVIGATION ONGLET PAR ONGLET ---
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Tableau de bord", 
     "🏫 Écoles par Commune", 
@@ -30,23 +30,21 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "⏱️ Time Tracking"
 ])
 
-# --- CONTENU DE CHAQUE ONGLET ---
-
 with tab1:
-    # On appelle la fonction render() du fichier tabs/dashboard.py
-    dashboard.render(df_ecoles, df_config)
+    # dashboard.render attend 3 arguments : df_ecoles, df_config, data_fwb
+    dashboard.render(df_ecoles, df_config, data_fwb)
 
 with tab2:
-    # On appelle la fonction render() du fichier tabs/school_search.py
-    school_search.render(df_ecoles, df_config, data_fwb, df_contacts)
+    # school_search.render attend 5 arguments : conn, df_ecoles, df_config, data_fwb, df_contacts
+    # L'ERREUR ÉTAIT ICI : il manquait "conn" au début
+    school_search.render(conn, df_ecoles, df_config, data_fwb, df_contacts)
 
 with tab3:
-    # On appelle la fonction render() du fichier tabs/config_schools.py
+    # config_schools.render attend 4 arguments : conn, df_ecoles, df_config, data_fwb
     config_schools.render(conn, df_ecoles, df_config, data_fwb)
 
 with tab4:
-    # On appelle DIRECTEMENT votre fichier original AppTimeTracking.py
-    # On lui passe la connexion 'conn' comme il l'attendait
+    # Votre fichier original attend 1 argument : conn
     AppTimeTracking.run(conn)
 
 # --- FOOTER ---
