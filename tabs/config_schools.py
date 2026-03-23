@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from safe_gsheets import safe_write
 
-def render(conn, df_ecoles, df_config, data_fwb, df_contacts):
+def render(conn, df_ecoles, df_config, data_fwb):
     st.subheader("⚙️ Configuration des Écoles")
     
     # Formulaire simplifié
