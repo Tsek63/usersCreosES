@@ -5,7 +5,7 @@ import pandas as pd
 from ui_components import audit_card
 
 def render(df_ecoles, df_config, data_fwb, df_contacts):
-    # --- 1. PRÉPARATION ---
+    # --- 1. PRÉPARATION ET NORMALISATION ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
@@ -89,35 +89,28 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
     <script>
         const dbData = {json_recs}; const mapRef = {map_ref_json};
         const dbMap = new Map(); dbData.forEach(item => dbMap.set(item.Commune, item));
+        
         function init() {{
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
-            
-            // RÉTABLISSEMENT DES COULEURS DES PROVINCES
-            const provColors = {{
-                "Bruxelles": "#ffeaa7", "Brabant Wallon": "#81ecec", "Hainaut": "#a29bfe",
-                "Liège": "#74b9ff", "Namur": "#fab1a0", "Luxembourg": "#FF43D0"
-            }};
+            const provColors = {{ "Bruxelles": "#ffeaa7", "Brabant Wallon": "#81ecec", "Hainaut": "#a29bfe", "Liège": "#74b9ff", "Namur": "#fab1a0", "Luxembourg": "#FF43D0" }};
 
             Object.entries(mapRef).forEach(([p, list]) => {{
                 if (!anchors[p]) return;
                 const color = provColors[p] || "#ccc";
-                
                 list.forEach((name, i) => {{
                     const x = anchors[p][0] + (i % 8 * 23); const y = anchors[p][1] + (Math.floor(i / 8) * 21);
                     const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     rect.setAttribute("x", x); rect.setAttribute("y", y); rect.setAttribute("width", 20); rect.setAttribute("height", 18); rect.setAttribute("rx", 3);
                     rect.setAttribute("class", "commune" + (dbMap.has(name) ? " active" : ""));
                     rect.style.fill = color;
-                    
-                    const t = document.createElementNS("http://www.w3.org/2000/svg", "title"); 
-                    t.textContent = name; 
-                    rect.appendChild(t);
+                    const t = document.createElementNS("http://www.w3.org/2000/svg", "title"); t.textContent = name; rect.appendChild(t);
                     svg.appendChild(rect);
                 }});
             }});
             renderList();
         }}
+
         function renderList() {{
             const listDiv = document.getElementById('list'); listDiv.innerHTML = "";
             const provinces = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
@@ -127,16 +120,18 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
                     const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='10px'; h.style.fontWeight='bold'; h.style.color='#94a3b8'; h.style.marginTop='10px'; h.innerText = p.toUpperCase(); listDiv.appendChild(h);
                     filtered.forEach(x => {{
                         const row = document.createElement('div'); row.className = 'item-row';
-                        row.innerHTML = `<div class="commune-name">${{x.Commune}}</div><div class="counts-container">
-                            <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}} École(s) utilisent</span>
-                            <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}} Refus</span>
-                            <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Pas de choix</span>
-                        </div>`;
+                        row.innerHTML = `<div class="commune-name">${{x.Commune}}</div>
+                            <div class="counts-container">
+                                <span class="cnt" style="background:#22c55e">✓ ${{x.NbOui}} École(s) utilise(nt) l'Extrascolaire</span>
+                                <span class="cnt" style="background:#ef4444">✗ ${{x.NbNon}} N'utilise(nt) pas</span>
+                                <span class="cnt" style="background:#94a3b8">? ${{x.NbSans}} Pas de choix</span>
+                            </div>`;
                         listDiv.appendChild(row);
                     }});
                 }}
             }});
         }}
+
         function doSearch() {{
             const val = document.getElementById('search').value.toLowerCase();
             document.querySelectorAll('.item-row').forEach(row => {{ row.style.display = row.innerText.toLowerCase().includes(val) ? 'flex' : 'none'; }});
