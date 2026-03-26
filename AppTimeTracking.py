@@ -110,10 +110,23 @@ def run(conn):
         if not df_f.empty:
             g1, g2 = st.columns(2)
             with g1:
-                fig1 = px.pie(df_f, names='intervenante', values='quantite', color='intervenante', color_discrete_map=COULEURS_MAP, title="Répartition par Intervenante")
+                fig1 = px.pie(df_f, names='intervenante', values='quantite', color='intervenante', 
+                             color_discrete_map=COULEURS_MAP, title="Répartition par Intervenante")
+                fig1.update_layout(paper_bgcolor="white", plot_bgcolor="white")
                 st.plotly_chart(fig1, use_container_width=True)
             with g2:
-                fig2 = px.pie(df_f, names='tache', values='quantite', title="Répartition par Tâche")
+                # --- AMÉLIORATION DU GRAPHIQUE PAR TÂCHE ---
+                fig2 = px.pie(df_f, names='tache', values='quantite', title="Répartition par Tâche",
+                             color_discrete_sequence=px.colors.qualitative.Safe)
+                
+                # Correction des couleurs et de la légende
+                fig2.update_traces(textposition='inside', textinfo='percent')
+                fig2.update_layout(
+                    paper_bgcolor="white", 
+                    plot_bgcolor="white",
+                    margin=dict(l=20, r=150, t=50, b=20), # Plus de marge à droite (r=150) pour la légende
+                    legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.1)
+                )
                 st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
@@ -130,46 +143,50 @@ def run(conn):
                 total_actions = int(df_synth["Total Quantité"].sum())
                 st.metric("TOTAL GÉNÉRAL", total_actions, "actions")
                 
-                # --- EXPORT EXCEL PRO ---
+                # --- EXPORT EXCEL AVEC GRAPHES LISIBLES ---
                 def to_excel_time():
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                         df_synth.to_excel(writer, index=False, sheet_name='Synthèse', startrow=1)
                         ws = writer.sheets['Synthèse']
                         ws.write('A1', f"Rapport Time Tracking - Du {per[0]} au {per[1]}")
-                        # Insertion du graphique par tâche
-                        img_bytes = fig2.to_image(format="png", width=600, height=450)
-                        ws.insert_image('E2', 'chart.png', {'image_data': io.BytesIO(img_bytes)})
+                        
+                        # Capture image avec fond blanc forcé et haute résolution
+                        img_bytes = fig2.to_image(format="png", width=900, height=600, scale=2)
+                        ws.insert_image('E2', 'chart.png', {'image_data': io.BytesIO(img_bytes), 'x_scale': 0.5, 'y_scale': 0.5})
                     return output.getvalue()
                 
                 st.download_button("📥 Export Excel complet", to_excel_time(), "synthese_time_tracking.xlsx", use_container_width=True)
 
-                # --- IMPRESSION PRO ---
+                # --- IMPRESSION PDF PRO ---
                 if st.button("🖨️ IMPRIMER LE RAPPORT", use_container_width=True):
-                    # Conversion du graph en base64 pour le HTML
-                    img_base64 = base64.b64encode(fig2.to_image(format="png", width=700, height=500)).decode('utf-8')
+                    # Graphique haute qualité pour le PDF
+                    img_base64 = base64.b64encode(fig2.to_image(format="png", width=1000, height=600, scale=2)).decode('utf-8')
                     
                     rows_html = "".join([f"<tr><td>{r['Action / Tâche']}</td><td style='text-align:center;'>{r['Total Quantité']}</td><td style='text-align:center;'>{r['Total Écoles']}</td></tr>" for _, r in df_synth.iterrows()])
                     
                     print_template = f"""
                     <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-                        body {{ font-family: sans-serif; padding: 40px; color: #333; }}
-                        h1 {{ color: #008080; border-bottom: 2px solid #008080; padding-bottom: 10px; }}
-                        .info {{ margin-bottom: 20px; font-size: 14px; color: #666; }}
-                        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-                        th {{ background: #f4f4f4; padding: 10px; border: 1px solid #ddd; text-align: left; }}
-                        td {{ padding: 8px; border: 1px solid #ddd; }}
-                        .total {{ font-size: 18px; font-weight: bold; color: #008080; margin-top: 10px; }}
-                        .chart-container {{ text-align: center; margin-top: 30px; }}
-                        img {{ max-width: 100%; height: auto; }}
+                        body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; background: white; }}
+                        h1 {{ color: #008080; border-bottom: 3px solid #008080; padding-bottom: 10px; }}
+                        .info {{ margin-bottom: 20px; font-size: 14px; color: #555; }}
+                        table {{ width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 13px; }}
+                        th {{ background: #008080; color: white; padding: 12px; border: 1px solid #ddd; text-align: left; -webkit-print-color-adjust: exact; }}
+                        td {{ padding: 10px; border: 1px solid #ddd; }}
+                        .total {{ font-size: 20px; font-weight: bold; color: #008080; margin-top: 15px; border-top: 2px solid #eee; padding-top: 10px; }}
+                        .chart-section {{ text-align: center; margin-top: 40px; page-break-inside: avoid; }}
+                        img {{ width: 100%; max-width: 850px; border: 1px solid #eee; padding: 10px; }}
                     </style></head><body>
                         <h1>Rapport d'activité - Creos Extrascolaire</h1>
-                        <div class="info">Période : Du {per[0]} au {per[1]}<br>Généré le : {datetime.now().strftime('%d/%m/%Y')}</div>
+                        <div class="info">
+                            <strong>Période :</strong> Du {per[0].strftime('%d/%m/%Y')} au {per[1].strftime('%d/%m/%Y')}<br>
+                            <strong>Généré le :</strong> {datetime.now().strftime('%d/%m/%Y à %H:%M')}
+                        </div>
                         <table><thead><tr><th>Action / Tâche</th><th style='text-align:center;'>Quantité</th><th style='text-align:center;'>Écoles</th></tr></thead>
                         <tbody>{rows_html}</tbody></table>
                         <div class="total">TOTAL GÉNÉRAL : {total_actions} actions</div>
-                        <div class="chart-container">
-                            <h3>Répartition visuelle par tâche</h3>
+                        <div class="chart-section">
+                            <h3 style="color:#008080;">Visualisation de la répartition</h3>
                             <img src="data:image/png;base64,{img_base64}">
                         </div>
                         <script>window.onload = function() {{ window.print(); }}</script>
