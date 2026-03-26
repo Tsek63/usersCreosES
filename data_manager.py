@@ -5,7 +5,6 @@ PROV_NORM = {
     "liege": "Liège", "liège": "Liège", "province de liège": "Liège",
     "hainaut": "Hainaut", "namur": "Namur", "luxembourg": "Luxembourg",
     "brabant wallon": "Brabant Wallon", "bruxelles": "Bruxelles",
-    "région de bruxelles-capitale": "Bruxelles",
 }
 
 class DataManager:
@@ -33,9 +32,7 @@ class DataManager:
             p_raw = str(row.get('Province', '')).lower().strip()
             prov = PROV_NORM.get(p_raw, row.get('Province', 'Inconnu'))
             comm = str(row.get('Commune', '')).strip()
-            
-            if not comm: continue # On ne saute plus les "Province de..."
-            
+            if not comm or comm.startswith('Province'): continue
             if prov not in data_fwb: data_fwb[prov] = set()
             data_fwb[prov].add(comm)
         
