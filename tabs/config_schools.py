@@ -24,9 +24,10 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     colors_map = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
 
     # =========================================================================
-    # PARTIE HAUTE : FORMULAIRE
+    # PARTIE HAUTE : FORMULAIRE ET BLOCS STATS
     # =========================================================================
     col_l, col_r = st.columns([1.8, 1.2])
+
     with col_l:
         s1, s2, s3 = st.columns([1, 1, 1.5])
         with s1: p_sel = st.selectbox("1. Province", sorted(list(data_fwb.keys())), key="cfg_p")
@@ -47,6 +48,18 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     new_rows = [{"Fase école": f, "Commune": c_sel, "Province": p_sel, "Extrascolaire": "Oui", "Paiement": m_pay, "Services": "|".join(m_svc) if m_svc else "-"} for f in f_list]
                     df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], pd.DataFrame(new_rows)], ignore_index=True)
                     safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                st.markdown("---")
+                ca1, ca2 = st.columns(2)
+                with ca1:
+                    if st.button(f"Tout {c_sel} à 'NON'", use_container_width=True, key="m_non"):
+                        f_list = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
+                        rows_no = [{"Fase école": f, "Commune": c_sel, "Province": p_sel, "Extrascolaire": "Non", "Paiement": "-", "Services": "-"} for f in f_list]
+                        df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], pd.DataFrame(rows_no)], ignore_index=True)
+                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                with ca2:
+                    if st.button(f"Réinitialiser {c_sel}", use_container_width=True, key="m_del"):
+                        df_upd = df_config[df_config['Commune'] != c_sel]
+                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
 
             df_sch = df_ecoles[df_ecoles['Commune'] == c_sel].copy()
             sch_opts = [f"{r['Ecole']} {'✅' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Oui')].empty else ('❌' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Non')].empty else '⭕')} — Fase {r['Fase école']}" for _, r in df_sch.iterrows()]
@@ -67,11 +80,11 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
 
     with col_r:
         st.markdown(f"""
-            <div style="background-color:#008080; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px;">
+            <div style="background-color:#008080; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 <div style="font-size:14px; font-weight:bold;">Écoles qui Utilisent l'Extrascolaire</div>
                 <div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Oui'])}</div>
             </div>
-            <div style="background-color:#FF43D0; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px;">
+            <div style="background-color:#FF43D0; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 <div style="font-size:14px; font-weight:bold;">Écoles qui n'utilisent pas l'Extrascolaire</div>
                 <div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Non'])}</div>
             </div>
@@ -81,7 +94,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             df_config.to_excel(writer, sheet_name='EcolesConfig', index=False)
             df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
             df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
-        st.download_button("🛡️ Sécurité des données : export Excel complet", buf_all.getvalue(), f"BACKUP_TOTAL.xlsx", use_container_width=True)
+        st.download_button("🛡️ Sécurité des données : export Excel complet", buf_all.getvalue(), f"SAVE_TOTAL.xlsx", use_container_width=True)
 
     # =========================================================================
     # PARTIE BASSE : SITUATION ACTUELLE (70/30)
@@ -129,28 +142,41 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
         else: st.info("Aucun résultat.")
 
     with col_stats:
-        # BLOC CHIFFRES BLEU CANARD
+        # --- BLOC CHIFFRES (BLEU CANARD) ---
         n_com = df_target['Commune'].nunique()
         n_eco = len(df_target)
-        st.markdown(f"""<div style="background-color:#008080; padding:20px; border-radius:12px; color:white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-<div style="font-size:12px; font-weight:bold; opacity:0.8; text-transform:uppercase;">Résultats filtrés</div><hr style="margin:10px 0; opacity:0.3;">
-<div style="font-size:26px; font-weight:bold;">{n_com} <small style="font-size:22px; font-weight:normal;">Communes</small></div>
-<div style="font-size:26px; font-weight:bold;">{n_eco} <small style="font-size:22px; font-weight:normal;">Écoles</small></div></div>""", unsafe_allow_html=True)
-
-        img_p_base64, img_s_base64 = None, None
         p_counts = df_target['Paiement'].value_counts()
+        
+        st.markdown(f"""
+            <div style="background-color:#008080; padding:20px; border-radius:12px; color:white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:12px; font-weight:bold; opacity:0.8; text-transform:uppercase;">Résultats filtrés</div>
+                <hr style="margin:10px 0; opacity:0.3;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:22px; font-weight:bold;">{n_com}</span>
+                    <span style="font-size:22px;">Communes</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:22px; font-weight:bold;">{n_eco}</span>
+                    <span style="font-size:22px;">Écoles</span>
+                </div>
+                {f'''<hr style="margin:10px 0; opacity:0.3;">
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span>Prépaiement:</span><b>{p_counts.get('Prépaiement', 0)}</b></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span>Post-paiement:</span><b>{p_counts.get('Post-paiement', 0)}</b></div>''' if not is_refus else ''}
+            </div>
+        """, unsafe_allow_html=True)
+
+        img_p_base64, img_s_base64 = "", ""
+        img_p_bytes, img_s_bytes = None, None
 
         if not is_refus and not df_target.empty:
-            # 1. PIE CHART
+            # Graphique Paiement
             fig_p = px.pie(df_target, names='Paiement', hole=0.4, height=220, color='Paiement', color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
-            fig_p.update_layout(margin=dict(l=0,r=0,t=30,b=0), legend=dict(orientation="h", y=-0.2))
+            fig_p.update_layout(margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", y=-0.2))
             st.plotly_chart(fig_p, use_container_width=True)
-            try: 
-                img_p_bytes = fig_p.to_image(format="png", width=400, height=300)
-                img_p_base64 = base64.b64encode(img_p_bytes).decode()
-            except: img_p_bytes = None
+            try: img_p_bytes = fig_p.to_image(format="png", width=400, height=300)
+            except: pass
 
-            # 2. BAR CHART
+            # Graphique Services
             all_s = []
             for s in df_target['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"])
@@ -162,52 +188,58 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 st.plotly_chart(fig_s, use_container_width=True)
                 try: 
                     img_s_bytes = fig_s.to_image(format="png", width=400, height=300)
+                    if img_p_bytes: img_p_base64 = base64.b64encode(img_p_bytes).decode()
                     img_s_base64 = base64.b64encode(img_s_bytes).decode()
-                except: img_s_bytes = None
+                except: pass
 
         # --- BOUTONS RAPPORT ---
-        st.write("---")
         if not df_target.empty:
-            # EXCEL
+            st.write("---")
+            # 📥 BOUTON EXCEL
             buf_rep = io.BytesIO()
             with pd.ExcelWriter(buf_rep, engine='xlsxwriter') as wr:
                 df_disp.to_excel(wr, sheet_name='Details', index=False)
                 if not is_refus:
                     ws = wr.sheets['Details']
                     try:
-                        if img_p_bytes: ws.insert_image('G2', 'pie.png', {'image_data': io.BytesIO(img_p_bytes)})
-                        if img_s_bytes: ws.insert_image('G18', 'bar.png', {'image_data': io.BytesIO(img_s_bytes)})
+                        if img_p_bytes: ws.insert_image('G2', 'p.png', {'image_data': io.BytesIO(img_p_bytes)})
+                        if img_s_bytes: ws.insert_image('G18', 's.png', {'image_data': io.BytesIO(img_s_bytes)})
                     except: pass
-            st.download_button("📥 Export Excel complet (avec graphiques)", buf_rep.getvalue(), "rapport_creos.xlsx", use_container_width=True)
+            st.download_button("📥 EXPORT EXCEL FILTRÉ", buf_rep.getvalue(), "rapport_creos.xlsx", use_container_width=True)
 
-            # IMPRESSION (Correction du bouton)
+            # 🖨️ BOUTON IMPRESSION (BLEU CANARD)
             print_html = f"""
             <html><head><style>
                 body {{ font-family: Arial, sans-serif; padding: 20px; }}
-                .h {{ background: #008080; color: white; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; }}
-                .f {{ background: #f8fafc; border-left: 5px solid #008080; padding: 10px; margin: 15px 0; display: flex; gap: 30px; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
+                .h {{ background: #008080; color: white; padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }}
+                .flash {{ background: #f1f5f9; border-left: 5px solid #008080; padding: 15px; margin: 20px 0; display: flex; gap: 40px; }}
+                .stat-box {{ text-align: center; }}
+                .stat-val {{ font-size: 24px; font-weight: bold; color: #008080; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }}
                 th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
                 th {{ background: #008080; color: white; }}
+                .charts {{ display: flex; justify-content: space-around; margin-bottom: 20px; }}
+                img {{ width: 300px; }}
             </style></head><body>
-                <div class="h"><div><b>Rapport Creos : {view_mode}</b></div><div>{datetime.now().strftime('%d/%m/%Y')}</div></div>
-                <div class="f"><div><b>{n_com}</b> Communes</div><div><b>{n_eco}</b> Écoles</div></div>
+                <div class="h"><div><h2>Rapport Creos : {view_mode}</h2></div><div>{datetime.now().strftime('%d/%m/%Y')}</div></div>
+                <div class="flash">
+                    <div class="stat-box"><div class="stat-val">{n_com}</div><small>Communes</small></div>
+                    <div class="stat-box"><div class="stat-val">{n_eco}</div><small>Écoles</small></div>
+                </div>
+                <div class="charts">
+                    {"<img src='data:image/png;base64,"+img_p_base64+"'>" if img_p_base64 else ""}
+                    {"<img src='data:image/png;base64,"+img_s_base64+"'>" if img_s_base64 else ""}
+                </div>
                 <table><thead><tr><th>Province</th><th>Commune</th><th>École</th><th>Paiement</th><th>Services</th></tr></thead><tbody>
             """
             for _, r in df_disp.iterrows():
-                print_html += f"<tr><td>{r['Province']}</td><td>{r['Commune']}</td><td>{r['Ecole']}</td><td>{r.get('Paiement','-')}</td><td>{r.get('Services','-')}</td></tr>"
+                print_html += f"<tr><td>{r['Province']}</td><td>{r['Commune']}</td><td>{r['Ecole']} ({r['Fase école']})</td><td>{r.get('Paiement','-')}</td><td>{r.get('Services','-')}</td></tr>"
             print_html += "</tbody></table></body></html>"
             
-            b64_p = base64.b64encode(print_html.encode('utf-8')).decode('utf-8')
-            # JS pour ouvrir une nouvelle fenêtre et imprimer
-            js_print = f"""<script>
-            function printReport() {{
-                var win = window.open();
-                win.document.write(decodeURIComponent(escape(atob('{b64_p}'))));
-                win.document.close();
-                win.print();
-            }}
-            </script>
-            <button onclick="printReport()" style="width:100%; padding:12px; background:#008080; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">🖨️ IMPRIMER LE RAPPORT (BLEU CANARD)</button>
-            """
-            components.html(js_print, height=60)
+            b64_print = base64.b64encode(print_html.encode('utf-8')).decode('utf-8')
+            js_print = f"""
+            <button onclick="var win=window.open(); win.document.write(atob('{b64_print}')); win.document.close(); setTimeout(function(){{win.print();}}, 500);" 
+            style="width:100%; padding:12px; background:#008080; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">
+            🖨️ IMPRIMER LE RAPPORT (FLASH)
+            </button>"""
+            st.components.v1.html(js_print, height=60)
