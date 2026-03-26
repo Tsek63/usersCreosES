@@ -15,6 +15,8 @@ def load_timetracking(_conn):
 
 def run(conn):
     st.subheader("⏱️ Time Tracking")
+
+    # --- CONFIGURATION ---
     LISTE_TACHES = sorted([
         "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
         "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
@@ -27,11 +29,8 @@ def run(conn):
     COULEURS_MAP = {"Véronique Maigrié": "#FF00FF", "Sylvie Nyssen": "#008080"}
 
     df = load_timetracking(conn)
-    if df.empty:
-        st.warning("Aucune donnée enregistrée.")
-        # On crée un DF vide avec colonnes pour éviter les erreurs
-        df = pd.DataFrame(columns=["date", "intervenante", "tache", "quantite", "nb_ecoles"])
-
+    
+    # --- LAYOUT ENCODAGE ---
     c1, c2 = st.columns([1, 1.2])
 
     with c1:
@@ -39,13 +38,21 @@ def run(conn):
         user = st.selectbox("Intervenante", ["Véronique Maigrié", "Sylvie Nyssen"])
         selected_date = st.date_input("Date", value=date.today())
         tache = st.selectbox("Tâche", LISTE_TACHES)
+        
         with st.form("form_saisie", clear_on_submit=True):
             quantite = st.number_input("Quantité", min_value=1, step=1, value=1)
             nb_ecoles = 0
             if tache == "NETTOYAGES DES DONNEES CREOS":
                 nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1, value=1)
+            
             if st.form_submit_button("💾 Enregistrer", use_container_width=True):
-                new_row = pd.DataFrame([{"date": str(selected_date), "intervenante": user, "tache": tache, "quantite": int(quantite), "nb_ecoles": int(nb_ecoles)}])
+                new_row = pd.DataFrame([{
+                    "date": str(selected_date),
+                    "intervenante": user,
+                    "tache": tache,
+                    "quantite": int(quantite),
+                    "nb_ecoles": int(nb_ecoles)
+                }])
                 df_live = conn.read(worksheet="TimeTracking", ttl=0).dropna(how="all")
                 df_updated = pd.concat([df_live, new_row], ignore_index=True)
                 safe_write(conn, "TimeTracking", df_updated)
@@ -64,24 +71,87 @@ def run(conn):
                 with col_txt:
                     st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
                 with col_btn:
-                    # FIX : Clé unique pour éviter le crash DuplicateElementKey
-                    if st.button("🗑️", key=f"del_tt_{i}_{row['intervenante'][:3]}"):
+                    if st.button("🗑️", key=f"del_tt_{i}"):
                         st.session_state[f"confirm_{i}"] = True
+                    
                     if st.session_state.get(f"confirm_{i}"):
+                        st.warning("Supprimer ?")
                         if st.button("OUI ✅", key=f"yes_{i}"):
                             df_updated = df.drop(i).reset_index(drop=True)
                             safe_write(conn, "TimeTracking", df_updated)
                             st.cache_data.clear()
                             del st.session_state[f"confirm_{i}"]
                             st.rerun()
+                        if st.button("NON ❌", key=f"no_{i}"):
+                            del st.session_state[f"confirm_{i}"]
+                            st.rerun()
         else:
             st.info("Aucune donnée pour ce jour.")
 
+    # =========================================================================
+    # SECTION STATISTIQUES RÉTABLIE
+    # =========================================================================
     st.divider()
     st.header("📊 Statistiques & Synthèse")
+
     if not df.empty:
-        # (Le reste de votre code de statistiques reste ici...)
-        df_copy = df.copy()
-        df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
-        # ... filtres et graphiques plotly ...
-        st.info("Utilisez les filtres pour analyser les données.")
+        df_stats = df.copy()
+        df_stats["date"] = pd.to_datetime(df_stats["date"], errors="coerce").dt.date
+        
+        # Filtres
+        f1, f2, f3 = st.columns([1, 1, 1.5])
+        with f1:
+            d_min = df_stats['date'].min() if not df_stats['date'].isnull().all() else date.today()
+            d_max = df_stats['date'].max() if not df_stats['date'].isnull().all() else date.today()
+            per = st.date_input("Période", [d_min, d_max])
+
+        with f2:
+            ints = sorted(df_stats["intervenante"].unique())
+            f_int = st.multiselect("Intervenantes", ints, default=ints)
+
+        with f3:
+            f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES)
+
+        # Application des filtres
+        if isinstance(per, (list, tuple)) and len(per) == 2:
+            mask = (df_stats['date'] >= per[0]) & (df_stats['date'] <= per[1])
+            df_f = df_stats[mask]
+        else:
+            df_f = df_stats.copy()
+
+        if f_int:
+            df_f = df_f[df_f['intervenante'].isin(f_int)]
+        if f_tac:
+            df_f = df_f[df_f['tache'].isin(f_tac)]
+
+        if not df_f.empty:
+            g1, g2 = st.columns(2)
+            with g1:
+                fig1 = px.pie(df_f, names='intervenante', values='quantite', color='intervenante',
+                             color_discrete_map=COULEURS_MAP, title="Par Intervenante")
+                st.plotly_chart(fig1, use_container_width=True)
+            with g2:
+                fig2 = px.pie(df_f, names='tache', values='quantite', title="Par Tâche")
+                st.plotly_chart(fig2, use_container_width=True)
+
+            # Synthèse Tableau
+            st.markdown("---")
+            df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
+            df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
+            
+            col_table, col_metric = st.columns([3, 1])
+            with col_table:
+                st.table(df_synth)
+            
+            with col_metric:
+                st.metric("TOTAL GÉNÉRAL", int(df_synth["Total Quantité"].sum()), "actions")
+                
+                # Export Excel dédié
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df_synth.to_excel(writer, index=False, sheet_name='Synthese')
+                st.download_button("📥 Export Synthèse Excel", output.getvalue(), "synthese_time.xlsx", use_container_width=True)
+        else:
+            st.info("Aucune donnée pour les filtres sélectionnés.")
+    else:
+        st.info("Commencez à encoder des données pour voir les statistiques.")
