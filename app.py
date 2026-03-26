@@ -13,7 +13,6 @@ inject_custom_css()
 conn = st.connection("gsheets", type=GSheetsConnection)
 dm = DataManager(conn)
 
-# Chargement centralisé (Récupère maintenant df_time aussi)
 df_ecoles, df_config, df_contacts, df_time, data_fwb = dm.load_all_data()
 
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -27,10 +26,10 @@ with tab2:
     school_search.render(conn, df_ecoles, df_config, data_fwb, df_contacts)
 
 with tab3:
-    # On envoie TOUTES les données pour permettre l'export de sécurité
     config_schools.render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb)
 
 with tab4:
     AppTimeTracking.run(conn)
 
-st.markdown(f'<div style="text-align:center; padding:20px; color:gray; font-size:11px;">© AJH & Creos Extrascolaire {date.today().year}</div>', unsafe_allow_html=True)
+current_year = date.today().year
+st.markdown(f'<div style="text-align:center; padding:20px; color:gray; font-size:11px;">© AJH & Creos Extrascolaire {current_year}</div>', unsafe_allow_html=True)
