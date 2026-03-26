@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import io
+import base64
 from datetime import datetime
 from safe_gsheets import safe_write
 from ui_components import icon_po
@@ -22,10 +23,9 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     svc_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
 
     # =========================================================================
-    # PARTIE HAUTE : FORMULAIRE ET TOTAUX GLOBAUX
+    # PARTIE HAUTE : FORMULAIRE
     # =========================================================================
     col_l, col_r = st.columns([1.8, 1.2])
-
     with col_l:
         s1, s2, s3 = st.columns([1, 1, 1.5])
         with s1:
@@ -55,7 +55,6 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             sch_opts = [f"{r['Ecole']} {'✅' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Oui')].empty else ('❌' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Non')].empty else '⭕')} — Fase {r['Fase école']}" for _, r in df_sch.iterrows()]
             e_label = st.selectbox("3. École individuelle", sch_opts, key="cfg_e")
             e_fase = e_label.split(" — Fase ")[-1]
-
             if e_fase:
                 curr = df_config[df_config['Fase école'] == e_fase]
                 idx_ex = 0 if (not curr.empty and curr.iloc[0]['Extrascolaire'] == 'Oui') else 1
@@ -93,37 +92,30 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     # PARTIE BASSE : SITUATION ACTUELLE (70/30)
     # =========================================================================
     st.divider()
-    st.subheader("Situation actuelle") # Taille équivalente à Configuration
+    st.subheader("📊 Situation actuelle")
 
     view_mode = st.radio("Filtre global :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True, key="view_mode")
+    is_refus_view = "Refus" in view_mode
     
-    # Séparation 70/30
+    # --- FILTRES (70/30) ---
     col_list, col_stats = st.columns([0.7, 0.3])
 
     with col_list:
-        # --- FILTRES ---
         f1, f2, f3 = st.columns(3)
-        with f1:
-            fl_p = st.multiselect("Filtrer par Province", sorted(df_config['Province'].unique()), key="f_p")
-        
-        # Filtres Paiement et Services (Affichés uniquement si "Utilisatrices" est choisi)
-        is_refus_view = "Refus" in view_mode
-        with f2:
-            fl_m = st.selectbox("Mode de paiement", ["TOUS", "Prépaiement", "Post-paiement"], disabled=is_refus_view)
-        with f3:
-            fl_s = st.selectbox("Services", ["TOUS"] + svc_list, disabled=is_refus_view)
+        with f1: fl_p = st.multiselect("Filtrer par Province", sorted(df_config['Province'].unique()), key="f_p")
+        with f2: fl_m = st.selectbox("Mode de paiement", ["TOUS", "Prépaiement", "Post-paiement"], disabled=is_refus_view)
+        with f3: fl_s = st.selectbox("Services", ["TOUS"] + svc_list, disabled=is_refus_view)
 
-        # --- LOGIQUE DE FILTRAGE ---
+        # Logique de filtrage et TRI
         df_target = df_config[df_config['Extrascolaire'] == ('Non' if is_refus_view else 'Oui')].copy()
-        if fl_p:
-            df_target = df_target[df_target['Province'].isin(fl_p)]
+        if fl_p: df_target = df_target[df_target['Province'].isin(fl_p)]
         if not is_refus_view:
-            if fl_m != "TOUS":
-                df_target = df_target[df_target['Paiement'] == fl_m]
-            if fl_s != "TOUS":
-                df_target = df_target[df_target['Services'].str.contains(fl_s, na=False)]
+            if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
+            if fl_s != "TOUS": df_target = df_target[df_target['Services'].str.contains(fl_s, na=False)]
+        
+        # Tri par Province puis Commune
+        df_target = df_target.sort_values(by=['Province', 'Commune'])
 
-        # --- AFFICHAGE DE LA LISTE ---
         if not df_target.empty:
             df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
             df_display = df_target.merge(df_names, on='Fase école', how='left').fillna("-")
@@ -135,63 +127,99 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 r1, r2, r3, r4 = st.columns([1.5, 1.5, 2, 0.5])
                 r1.write(row['Commune'])
                 r2.write(f"{row['Ecole']} ({row['Fase école']})")
-                
-                # Détails (Paiement + Services en badges)
                 if not is_refus_view:
-                    p_c = "#ec4899" if row['Paiement'] == "Prépaiement" else "#38bdf8"
+                    p_c = "#FF43D0" if row['Paiement'] == "Prépaiement" else "#008080"
                     details_html = f'<b style="color:{p_c};">{row["Paiement"]}</b><br>'
                     svs = str(row['Services']).split('|')
-                    colors = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
+                    colors_map = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
                     for s in svs:
                         if s.strip() and s.strip() != "-":
-                            details_html += f'<span style="background:{colors.get(s.strip(),"#999")}; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-right:3px; display:inline-block; margin-top:2px;">{s.strip()}</span>'
+                            details_html += f'<span style="background:{colors_map.get(s.strip(),"#999")}; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-right:3px; display:inline-block; margin-top:2px;">{s.strip()}</span>'
                     r3.markdown(details_html, unsafe_allow_html=True)
-                else:
-                    r3.write("Refus enregistré")
+                else: r3.write("Refus enregistré")
                 
                 if r4.button("🗑️", key=f"del_low_{i}"):
-                    df_new = df_config[df_config['Fase école'] != str(row['Fase école'])]
-                    safe_write(conn, "EcolesConfig", df_new); st.cache_data.clear(); st.rerun()
+                    safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(row['Fase école'])]); st.cache_data.clear(); st.rerun()
         else:
             st.info("Aucune école ne correspond aux filtres.")
 
     with col_stats:
-        # --- BLOC DE CHIFFRES DYNAMIQUES (30%) ---
+        # --- BLOC CHIFFRES (BLEU CANARD) ---
         st.markdown(f"""
-            <div style="background-color:#f1f5f9; padding:20px; border-radius:10px; border:1px solid #cbd5e1; color:#1e293b;">
-                <div style="font-size:12px; font-weight:bold; color:#64748b; text-transform:uppercase;">Résultats filtrés</div>
-                <hr style="margin:10px 0;">
-                <div style="font-size:24px; font-weight:bold;">{df_target['Commune'].nunique()} <small style="font-size:14px; font-weight:normal;">Communes</small></div>
-                <div style="font-size:24px; font-weight:bold;">{len(df_target)} <small style="font-size:14px; font-weight:normal;">Écoles</small></div>
+            <div style="background-color:#008080; padding:20px; border-radius:12px; color:white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:12px; font-weight:bold; opacity:0.8; text-transform:uppercase;">Résultats filtrés</div>
+                <hr style="margin:10px 0; opacity:0.3;">
+                <div style="font-size:26px; font-weight:bold;">{df_target['Commune'].nunique()} <small style="font-size:14px; font-weight:normal;">Communes</small></div>
+                <div style="font-size:26px; font-weight:bold;">{len(df_target)} <small style="font-size:14px; font-weight:normal;">Écoles</small></div>
             </div>
         """, unsafe_allow_html=True)
 
         if not is_refus_view and not df_target.empty:
-            # Stats Paiement
+            # Stats Paiement (BLEU CANARD)
             p_counts = df_target['Paiement'].value_counts()
             st.markdown(f"""
-                <div style="margin-top:10px; padding:10px; background:#fff; border:1px solid #eee; border-radius:8px;">
-                    <small>💳 <b>Prépaiement :</b> {p_counts.get('Prépaiement', 0)}</small><br>
-                    <small>🏦 <b>Post-paiement :</b> {p_counts.get('Post-paiement', 0)}</small>
+                <div style="margin-top:10px; padding:15px; background:#008080; border-radius:12px; color:white;">
+                    <div style="display:flex; justify-content:space-between;"><span>Prépaiement:</span><b>{p_counts.get('Prépaiement', 0)}</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Post-paiement:</span><b>{p_counts.get('Post-paiement', 0)}</b></div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # Graphique Paiement
-            fig_p = px.pie(df_target, names='Paiement', hole=0.4, height=200, color='Paiement',
-                           color_discrete_map={'Prépaiement':'#ec4899', 'Post-paiement':'#38bdf8'})
-            fig_p.update_layout(margin=dict(l=10, r=10, t=30, b=10), showlegend=False)
+            # Graphique Paiement (Fuchsia / Bleu Canard)
+            fig_p = px.pie(df_target, names='Paiement', hole=0.4, height=220, color='Paiement',
+                           color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
+            fig_p.update_layout(margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", y=-0.2))
             st.plotly_chart(fig_p, use_container_width=True)
 
-            # Stats Services
+            # Graphique Services avec Nombres
             all_s = []
             for s in df_target['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"])
-            
             if all_s:
                 df_s_plot = pd.DataFrame(all_s, columns=['Service']).value_counts().reset_index()
                 df_s_plot.columns = ['Service', 'Nombre']
-                
-                fig_s = px.bar(df_s_plot, x='Nombre', y='Service', orientation='h', height=300,
-                               color='Service', color_discrete_map={"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"})
-                fig_s.update_layout(margin=dict(l=10, r=10, t=30, b=10), showlegend=False, xaxis_title=None, yaxis_title=None)
+                fig_s = px.bar(df_s_plot, x='Nombre', y='Service', orientation='h', height=300, text='Nombre',
+                               color='Service', color_discrete_map=colors_map)
+                fig_s.update_traces(textposition='outside', textfont_size=12)
+                fig_s.update_layout(margin=dict(l=0, r=0, t=30, b=0), showlegend=False, xaxis_title=None, yaxis_title=None)
                 st.plotly_chart(fig_s, use_container_width=True)
+
+        # --- BOUTONS EXPORT ET IMPRESSION ---
+        st.write("---")
+        if not df_target.empty:
+            # 1. Export Excel Right Side
+            buf_stats = io.BytesIO()
+            with pd.ExcelWriter(buf_stats, engine='xlsxwriter') as wr:
+                df_target.to_excel(wr, sheet_name='Détails', index=False)
+                # On ajoute une feuille de synthèse
+                summary = pd.DataFrame({
+                    "Indicateur": ["Nombre Communes", "Nombre Écoles", "Prépaiements", "Post-paiements"],
+                    "Valeur": [df_target['Commune'].nunique(), len(df_target), p_counts.get('Prépaiement',0) if not is_refus_view else 0, p_counts.get('Post-paiement',0) if not is_refus_view else 0]
+                })
+                summary.to_excel(wr, sheet_name='Synthese', index=False)
+            
+            st.download_button("📥 Export Excel (Filtres)", buf_stats.getvalue(), "synthese_situation.xlsx", use_container_width=True)
+
+            # 2. Bouton Impression (Génération HTML)
+            print_html = f"""
+            <html><head><style>
+                body {{ font-family: sans-serif; padding: 20px; }}
+                h1 {{ color: #008080; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }}
+                th {{ background-color: #008080; color: white; }}
+                .prov {{ background-color: #f2f2f2; font-weight: bold; }}
+            </style></head><body>
+                <h1>Rapport Creos : {view_mode}</h1>
+                <p>Généré le {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+                <p>Filtres Province(s): {', '.join(fl_p) if fl_p else 'Toutes'}</p>
+                <table>
+                    <thead><tr><th>Province</th><th>Commune</th><th>École</th><th>Paiement</th><th>Services</th></tr></thead>
+                    <tbody>
+            """
+            for _, r in df_display.iterrows():
+                print_html += f"<tr><td>{r['Province']}</td><td>{r['Commune']}</td><td>{r['Ecole']}</td><td>{r.get('Paiement','-')}</td><td>{r.get('Services','-')}</td></tr>"
+            print_html += "</tbody></table></body></html>"
+            
+            b64 = base64.b64encode(print_html.encode()).decode()
+            href = f'<a href="data:text/html;base64,{b64}" target="_blank" style="text-decoration:none;"><div style="text-align:center; padding:10px; background:#1e293b; color:white; border-radius:5px; font-weight:bold;">🖨️ IMPRIMER LE RAPPORT</div></a>'
+            st.markdown(href, unsafe_allow_html=True)
