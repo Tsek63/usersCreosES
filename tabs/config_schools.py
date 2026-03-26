@@ -22,8 +22,9 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     df_config = df_config.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
     svc_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
     colors_map = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
+    prov_colors = {"Bruxelles": "#ffeaa7", "Brabant Wallon": "#81ecec", "Hainaut": "#a29bfe", "Liège": "#74b9ff", "Namur": "#fab1a0", "Luxembourg": "#FF43D0"}
 
-    # --- PARTIE HAUTE (Formulaire) ---
+    # --- PARTIE HAUTE (Inchangée) ---
     col_l, col_r = st.columns([1.8, 1.2])
     with col_l:
         s1, s2, s3 = st.columns([1, 1, 1.5])
@@ -114,9 +115,10 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 else: r3.write("Refus enregistré")
                 if r4.button("🗑️", key=f"del_{i}"):
                     safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(row['Fase école'])]); st.cache_data.clear(); st.rerun()
+        else:
+            st.info("Aucune école ne correspond aux filtres.")
 
     with col_stats:
-        # Bloc Bleu Canard
         st.markdown(f"""<div style="background-color:#008080; padding:20px; border-radius:12px; color:white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <div style="font-size:12px; font-weight:bold; opacity:0.8; text-transform:uppercase;">Résultats filtrés</div><hr style="margin:10px 0; opacity:0.3;">
 <div style="font-size:26px; font-weight:bold;">{df_target['Commune'].nunique()} <small style="font-size:14px; font-weight:normal;">Communes</small></div>
@@ -125,10 +127,6 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
         fig_p = fig_s = None
         if not is_refus and not df_target.empty:
             p_counts = df_target['Paiement'].value_counts()
-            st.markdown(f"""<div style="margin-top:10px; padding:15px; background:#008080; border-radius:12px; color:white;">
-<div style="display:flex; justify-content:space-between;"><span>Prépaiement:</span><b>{p_counts.get('Prépaiement', 0)}</b></div>
-<div style="display:flex; justify-content:space-between;"><span>Post-paiement:</span><b>{p_counts.get('Post-paiement', 0)}</b></div></div>""", unsafe_allow_html=True)
-            
             fig_p = px.pie(df_target, names='Paiement', hole=0.4, height=220, color='Paiement', color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
             fig_p.update_layout(margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", y=-0.2))
             st.plotly_chart(fig_p, use_container_width=True)
@@ -143,43 +141,89 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 fig_s.update_layout(margin=dict(l=0, r=0, t=30, b=0), showlegend=False, xaxis_title=None, yaxis_title=None)
                 st.plotly_chart(fig_s, use_container_width=True)
 
-        # --- EXPORTS ---
+        # --- EXPORTS & IMPRESSION PRO ---
         if not df_target.empty:
             st.write("---")
-            # EXCEL AVEC GRAPHES
-            def to_excel_with_charts():
+            
+            # EXCEL AVEC IMAGES
+            def to_excel_pro():
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_display.to_excel(writer, sheet_name='Liste_Filtrée', index=False)
-                    summary = pd.DataFrame({"Indicateur": ["Communes", "Écoles"], "Valeur": [df_target['Commune'].nunique(), len(df_target)]})
+                    df_display.to_excel(writer, sheet_name='Liste_Detaillee', index=False)
+                    summary = pd.DataFrame({"Indicateur": ["Communes", "Ecoles"], "Valeur": [df_target['Commune'].nunique(), len(df_target)]})
                     summary.to_excel(writer, sheet_name='Synthese', index=False)
                     if fig_p and fig_s:
-                        worksheet = writer.sheets['Synthese']
-                        img_p = io.BytesIO(fig_p.to_image(format="png"))
-                        img_s = io.BytesIO(fig_s.to_image(format="png"))
-                        worksheet.insert_image('D2', 'pie.png', {'image_data': img_p})
-                        worksheet.insert_image('D15', 'bar.png', {'image_data': img_s})
+                        ws = writer.sheets['Synthese']
+                        ws.insert_image('D2', 'pie.png', {'image_data': io.BytesIO(fig_p.to_image(format="png"))})
+                        ws.insert_image('D15', 'bar.png', {'image_data': io.BytesIO(fig_s.to_image(format="png"))})
                 return output.getvalue()
             
-            st.download_button("📥 Excel avec Graphiques", to_excel_with_charts(), "rapport_complet.xlsx", use_container_width=True)
+            st.download_button("📥 Excel avec Graphiques", to_excel_pro(), "rapport_creos.xlsx", use_container_width=True)
 
-            # IMPRESSION ROBUSTE (Bouton HTML/JS)
-            print_html = f"""<html><head><title>Impression</title><style>
-                body {{ font-family: sans-serif; }}
+            # --- GÉNÉRATION HTML IMPRESSION STRUCTURÉE ---
+            report_date = datetime.now().strftime('%d/%m/%Y à %H:%M')
+            rows_html = ""
+            current_prov = ""
+            current_comm = ""
+            
+            for _, row in df_display.iterrows():
+                # Changement de Province
+                if row['Province'] != current_prov:
+                    current_prov = row['Province']
+                    p_bg = prov_colors.get(current_prov, "#eee")
+                    rows_html += f'<tr style="background:{p_bg};"><td colspan="3" style="font-size:16px; font-weight:bold; padding:10px; border-top:2px solid #333;">📍 Province : {current_prov}</td></tr>'
+                
+                # Changement de Commune
+                if row['Commune'] != current_comm:
+                    current_comm = row['Commune']
+                    rows_html += f'<tr><td colspan="3" style="background:#f9f9f9; font-weight:bold; padding:5px 15px; color:#008080;">🏘️ Commune : {current_comm}</td></tr>'
+                
+                # Badges services pour l'impression
+                badges = ""
+                if not is_refus:
+                    for s in str(row['Services']).split('|'):
+                        if s.strip() and s.strip() != "-":
+                            c = colors_map.get(s.strip(), "#999")
+                            badges += f'<span style="background:{c}; color:white; padding:1px 5px; border-radius:3px; font-size:9px; margin-right:3px; -webkit-print-color-adjust: exact;">{s.strip()}</span>'
+                
+                p_text = row.get('Paiement','-')
+                p_color = "#FF43D0" if p_text == "Prépaiement" else "#008080"
+                
+                rows_html += f"""
+                <tr>
+                    <td style="padding-left:30px; width:40%;">{row['Ecole']} <small>({row['Fase école']})</small></td>
+                    <td style="width:20%; color:{p_color}; font-weight:bold;">{p_text}</td>
+                    <td style="width:40%;">{badges if not is_refus else 'Refus'}</td>
+                </tr>"""
+
+            print_template = f"""
+            <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; }}
+                .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #008080; padding-bottom: 10px; margin-bottom: 20px; }}
+                h1 {{ color: #008080; margin: 0; }}
                 table {{ width: 100%; border-collapse: collapse; }}
-                th, td {{ border: 1px solid #000; padding: 5px; text-align: left; font-size: 11px; }}
-                th {{ background: #008080; color: white; }}
-                .no-print {{ display:none; }}
+                th {{ text-align: left; background: #333; color: white; padding: 8px; }}
+                td {{ border-bottom: 1px solid #eee; padding: 6px; font-size: 12px; }}
+                @media print {{ .no-print {{ display: none; }} }}
             </style></head><body>
-                <h2>Situation Creos : {view_mode}</h2>
-                <table><thead><tr><th>Province</th><th>Commune</th><th>Ecole</th><th>Paiement</th><th>Services</th></tr></thead><tbody>
-                {"".join([f"<tr><td>{r['Province']}</td><td>{r['Commune']}</td><td>{r['Ecole']}</td><td>{r.get('Paiement','-')}</td><td>{r.get('Services','-')}</td></tr>" for _, r in df_display.iterrows()])}
-                </tbody></table>
+                <div class="header">
+                    <div><h1>Rapport de Situation Creos</h1><small>Type : {view_mode}</small></div>
+                    <div style="text-align:right;"><small>Généré le {report_date}</small></div>
+                </div>
+                <table>
+                    <thead><tr><th>École</th><th>Paiement</th><th>Services</th></tr></thead>
+                    <tbody>{rows_html}</tbody>
+                </table>
                 <script>window.onload = function() {{ window.print(); }}</script>
             </body></html>"""
-            
-            # Utilisation d'un bouton Streamlit qui déclenche l'ouverture d'une fenêtre JS
-            if st.button("🖨️ IMPRIMER LE RAPPORT", use_container_width=True):
-                b64_p = base64.b64encode(print_html.encode()).decode()
-                js = f"var w = window.open(); w.document.write(atob('{b64_p}')); w.document.close();"
-                st.components.v1.html(f"<script>{js}</script>", height=0)
+
+            if st.button("🖨️ IMPRIMER LE RAPPORT STRUCTURÉ", use_container_width=True):
+                # Utilisation d'un Blob JS pour éviter les problèmes d'encodage et les bloqueurs de pop-up
+                b64_html = base64.b64encode(print_template.encode('utf-8')).decode('utf-8')
+                js_code = f"""
+                    var html = atob('{b64_html}');
+                    var blob = new Blob([html], {{type: 'text/html;charset=utf-16'}});
+                    var url = URL.createObjectURL(blob);
+                    var win = window.open(url, '_blank');
+                """
+                st.components.v1.html(f"<script>{js_code}</script>", height=0)
