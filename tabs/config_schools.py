@@ -150,59 +150,55 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     df_display.to_excel(writer, sheet_name='Détails', index=False)
                     ws_syn = writer.book.add_worksheet('Synthese')
                     ws_syn.write('A1', 'Rapport de Situation')
-                    ws_syn.write('A2', f'Date: {datetime.now().strftime("%d/%m/%Y")}')
-                    if fig_p:
-                        img_p = fig_p.to_image(format="png")
-                        ws_syn.insert_image('B4', 'pie.png', {'image_data': io.BytesIO(img_p)})
-                    if fig_s:
-                        img_s = fig_s.to_image(format="png")
-                        ws_syn.insert_image('B20', 'bar.png', {'image_data': io.BytesIO(img_s)})
+                    if fig_p: ws_syn.insert_image('B4', 'p.png', {'image_data': io.BytesIO(fig_p.to_image(format="png"))})
+                    if fig_s: ws_syn.insert_image('B20', 's.png', {'image_data': io.BytesIO(fig_s.to_image(format="png"))})
                 return output.getvalue()
             
-            st.download_button("📥 Excel avec Graphiques", to_excel_pro(), "rapport_complet.xlsx", use_container_width=True)
+            st.download_button("📥 Excel avec Graphiques", to_excel_pro(), "rapport.xlsx", use_container_width=True)
 
-            # 🖨️ IMPRESSION (CORRIGÉE)
+            # 🖨️ IMPRESSION (CORRECTION ENCODAGE RADICALE)
             report_date = datetime.now().strftime('%d/%m/%Y')
             rows_html = ""
             curr_p = curr_c = ""
             for _, r in df_display.iterrows():
                 if r['Province'] != curr_p:
                     curr_p = r['Province']
-                    bg = prov_colors.get(curr_p, "#f2f2f2")
-                    rows_html += f'<tr style="background:{bg}; font-weight:bold;"><td colspan="3" style="padding:10px; border-top:2px solid #333;">📍 {curr_p}</td></tr>'
+                    rows_html += f'<tr style="background:{prov_colors.get(curr_p,"#eee")};"> <td colspan="3" style="padding:10px; font-size:16px; font-weight:bold; border-top:2px solid #333;">📍 Province : {curr_p}</td></tr>'
                 if r['Commune'] != curr_c:
                     curr_c = r['Commune']
-                    rows_html += f'<tr style="background:#fcfcfc;"><td colspan="3" style="padding:5px 15px; color:#008080; font-weight:bold;">🏘️ {curr_c}</td></tr>'
+                    rows_html += f'<tr><td colspan="3" style="background:#f9f9f9; padding:5px 15px; color:#008080; font-weight:bold;">🏘️ Commune : {curr_c}</td></tr>'
                 
                 badges = ""
                 if not is_refus:
                     for s in str(r['Services']).split('|'):
                         if s.strip() and s.strip() != "-":
                             c = colors_map.get(s.strip(), "#999")
-                            badges += f'<span style="background:{c}; color:white; padding:2px 6px; border-radius:3px; font-size:10px; margin-right:4px; display:inline-block; -webkit-print-color-adjust: exact;">{s.strip()}</span>'
+                            badges += f'<span style="background:{c}; color:white; padding:2px 6px; border-radius:3px; font-size:10px; margin-right:4px; display:inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact;">{s.strip()}</span>'
                 
                 rows_html += f"<tr><td style='padding-left:30px;'>{r['Ecole']}</td><td>{r.get('Paiement','-')}</td><td>{badges if not is_refus else 'Refus'}</td></tr>"
 
             print_html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-                body {{ font-family: sans-serif; font-size: 12px; }}
+                body {{ font-family: sans-serif; padding: 20px; }}
                 table {{ width: 100%; border-collapse: collapse; }}
-                th, td {{ border-bottom: 1px solid #ddd; padding: 6px; text-align: left; }}
+                th, td {{ border-bottom: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }}
                 th {{ background: #333; color: white; }}
                 h1 {{ color: #008080; }}
             </style></head><body>
-                <h1>Rapport Creos : {view_mode} ({report_date})</h1>
+                <h1>Rapport de Situation Creos : {view_mode}</h1>
+                <p>Date : {report_date}</p>
                 <table><thead><tr><th>École</th><th>Paiement</th><th>Services</th></tr></thead>
                 <tbody>{rows_html}</tbody></table>
-                <script>window.onload = function() {{ window.print(); window.close(); }}</script>
+                <script>window.onload = function() {{ window.print(); }}</script>
             </body></html>"""
 
-            if st.button("🖨️ IMPRIMER LE RAPPORT", use_container_width=True):
-                # Encodage UTF-8 propre pour éviter le texte corrompu
+            if st.button("🖨️ IMPRIMER LE RAPPORT STRUCTURÉ", use_container_width=True):
+                # ENCODAGE SECURISE POUR LES ACCENTS
+                # On utilise decodeURIComponent + escape pour forcer le JS à lire l'UTF-8
                 b64 = base64.b64encode(print_html.encode('utf-8')).decode('utf-8')
-                st.components.v1.html(f"""
-                    <script>
-                        var win = window.open("", "_blank");
-                        win.document.write(atob("{b64}"));
-                        win.document.close();
-                    </script>
-                """, height=0)
+                js_code = f"""
+                    var win = window.open("", "_blank");
+                    var html = decodeURIComponent(escape(atob("{b64}")));
+                    win.document.write(html);
+                    win.document.close();
+                """
+                st.components.v1.html(f"<script>{js_code}</script>", height=0)
