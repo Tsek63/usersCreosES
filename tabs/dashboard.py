@@ -5,6 +5,10 @@ import pandas as pd
 from ui_components import audit_card
 
 def render(df_ecoles, df_config, data_fwb, df_contacts):
+
+with st.expander("📖 Guide d'utilisation et Documentation"):
+    st.markdown(open("README.md", "r", encoding="utf-8").read())
+    
     # --- 1. PRÉPARATION ET NORMALISATION ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
