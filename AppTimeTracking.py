@@ -85,7 +85,7 @@ def run(conn):
             st.info("Aucune donnée pour ce jour.")
 
     # =========================================================================
-    # SECTION STATISTIQUES (Formatage des nombres corrigé)
+    # SECTION STATISTIQUES (Rendu sans ascenceur)
     # =========================================================================
     st.divider()
     st.header("📊 Statistiques & Synthèse")
@@ -126,19 +126,19 @@ def run(conn):
                 fig2 = px.pie(df_f, names='tache', values='quantite', title="Par Tâche")
                 st.plotly_chart(fig2, use_container_width=True)
 
-            # --- SYNTHÈSE TABLEAU AVEC FORMAT ENTIER ---
+            # --- TABLEAU DE SYNTHÈSE (COMPLET SANS ASCENCEUR) ---
             st.markdown("---")
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
             
-            # CORRECTION ICI : Conversion en entier pour supprimer les .0000
+            # Conversion en entier (pour supprimer les .0000)
             df_synth["Total Quantité"] = df_synth["Total Quantité"].astype(int)
             df_synth["Total Écoles"] = df_synth["Total Écoles"].astype(int)
             
             col_table, col_metric = st.columns([3, 1])
             with col_table:
-                # Utilisation de dataframe pour un rendu propre
-                st.dataframe(df_synth, use_container_width=True, hide_index=True)
+                # st.table affiche le tableau EN ENTIER sans ascenceur
+                st.table(df_synth)
             
             with col_metric:
                 st.metric("TOTAL GÉNÉRAL", int(df_synth["Total Quantité"].sum()), "actions")
