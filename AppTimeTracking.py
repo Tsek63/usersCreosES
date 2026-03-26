@@ -75,21 +75,17 @@ def run(conn):
                         st.session_state[f"confirm_{i}"] = True
                     
                     if st.session_state.get(f"confirm_{i}"):
-                        st.warning("Supprimer ?")
                         if st.button("OUI ✅", key=f"yes_{i}"):
                             df_updated = df.drop(i).reset_index(drop=True)
                             safe_write(conn, "TimeTracking", df_updated)
                             st.cache_data.clear()
                             del st.session_state[f"confirm_{i}"]
                             st.rerun()
-                        if st.button("NON ❌", key=f"no_{i}"):
-                            del st.session_state[f"confirm_{i}"]
-                            st.rerun()
         else:
             st.info("Aucune donnée pour ce jour.")
 
     # =========================================================================
-    # SECTION STATISTIQUES RÉTABLIE
+    # SECTION STATISTIQUES (Formatage des nombres corrigé)
     # =========================================================================
     st.divider()
     st.header("📊 Statistiques & Synthèse")
@@ -98,7 +94,6 @@ def run(conn):
         df_stats = df.copy()
         df_stats["date"] = pd.to_datetime(df_stats["date"], errors="coerce").dt.date
         
-        # Filtres
         f1, f2, f3 = st.columns([1, 1, 1.5])
         with f1:
             d_min = df_stats['date'].min() if not df_stats['date'].isnull().all() else date.today()
@@ -112,17 +107,14 @@ def run(conn):
         with f3:
             f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES)
 
-        # Application des filtres
         if isinstance(per, (list, tuple)) and len(per) == 2:
             mask = (df_stats['date'] >= per[0]) & (df_stats['date'] <= per[1])
             df_f = df_stats[mask]
         else:
             df_f = df_stats.copy()
 
-        if f_int:
-            df_f = df_f[df_f['intervenante'].isin(f_int)]
-        if f_tac:
-            df_f = df_f[df_f['tache'].isin(f_tac)]
+        if f_int: df_f = df_f[df_f['intervenante'].isin(f_int)]
+        if f_tac: df_f = df_f[df_f['tache'].isin(f_tac)]
 
         if not df_f.empty:
             g1, g2 = st.columns(2)
@@ -134,19 +126,23 @@ def run(conn):
                 fig2 = px.pie(df_f, names='tache', values='quantite', title="Par Tâche")
                 st.plotly_chart(fig2, use_container_width=True)
 
-            # Synthèse Tableau
+            # --- SYNTHÈSE TABLEAU AVEC FORMAT ENTIER ---
             st.markdown("---")
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
             
+            # CORRECTION ICI : Conversion en entier pour supprimer les .0000
+            df_synth["Total Quantité"] = df_synth["Total Quantité"].astype(int)
+            df_synth["Total Écoles"] = df_synth["Total Écoles"].astype(int)
+            
             col_table, col_metric = st.columns([3, 1])
             with col_table:
-                st.table(df_synth)
+                # Utilisation de dataframe pour un rendu propre
+                st.dataframe(df_synth, use_container_width=True, hide_index=True)
             
             with col_metric:
                 st.metric("TOTAL GÉNÉRAL", int(df_synth["Total Quantité"].sum()), "actions")
                 
-                # Export Excel dédié
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df_synth.to_excel(writer, index=False, sheet_name='Synthese')
@@ -154,4 +150,4 @@ def run(conn):
         else:
             st.info("Aucune donnée pour les filtres sélectionnés.")
     else:
-        st.info("Commencez à encoder des données pour voir les statistiques.")
+        st.info("Aucune donnée enregistrée.")
