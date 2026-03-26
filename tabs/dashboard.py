@@ -5,6 +5,7 @@ import pandas as pd
 from ui_components import audit_card
 
 def render(df_ecoles, df_config, data_fwb, df_contacts):
+    # --- 1. PRÉPARATION ET NORMALISATION ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
@@ -20,17 +21,18 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         prov = normalize_prov(grp['Province'].iloc[0] if not grp.empty else "Inconnu")
         nb_oui = len(grp)
         nb_non = len(df_non[df_non['Commune'] == comm])
+        
         fase_fwb = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
         fase_cfg = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
         nb_sans = len([e for e in fase_fwb if e not in fase_cfg])
+        
         tab1_rows.append({'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans})
     
     df_tab1 = pd.DataFrame(tab1_rows) if tab1_rows else pd.DataFrame(columns=['Province','Commune','NbOui','NbNon','NbSans'])
 
-    # --- STATS GAUCHE ---
-    # CORRECTION : On utilise nunique pour la cohérence entre onglets
+    # --- 2. STATS GAUCHE ---
+    t_dash = len(df_tab1)
     total_ecoles_unifie = df_ecoles['Fase école'].nunique()
-    
     p_dash = len(df_active[df_active['Paiement'] == 'Prépaiement'])
     po_dash = len(df_active[df_active['Paiement'] == 'Post-paiement'])
     s_dash = {
@@ -41,7 +43,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         "Activités": (int(df_active['Services'].str.contains("Activités", na=False).sum()), "#4ade80"),
     }
 
-    # --- CARTE & LISTE ---
+    # --- 3. CARTE & LISTE ---
     data_fwb_norm = {normalize_prov(k): v for k, v in data_fwb.items()}
     json_recs = df_tab1.to_json(orient='records')
     map_ref_json = json.dumps(data_fwb_norm)
@@ -70,7 +72,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
     <div id="left">
         <div id="map-box"><svg id="svg" viewBox="0 0 900 650"></svg></div>
         <div class="stats-panel">
-            <div class="panel-header"><div style="font-size:12px; opacity:0.7;">COMMUNES ACTIVES</div><div style="font-size:42px; font-weight:bold;">{len(df_tab1)}</div></div>
+            <div class="panel-header"><div style="font-size:12px; opacity:0.7;">COMMUNES ACTIVES</div><div style="font-size:42px; font-weight:bold;">{t_dash}</div></div>
             <div style="display:flex; gap:20px;">
                 <div style="flex:1;">
                     <div style="font-size:11px; opacity:0.5; text-align:center; margin-bottom:8px;">PAIEMENT</div>
@@ -88,10 +90,12 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
     <script>
         const dbData = {json_recs}; const mapRef = {map_ref_json};
         const dbMap = new Map(); dbData.forEach(item => dbMap.set(item.Commune, item));
+        
         function init() {{
             const svg = document.getElementById('svg');
             const anchors = {{ "Bruxelles": [330, 30], "Brabant Wallon": [330, 100], "Hainaut": [40, 180], "Liège": [560, 60], "Namur": [280, 300], "Luxembourg": [530, 400] }};
             const provColors = {{ "Bruxelles": "#ffeaa7", "Brabant Wallon": "#81ecec", "Hainaut": "#a29bfe", "Liège": "#74b9ff", "Namur": "#fab1a0", "Luxembourg": "#FF43D0" }};
+
             Object.entries(mapRef).forEach(([p, list]) => {{
                 if (!anchors[p]) return;
                 const color = provColors[p] || "#ccc";
@@ -107,13 +111,23 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
             }});
             renderList();
         }}
+
         function renderList() {{
             const listDiv = document.getElementById('list'); listDiv.innerHTML = "";
             const provinces = ["Bruxelles", "Brabant Wallon", "Hainaut", "Liège", "Namur", "Luxembourg"];
+            
             provinces.forEach(p => {{
                 const filtered = dbData.filter(d => d.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
-                    const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='10px'; h.style.fontWeight='bold'; h.style.color='#94a3b8'; h.style.marginTop='10px'; h.innerText = p.toUpperCase(); listDiv.appendChild(h);
+                    const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='10px'; h.style.fontWeight='bold'; h.style.color='#94a3b8'; h.style.marginTop='10px'; 
+                    
+                    // MODIFICATION LIBELLÉ BRUXELLES ICI
+                    let displayProvName = p.toUpperCase();
+                    if(p === "Bruxelles") displayProvName = "BRUXELLES RÉGION-CAPITALE";
+                    
+                    h.innerText = displayProvName; 
+                    listDiv.appendChild(h);
+                    
                     filtered.forEach(x => {{
                         const row = document.createElement('div'); row.className = 'item-row';
                         row.innerHTML = `<div class="commune-name">${{x.Commune}}</div>
@@ -127,6 +141,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
                 }}
             }});
         }}
+
         function doSearch() {{
             const val = document.getElementById('search').value.toLowerCase();
             document.querySelectorAll('.item-row').forEach(row => {{ row.style.display = row.innerText.toLowerCase().includes(val) ? 'flex' : 'none'; }});
@@ -135,19 +150,25 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
     """
     components.html(html_map, height=750)
 
-    # --- AUDIT ---
+    # --- 4. AUDIT ---
     st.divider()
     st.subheader("🕵️ Audit de Qualité & Prospection")
     communes_actives = df_active['Commune'].unique()
     communes_avec_contacts = df_contacts['Commune'].unique()
     sans_contact = [c for c in communes_actives if c not in communes_avec_contacts]
+    
     en_attente = total_ecoles_unifie - df_config['Fase école'].nunique()
     top_prov = df_active['Province'].value_counts().idxmax() if not df_active.empty else "N/A"
 
     aud1, aud2, aud3, aud4 = st.columns(4)
-    with aud1: audit_card("Contacts manquants", f"{len(sans_contact)} commune(s)", "#ef4444" if sans_contact else "#22c55e", "⚠️")
+    # MODIFICATION LIBELLÉ AUDIT ICI
+    with aud1: audit_card("Nombre de communes sans contact spécifique", f"{len(sans_contact)} commune(s)", "#ef4444" if sans_contact else "#22c55e", "⚠️")
     with aud2: audit_card("Écoles en attente", f"{en_attente} écoles", "#3b82f6", "🔔")
     with aud3: audit_card("Province Leader", top_prov, "#f59e0b", "🏆")
     with aud4: 
         taux = round((len(df_active) / total_ecoles_unifie) * 100, 1) if total_ecoles_unifie > 0 else 0
         audit_card("Pénétration", f"{taux}%", "#8b5cf6", "📈")
+
+    if sans_contact:
+        with st.expander("🔎 Voir les communes actives sans contact"):
+            st.write(", ".join(sorted(sans_contact)))
