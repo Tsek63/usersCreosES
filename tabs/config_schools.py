@@ -47,19 +47,25 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     f_list = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
                     new_rows = [{"Fase école": f, "Commune": c_sel, "Province": p_sel, "Extrascolaire": "Oui", "Paiement": m_pay, "Services": "|".join(m_svc) if m_svc else "-"} for f in f_list]
                     df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], pd.DataFrame(new_rows)], ignore_index=True)
-                    safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                    safe_write(conn, "EcolesConfig", df_upd)
+                    st.cache_data.clear()
+                    st.rerun()
                 st.markdown("---")
                 ca1, ca2 = st.columns(2)
                 with ca1:
-                    if st.button(f"Tout {c_sel} à 'NON'", use_container_width=True, key="m_non"):
+                    if st.button(f"Tout {c_sel} à 'NON'", use_container_width=True, key="btn_m_no"):
                         f_list = df_ecoles[df_ecoles['Commune'] == c_sel]['Fase école'].astype(str).unique()
                         rows_no = [{"Fase école": f, "Commune": c_sel, "Province": p_sel, "Extrascolaire": "Non", "Paiement": "-", "Services": "-"} for f in f_list]
                         df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], pd.DataFrame(rows_no)], ignore_index=True)
-                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                        safe_write(conn, "EcolesConfig", df_upd)
+                        st.cache_data.clear()
+                        st.rerun()
                 with ca2:
-                    if st.button(f"Réinitialiser {c_sel}", use_container_width=True, key="m_del"):
+                    if st.button(f"Réinitialiser {c_sel}", use_container_width=True, key="btn_m_re"):
                         df_upd = df_config[df_config['Commune'] != c_sel]
-                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                        safe_write(conn, "EcolesConfig", df_upd)
+                        st.cache_data.clear()
+                        st.rerun()
 
             df_sch = df_ecoles[df_ecoles['Commune'] == c_sel].copy()
             sch_opts = [f"{r['Ecole']} {'✅' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Oui')].empty else ('❌' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Non')].empty else '⭕')} — Fase {r['Fase école']}" for _, r in df_sch.iterrows()]
@@ -76,7 +82,9 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     if st.form_submit_button("💾 ENREGISTRER L'ÉCOLE", use_container_width=True):
                         new = pd.DataFrame([{"Fase école": e_fase, "Commune": c_sel, "Province": p_sel, "Extrascolaire": v_ex, "Paiement": v_pa if v_ex == "Oui" else "-", "Services": "|".join(v_sv) if (v_ex == "Oui" and v_sv) else "-"}])
                         df_upd = pd.concat([df_config[df_config['Fase école'] != e_fase], new], ignore_index=True)
-                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
+                        safe_write(conn, "EcolesConfig", df_upd)
+                        st.cache_data.clear()
+                        st.rerun()
 
     with col_r:
         st.markdown(f"""
@@ -94,7 +102,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             df_config.to_excel(writer, sheet_name='EcolesConfig', index=False)
             df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
             df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
-        st.download_button("🛡️ Sécurité des données : export Excel complet", buf_all.getvalue(), f"SAVE_TOTAL.xlsx", use_container_width=True)
+        st.download_button("🛡️ Sécurité des données : exporter toutes vos données vers Excel", buf_all.getvalue(), "BACKUP_TOTAL.xlsx", use_container_width=True)
 
     # =========================================================================
     # PARTIE BASSE : SITUATION ACTUELLE (70/30)
@@ -119,16 +127,18 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
             if fl_s != "TOUS": df_target = df_target[df_target['Services'].str.contains(fl_s, na=False)]
         
-        df_target = df_target.sort_values(['Province', 'Commune'])
+        # --- TRI ALPHABÉTIQUE GLOBAL (Province > Commune > École) ---
+        df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
+        df_disp = df_target.merge(df_names, on='Fase école', how='left').fillna("-")
+        df_disp = df_disp.sort_values(by=['Province', 'Commune', 'Ecole'])
 
-        if not df_target.empty:
-            df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
-            df_disp = df_target.merge(df_names, on='Fase école', how='left').fillna("-")
+        if not df_disp.empty:
             h1, h2, h3, h4 = st.columns([1.5, 1.5, 2, 0.5])
             h1.write("**Commune**"); h2.write("**École**"); h3.write("**Détails**")
             for i, (_, r) in enumerate(df_disp.iterrows()):
                 r1, r2, r3, r4 = st.columns([1.5, 1.5, 2, 0.5])
-                r1.write(r['Commune']); r2.write(f"{r['Ecole']} ({r['Fase école']})")
+                r1.write(r['Commune'])
+                r2.write(f"{r['Ecole']} ({r['Fase école']})")
                 if not is_refus:
                     p_c = "#FF43D0" if r['Paiement'] == "Prépaiement" else "#008080"
                     html = f'<b style="color:{p_c};">{r["Paiement"]}</b><br>'
@@ -138,14 +148,16 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     r3.markdown(html, unsafe_allow_html=True)
                 else: r3.write("Refus enregistré")
                 if r4.button("🗑️", key=f"dlow_{i}"):
-                    safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(r['Fase école'])]); st.cache_data.clear(); st.rerun()
-        else: st.info("Aucun résultat.")
+                    safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(r['Fase école'])])
+                    st.cache_data.clear()
+                    st.rerun()
+        else:
+            st.info("Aucun résultat.")
 
     with col_stats:
-        # --- BLOC CHIFFRES (BLEU CANARD) ---
-        n_com = df_target['Commune'].nunique()
-        n_eco = len(df_target)
-        p_counts = df_target['Paiement'].value_counts()
+        n_com = df_disp['Commune'].nunique()
+        n_eco = len(df_disp)
+        p_counts = df_disp['Paiement'].value_counts()
         
         st.markdown(f"""
             <div style="background-color:#008080; padding:20px; border-radius:12px; color:white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -168,17 +180,15 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
         img_p_base64, img_s_base64 = "", ""
         img_p_bytes, img_s_bytes = None, None
 
-        if not is_refus and not df_target.empty:
-            # Graphique Paiement
-            fig_p = px.pie(df_target, names='Paiement', hole=0.4, height=220, color='Paiement', color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
+        if not is_refus and not df_disp.empty:
+            fig_p = px.pie(df_disp, names='Paiement', hole=0.4, height=220, color='Paiement', color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
             fig_p.update_layout(margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", y=-0.2))
             st.plotly_chart(fig_p, use_container_width=True)
             try: img_p_bytes = fig_p.to_image(format="png", width=400, height=300)
             except: pass
 
-            # Graphique Services
             all_s = []
-            for s in df_target['Services'].str.split('|'):
+            for s in df_disp['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"])
             if all_s:
                 df_s = pd.DataFrame(all_s, columns=['S']).value_counts().reset_index()
@@ -193,52 +203,51 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 except: pass
 
         # --- BOUTONS RAPPORT ---
-        if not df_target.empty:
+        if not df_disp.empty:
             st.write("---")
-            # 📥 BOUTON EXCEL
             buf_rep = io.BytesIO()
             with pd.ExcelWriter(buf_rep, engine='xlsxwriter') as wr:
-                df_disp.to_excel(wr, sheet_name='Details', index=False)
+                df_disp.to_excel(wr, sheet_name='Rapport', index=False)
                 if not is_refus:
-                    ws = wr.sheets['Details']
+                    ws = wr.sheets['Rapport']
                     try:
                         if img_p_bytes: ws.insert_image('G2', 'p.png', {'image_data': io.BytesIO(img_p_bytes)})
                         if img_s_bytes: ws.insert_image('G18', 's.png', {'image_data': io.BytesIO(img_s_bytes)})
                     except: pass
             st.download_button("📥 EXPORT EXCEL FILTRÉ", buf_rep.getvalue(), "rapport_creos.xlsx", use_container_width=True)
 
-            # 🖨️ BOUTON IMPRESSION (BLEU CANARD)
+            # IMPRESSION (Correction UTF-8 et Tri)
             print_html = f"""
-            <html><head><style>
-                body {{ font-family: Arial, sans-serif; padding: 20px; }}
+            <html><head><meta charset="UTF-8"><style>
+                body {{ font-family: Arial, sans-serif; padding: 20px; color: #333; }}
                 .h {{ background: #008080; color: white; padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }}
-                .flash {{ background: #f1f5f9; border-left: 5px solid #008080; padding: 15px; margin: 20px 0; display: flex; gap: 40px; }}
-                .stat-box {{ text-align: center; }}
+                .f {{ background: #f1f5f9; border-left: 5px solid #008080; padding: 15px; margin: 20px 0; display: flex; gap: 40px; }}
                 .stat-val {{ font-size: 24px; font-weight: bold; color: #008080; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }}
                 th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
                 th {{ background: #008080; color: white; }}
                 .charts {{ display: flex; justify-content: space-around; margin-bottom: 20px; }}
-                img {{ width: 300px; }}
+                img {{ width: 300px; border: 1px solid #eee; }}
             </style></head><body>
                 <div class="h"><div><h2>Rapport Creos : {view_mode}</h2></div><div>{datetime.now().strftime('%d/%m/%Y')}</div></div>
-                <div class="flash">
-                    <div class="stat-box"><div class="stat-val">{n_com}</div><small>Communes</small></div>
-                    <div class="stat-box"><div class="stat-val">{n_eco}</div><small>Écoles</small></div>
+                <div class="f">
+                    <div><span class="stat-val">{n_com}</span> Communes</div>
+                    <div><span class="stat-val">{n_eco}</span> Écoles</div>
                 </div>
                 <div class="charts">
                     {"<img src='data:image/png;base64,"+img_p_base64+"'>" if img_p_base64 else ""}
                     {"<img src='data:image/png;base64,"+img_s_base64+"'>" if img_s_base64 else ""}
                 </div>
-                <table><thead><tr><th>Province</th><th>Commune</th><th>École</th><th>Paiement</th><th>Services</th></tr></thead><tbody>
+                <table><thead><tr><th>Province</th><th>Commune</th><th>École (FASE)</th><th>Paiement</th><th>Services</th></tr></thead><tbody>
             """
             for _, r in df_disp.iterrows():
                 print_html += f"<tr><td>{r['Province']}</td><td>{r['Commune']}</td><td>{r['Ecole']} ({r['Fase école']})</td><td>{r.get('Paiement','-')}</td><td>{r.get('Services','-')}</td></tr>"
             print_html += "</tbody></table></body></html>"
             
+            # ENCODAGE SECURISE POUR LES ACCENTS
             b64_print = base64.b64encode(print_html.encode('utf-8')).decode('utf-8')
             js_print = f"""
-            <button onclick="var win=window.open(); win.document.write(atob('{b64_print}')); win.document.close(); setTimeout(function(){{win.print();}}, 500);" 
+            <button onclick="var win=window.open(); win.document.write(decodeURIComponent(escape(window.atob('{b64_print}')))); win.document.close(); setTimeout(function(){{win.print();}}, 500);" 
             style="width:100%; padding:12px; background:#008080; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">
             🖨️ IMPRIMER LE RAPPORT (FLASH)
             </button>"""
