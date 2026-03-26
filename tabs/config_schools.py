@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import io
 import base64
+import streamlit.components.v1 as components
 from datetime import datetime
 from safe_gsheets import safe_write
 from ui_components import icon_po
@@ -66,35 +67,37 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     v_ex = f1.radio("Utilise l'Extrascolaire ?", ["Oui", "Non"], index=idx_ex, horizontal=True)
                     v_pa = f2.radio("Mode de paiement", ["Prépaiement", "Post-paiement"], index=0 if (curr.empty or curr.iloc[0]['Paiement'] != "Post-paiement") else 1, horizontal=True)
                     v_sv = st.multiselect("Services", svc_list, default=str(curr.iloc[0]['Services']).split('|') if (not curr.empty and curr.iloc[0]['Services'] != "-") else [])
-                    if st.form_submit_button("💾 ENREGISTRER", use_container_width=True):
+                    if st.form_submit_button("💾 ENREGISTRER L'ÉCOLE", use_container_width=True):
                         new = pd.DataFrame([{"Fase école": e_fase, "Commune": c_sel, "Province": p_sel, "Extrascolaire": v_ex, "Paiement": v_pa if v_ex == "Oui" else "-", "Services": "|".join(v_sv) if (v_ex == "Oui" and v_sv) else "-"}])
                         df_upd = pd.concat([df_config[df_config['Fase école'] != e_fase], new], ignore_index=True)
                         safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
 
     with col_r:
+        # --- BLOCS STATS ---
         st.markdown(f"""
-            <div style="background-color:#008080; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="background-color:#008080; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px;">
                 <div style="font-size:14px; font-weight:bold;">Écoles qui Utilisent l'Extrascolaire</div>
                 <div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Oui'])}</div>
             </div>
-            <div style="background-color:#FF43D0; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="background-color:#FF43D0; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px;">
                 <div style="font-size:14px; font-weight:bold;">Écoles qui n'utilisent pas l'Extrascolaire</div>
                 <div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Non'])}</div>
             </div>
         """, unsafe_allow_html=True)
+        # SÉCURITÉ GLOBAALE
         buf_all = io.BytesIO()
         with pd.ExcelWriter(buf_all, engine='xlsxwriter') as writer:
             df_config.to_excel(writer, sheet_name='EcolesConfig', index=False)
             df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
             df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
-        st.download_button("🛡️ Sécurité des données : export Excel complet", buf_all.getvalue(), f"BACKUP_TOTAL.xlsx", use_container_width=True)
+        st.download_button("🛡️ Sécurité des données : exporter toutes vos données vers Excel", buf_all.getvalue(), f"BACKUP_TOTAL.xlsx", use_container_width=True)
 
     # =========================================================================
     # PARTIE BASSE : SITUATION ACTUELLE (70/30)
     # =========================================================================
     st.divider()
     st.subheader("📊 Situation actuelle")
-    view_mode = st.radio("Filtre :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True)
+    view_mode = st.radio("Choix de la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True)
     is_refus = "Refus" in view_mode
     
     col_list, col_stats = st.columns([0.7, 0.3])
@@ -111,7 +114,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
             if fl_s != "TOUS": df_target = df_target[df_target['Services'].str.contains(fl_s, na=False)]
         
-        # TRI PARFAIT
+        # TRI ALPHABÉTIQUE (Province > Commune > École)
         df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
         df_disp = df_target.merge(df_names, on='Fase école', how='left').fillna("-")
         df_disp = df_disp.sort_values(['Province', 'Commune', 'Ecole'])
@@ -137,21 +140,24 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     with col_stats:
         n_com = df_disp['Commune'].nunique()
         n_eco = len(df_disp)
+        p_counts = df_disp['Paiement'].value_counts()
         st.markdown(f"""<div style="background-color:#008080; padding:20px; border-radius:12px; color:white;">
 <div style="font-size:12px; font-weight:bold; text-transform:uppercase;">Résultats filtrés</div><hr style="margin:10px 0; opacity:0.3;">
-<div style="display:flex; justify-content:space-between;"><b>{n_com}</b><span>Communes</span></div>
-<div style="display:flex; justify-content:space-between;"><b>{n_eco}</b><span>Écoles</span></div></div>""", unsafe_allow_html=True)
+<div style="display:flex; justify-content:space-between;"><b style="font-size:22px;">{n_com}</b><span style="font-size:22px;">Communes</span></div>
+<div style="display:flex; justify-content:space-between;"><b style="font-size:22px;">{n_eco}</b><span style="font-size:22px;">Écoles</span></div>
+{f'<hr style="margin:10px 0; opacity:0.3;"><div style="display:flex; justify-content:space-between; font-size:14px;"><span>Prépaiement:</span><b>{p_counts.get("Prépaiement", 0)}</b></div><div style="display:flex; justify-content:space-between; font-size:14px;"><span>Post-paiement:</span><b>{p_counts.get("Post-paiement", 0)}</b></div>' if not is_refus else ''}
+</div>""", unsafe_allow_html=True)
 
         img_p_bytes, img_s_bytes = None, None
         if not is_refus and not df_disp.empty:
-            # PIE CHART
+            # CHART 1
             fig_p = px.pie(df_disp, names='Paiement', hole=0.4, height=220, color='Paiement', color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
             fig_p.update_layout(margin=dict(l=0,r=0,t=30,b=0), showlegend=True, legend=dict(orientation="h", y=-0.2))
             st.plotly_chart(fig_p, use_container_width=True)
             try: img_p_bytes = fig_p.to_image(format="png", width=400, height=300)
             except: pass
 
-            # BAR CHART AVEC LEGENDE
+            # CHART 2
             all_s = []
             for s in df_disp['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"])
@@ -164,17 +170,16 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 try: img_s_bytes = fig_s.to_image(format="png", width=400, height=300)
                 except: pass
 
-        # --- BOUTONS RAPPORT ---
         if not df_disp.empty:
             st.write("---")
-            # EXCEL
+            # BOUTON EXCEL
             buf_rep = io.BytesIO()
             with pd.ExcelWriter(buf_rep, engine='xlsxwriter') as wr:
                 df_disp.to_excel(wr, sheet_name='Details', index=False)
                 if img_p_bytes: wr.sheets['Details'].insert_image('G2', 'p.png', {'image_data': io.BytesIO(img_p_bytes)})
             st.download_button("📥 Export Excel (Filtres)", buf_rep.getvalue(), "rapport.xlsx", use_container_width=True)
 
-            # IMPRESSION FLASH (STRUCTUREE PROVINCE > COMMUNE)
+            # IMPRESSION FLASH (STRUCTUREE ET COLOREE)
             print_html = f"""<html><head><meta charset="UTF-8"><style>
                 body {{ font-family: Arial, sans-serif; padding: 30px; }}
                 .h {{ background: #008080; color: white; padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }}
@@ -183,7 +188,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 11px; }}
                 th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
                 th {{ background: #eee; }}
-                .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-weight: bold; font-size: 10px; }}
+                .badge {{ padding: 2px 6px; border-radius: 4px; color: white; font-weight: bold; font-size: 10px; display: inline-block; margin-right: 3px; }}
             </style></head><body>
                 <div class="h"><h2>Rapport Situation Creos : {view_mode}</h2><span>{datetime.now().strftime('%d/%m/%Y')}</span></div>
                 <p><b>Synthèse :</b> {n_com} Communes | {n_eco} Écoles</p>
@@ -197,21 +202,19 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     if curr_c != "": print_html += "</tbody></table>"
                     curr_c = r['Commune']
                     print_html += f'<div class="comm-h">🏘️ Commune : {curr_c}</div>'
-                    print_html += "<table><thead><tr><th style='width:30%'>École</th><th style='width:20%'>Paiement</th><th>Services</th></tr></thead><tbody>"
+                    print_html += "<table><thead><tr><th style='width:35%'>École</th><th style='width:20%'>Paiement</th><th>Services</th></tr></thead><tbody>"
                 
-                # Badge Paiement
                 p_col = "#FF43D0" if r.get('Paiement') == "Prépaiement" else "#008080"
                 p_html = f'<span class="badge" style="background:{p_col}">{r.get("Paiement","-")}</span>'
-                # Badges Services
                 s_html = ""
                 for s in str(r.get('Services')).split('|'):
                     if s.strip() and s.strip() != "-":
-                        s_html += f'<span class="badge" style="background:{colors_map.get(s.strip(),"#999")}">{s.strip()}</span> '
+                        s_html += f'<span class="badge" style="background:{colors_map.get(s.strip(),"#999")}">{s.strip()}</span>'
                 
                 print_html += f"<tr><td>{r['Ecole']}</td><td>{p_html}</td><td>{s_html}</td></tr>"
             
             print_html += "</tbody></table></body></html>"
             b64 = base64.b64encode(print_html.encode('utf-8')).decode('utf-8')
             js = f"""<script>function pr(){{ var w=window.open(); w.document.write(decodeURIComponent(escape(atob('{b64}')))); w.document.close(); setTimeout(function(){{w.print();}},500); }}</script>
-            <button onclick="pr()" style="width:100%; padding:12px; background:#008080; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">🖨️ IMPRIMER LE RAPPORT STRUCTURÉ</button>"""
+            <button onclick="pr()" style="width:100%; padding:12px; background:#008080; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">🖨️ IMPRIMER LE RAPPORT (BLEU CANARD)</button>"""
             components.html(js, height=60)
