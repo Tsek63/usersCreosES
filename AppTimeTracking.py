@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import plotly.express as px
 import io
+import base64
 from safe_gsheets import safe_write
 
 @st.cache_data(ttl=60)
@@ -46,13 +47,7 @@ def run(conn):
                 nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1, value=1)
             
             if st.form_submit_button("💾 Enregistrer", use_container_width=True):
-                new_row = pd.DataFrame([{
-                    "date": str(selected_date),
-                    "intervenante": user,
-                    "tache": tache,
-                    "quantite": int(quantite),
-                    "nb_ecoles": int(nb_ecoles)
-                }])
+                new_row = pd.DataFrame([{"date": str(selected_date), "intervenante": user, "tache": tache, "quantite": int(quantite), "nb_ecoles": int(nb_ecoles)}])
                 df_live = conn.read(worksheet="TimeTracking", ttl=0).dropna(how="all")
                 df_updated = pd.concat([df_live, new_row], ignore_index=True)
                 safe_write(conn, "TimeTracking", df_updated)
@@ -73,7 +68,6 @@ def run(conn):
                 with col_btn:
                     if st.button("🗑️", key=f"del_tt_{i}"):
                         st.session_state[f"confirm_{i}"] = True
-                    
                     if st.session_state.get(f"confirm_{i}"):
                         if st.button("OUI ✅", key=f"yes_{i}"):
                             df_updated = df.drop(i).reset_index(drop=True)
@@ -85,7 +79,7 @@ def run(conn):
             st.info("Aucune donnée pour ce jour.")
 
     # =========================================================================
-    # SECTION STATISTIQUES (Rendu sans ascenceur)
+    # SECTION STATISTIQUES
     # =========================================================================
     st.divider()
     st.header("📊 Statistiques & Synthèse")
@@ -96,8 +90,8 @@ def run(conn):
         
         f1, f2, f3 = st.columns([1, 1, 1.5])
         with f1:
-            d_min = df_stats['date'].min() if not df_stats['date'].isnull().all() else date.today()
-            d_max = df_stats['date'].max() if not df_stats['date'].isnull().all() else date.today()
+            d_min = df_stats['date'].min()
+            d_max = df_stats['date'].max()
             per = st.date_input("Période", [d_min, d_max])
 
         with f2:
@@ -107,47 +101,90 @@ def run(conn):
         with f3:
             f_tac = st.multiselect("Filtrer Tâches", LISTE_TACHES)
 
-        if isinstance(per, (list, tuple)) and len(per) == 2:
-            mask = (df_stats['date'] >= per[0]) & (df_stats['date'] <= per[1])
-            df_f = df_stats[mask]
-        else:
-            df_f = df_stats.copy()
-
+        # Application des filtres
+        mask = (df_stats['date'] >= per[0]) & (df_stats['date'] <= per[1]) if len(per)==2 else True
+        df_f = df_stats[mask]
         if f_int: df_f = df_f[df_f['intervenante'].isin(f_int)]
         if f_tac: df_f = df_f[df_f['tache'].isin(f_tac)]
 
         if not df_f.empty:
             g1, g2 = st.columns(2)
             with g1:
-                fig1 = px.pie(df_f, names='intervenante', values='quantite', color='intervenante',
-                             color_discrete_map=COULEURS_MAP, title="Par Intervenante")
+                fig1 = px.pie(df_f, names='intervenante', values='quantite', color='intervenante', color_discrete_map=COULEURS_MAP, title="Répartition par Intervenante")
                 st.plotly_chart(fig1, use_container_width=True)
             with g2:
-                fig2 = px.pie(df_f, names='tache', values='quantite', title="Par Tâche")
+                fig2 = px.pie(df_f, names='tache', values='quantite', title="Répartition par Tâche")
                 st.plotly_chart(fig2, use_container_width=True)
 
-            # --- TABLEAU DE SYNTHÈSE (COMPLET SANS ASCENCEUR) ---
             st.markdown("---")
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
-            
-            # Conversion en entier (pour supprimer les .0000)
             df_synth["Total Quantité"] = df_synth["Total Quantité"].astype(int)
             df_synth["Total Écoles"] = df_synth["Total Écoles"].astype(int)
             
             col_table, col_metric = st.columns([3, 1])
             with col_table:
-                # st.table affiche le tableau EN ENTIER sans ascenceur
                 st.table(df_synth)
             
             with col_metric:
-                st.metric("TOTAL GÉNÉRAL", int(df_synth["Total Quantité"].sum()), "actions")
+                total_actions = int(df_synth["Total Quantité"].sum())
+                st.metric("TOTAL GÉNÉRAL", total_actions, "actions")
                 
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_synth.to_excel(writer, index=False, sheet_name='Synthese')
-                st.download_button("📥 Export Synthèse Excel", output.getvalue(), "synthese_time.xlsx", use_container_width=True)
+                # --- EXPORT EXCEL PRO ---
+                def to_excel_time():
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        df_synth.to_excel(writer, index=False, sheet_name='Synthèse', startrow=1)
+                        ws = writer.sheets['Synthèse']
+                        ws.write('A1', f"Rapport Time Tracking - Du {per[0]} au {per[1]}")
+                        # Insertion du graphique par tâche
+                        img_bytes = fig2.to_image(format="png", width=600, height=450)
+                        ws.insert_image('E2', 'chart.png', {'image_data': io.BytesIO(img_bytes)})
+                    return output.getvalue()
+                
+                st.download_button("📥 Export Excel complet", to_excel_time(), "synthese_time_tracking.xlsx", use_container_width=True)
+
+                # --- IMPRESSION PRO ---
+                if st.button("🖨️ IMPRIMER LE RAPPORT", use_container_width=True):
+                    # Conversion du graph en base64 pour le HTML
+                    img_base64 = base64.b64encode(fig2.to_image(format="png", width=700, height=500)).decode('utf-8')
+                    
+                    rows_html = "".join([f"<tr><td>{r['Action / Tâche']}</td><td style='text-align:center;'>{r['Total Quantité']}</td><td style='text-align:center;'>{r['Total Écoles']}</td></tr>" for _, r in df_synth.iterrows()])
+                    
+                    print_template = f"""
+                    <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+                        body {{ font-family: sans-serif; padding: 40px; color: #333; }}
+                        h1 {{ color: #008080; border-bottom: 2px solid #008080; padding-bottom: 10px; }}
+                        .info {{ margin-bottom: 20px; font-size: 14px; color: #666; }}
+                        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                        th {{ background: #f4f4f4; padding: 10px; border: 1px solid #ddd; text-align: left; }}
+                        td {{ padding: 8px; border: 1px solid #ddd; }}
+                        .total {{ font-size: 18px; font-weight: bold; color: #008080; margin-top: 10px; }}
+                        .chart-container {{ text-align: center; margin-top: 30px; }}
+                        img {{ max-width: 100%; height: auto; }}
+                    </style></head><body>
+                        <h1>Rapport d'activité - Creos Extrascolaire</h1>
+                        <div class="info">Période : Du {per[0]} au {per[1]}<br>Généré le : {datetime.now().strftime('%d/%m/%Y')}</div>
+                        <table><thead><tr><th>Action / Tâche</th><th style='text-align:center;'>Quantité</th><th style='text-align:center;'>Écoles</th></tr></thead>
+                        <tbody>{rows_html}</tbody></table>
+                        <div class="total">TOTAL GÉNÉRAL : {total_actions} actions</div>
+                        <div class="chart-container">
+                            <h3>Répartition visuelle par tâche</h3>
+                            <img src="data:image/png;base64,{img_base64}">
+                        </div>
+                        <script>window.onload = function() {{ window.print(); }}</script>
+                    </body></html>"""
+                    
+                    b64_html = base64.b64encode(print_template.encode('utf-8')).decode('utf-8')
+                    js_code = f"""
+                        var win = window.open("", "_blank");
+                        var html = decodeURIComponent(escape(atob("{b64_html}")));
+                        win.document.write(html);
+                        win.document.close();
+                    """
+                    st.components.v1.html(f"<script>{js_code}</script>", height=0)
+
         else:
-            st.info("Aucune donnée pour les filtres sélectionnés.")
+            st.info("Aucune donnée pour ces filtres.")
     else:
-        st.info("Aucune donnée enregistrée.")
+        st.info("Encodez des données pour voir les statistiques.")
