@@ -58,7 +58,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         #map-box {{ flex: 0 0 300px; background: #262730; border-radius: 8px; margin-bottom: 8px; }}
         svg {{ width: 100%; height: 100%; }}
         .commune {{ stroke: rgba(255,255,255,0.1); stroke-width: 0.5; opacity: 0.3; cursor: help; }}
-        .active {{ stroke: #ffffff !important; stroke-width: 1.5px !important; opacity: 1 !important; }}
+        .active {{ stroke: #ffffff !important; stroke-width: 1.8px !important; opacity: 1 !important; }}
         #search {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; outline: none; }}
         #list {{ flex: 1; overflow-y: auto; }}
         .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 12px; }}
@@ -120,11 +120,8 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
                 const filtered = dbData.filter(d => d.Province === p).sort((a,b) => a.Commune.localeCompare(b.Commune));
                 if(filtered.length > 0) {{
                     const h = document.createElement('div'); h.style.background='#f8fafc'; h.style.padding='6px 10px'; h.style.fontSize='10px'; h.style.fontWeight='bold'; h.style.color='#94a3b8'; h.style.marginTop='10px'; 
-                    
-                    // MODIFICATION LIBELLÉ BRUXELLES ICI
                     let displayProvName = p.toUpperCase();
                     if(p === "Bruxelles") displayProvName = "BRUXELLES RÉGION-CAPITALE";
-                    
                     h.innerText = displayProvName; 
                     listDiv.appendChild(h);
                     
@@ -161,13 +158,12 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
     top_prov = df_active['Province'].value_counts().idxmax() if not df_active.empty else "N/A"
 
     aud1, aud2, aud3, aud4 = st.columns(4)
-    # MODIFICATION LIBELLÉ AUDIT ICI
     with aud1: audit_card("Nombre de communes sans contact spécifique", f"{len(sans_contact)} commune(s)", "#ef4444" if sans_contact else "#22c55e", "⚠️")
     with aud2: audit_card("Écoles en attente", f"{en_attente} écoles", "#3b82f6", "🔔")
     with aud3: audit_card("Province Leader", top_prov, "#f59e0b", "🏆")
     with aud4: 
         taux = round((len(df_active) / total_ecoles_unifie) * 100, 1) if total_ecoles_unifie > 0 else 0
-        audit_card("Pénétration", f"{taux}%", "#8b5cf6", "📈")
+        audit_card("Implémentation", f"{taux}%", "#8b5cf6", "📈")
 
     if sans_contact:
         with st.expander("🔎 Voir les communes actives sans contact"):
