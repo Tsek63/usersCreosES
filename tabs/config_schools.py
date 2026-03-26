@@ -22,13 +22,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     df_config['Fase école'] = df_config['Fase école'].astype(str).str.strip()
     df_config = df_config.drop_duplicates(subset=['Fase école'], keep='last').reset_index(drop=True)
     svc_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
-    colors_map = {
-        "Cantine Jour": "#FFD700", 
-        "Cantine Semaine": "#FF8C00", 
-        "Cantine Mois": "#FF0000", 
-        "Garderie": "#38bdf8", 
-        "Activités": "#4ade80"
-    }
+    colors_map = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
 
     # =========================================================================
     # PARTIE HAUTE : FORMULAIRE
@@ -55,50 +49,31 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                     df_upd = pd.concat([df_config[~df_config['Fase école'].isin(f_list)], pd.DataFrame(new_rows)], ignore_index=True)
                     safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
 
-            df_sch = df_ecoles[df_ecoles['Commune'] == c_sel].copy()
-            sch_opts = [f"{r['Ecole']} {'✅' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Oui')].empty else ('❌' if not df_config[(df_config['Fase école']==str(r['Fase école'])) & (df_config['Extrascolaire']=='Non')].empty else '⭕')} — Fase {r['Fase école']}" for _, r in df_sch.iterrows()]
-            e_label = st.selectbox("3. École individuelle", sch_opts, key="cfg_e")
-            e_fase = e_label.split(" — Fase ")[-1]
-            if e_fase:
-                curr = df_config[df_config['Fase école'] == e_fase]
-                idx_ex = 0 if (not curr.empty and curr.iloc[0]['Extrascolaire'] == 'Oui') else 1
-                with st.form("form_cfg_final"):
-                    f1, f2 = st.columns(2)
-                    v_ex = f1.radio("Utilise l'Extrascolaire ?", ["Oui", "Non"], index=idx_ex, horizontal=True)
-                    v_pa = f2.radio("Mode de paiement", ["Prépaiement", "Post-paiement"], index=0 if (curr.empty or curr.iloc[0]['Paiement'] != "Post-paiement") else 1, horizontal=True)
-                    v_sv = st.multiselect("Services", svc_list, default=str(curr.iloc[0]['Services']).split('|') if (not curr.empty and curr.iloc[0]['Services'] != "-") else [])
-                    if st.form_submit_button("💾 ENREGISTRER L'ÉCOLE", use_container_width=True):
-                        new = pd.DataFrame([{"Fase école": e_fase, "Commune": c_sel, "Province": p_sel, "Extrascolaire": v_ex, "Paiement": v_pa if v_ex == "Oui" else "-", "Services": "|".join(v_sv) if (v_ex == "Oui" and v_sv) else "-"}])
-                        df_upd = pd.concat([df_config[df_config['Fase école'] != e_fase], new], ignore_index=True)
-                        safe_write(conn, "EcolesConfig", df_upd); st.cache_data.clear(); st.rerun()
-
     with col_r:
-        # --- BLOCS STATS ---
         st.markdown(f"""
-            <div style="background-color:#008080; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px;">
+            <div style="background-color:#008080; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 <div style="font-size:14px; font-weight:bold;">Écoles qui Utilisent l'Extrascolaire</div>
                 <div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Oui'])}</div>
             </div>
-            <div style="background-color:#FF43D0; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px;">
-                <div style="font-size:14px; font-weight:bold;">Écoles qui n'utilisent pas l'Extrascolaire</div>
+            <div style="background-color:#FF43D0; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:14px; font-weight:bold;">Écoles avec 'abandon'</div>
                 <div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Non'])}</div>
             </div>
         """, unsafe_allow_html=True)
-        # SÉCURITÉ GLOBAALE
         buf_all = io.BytesIO()
         with pd.ExcelWriter(buf_all, engine='xlsxwriter') as writer:
             df_config.to_excel(writer, sheet_name='EcolesConfig', index=False)
             df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
             df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
-        st.download_button("🛡️ Sécurité des données : exporter toutes vos données vers Excel", buf_all.getvalue(), f"BACKUP_TOTAL.xlsx", use_container_width=True)
+        st.download_button("🛡️ Sécurité des données : export Excel complet", buf_all.getvalue(), f"BACKUP_TOTAL.xlsx", use_container_width=True)
 
     # =========================================================================
     # PARTIE BASSE : SITUATION ACTUELLE (70/30)
     # =========================================================================
     st.divider()
     st.subheader("📊 Situation actuelle")
-    view_mode = st.radio("Choix de la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec Refus"], horizontal=True)
-    is_refus = "Refus" in view_mode
+    view_mode = st.radio("Choix de la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec 'abandon'"], horizontal=True, key="v_mode")
+    is_refus = "abandon" in view_mode
     
     col_list, col_stats = st.columns([0.7, 0.3])
 
@@ -114,7 +89,6 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
             if fl_s != "TOUS": df_target = df_target[df_target['Services'].str.contains(fl_s, na=False)]
         
-        # TRI ALPHABÉTIQUE (Province > Commune > École)
         df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
         df_disp = df_target.merge(df_names, on='Fase école', how='left').fillna("-")
         df_disp = df_disp.sort_values(['Province', 'Commune', 'Ecole'])
@@ -132,7 +106,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                         if s.strip() and s.strip() != "-":
                             html += f'<span style="background:{colors_map.get(s.strip(),"#999")}; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-right:3px; display:inline-block; margin-top:2px;">{s.strip()}</span>'
                     r3.markdown(html, unsafe_allow_html=True)
-                else: r3.write("Refus enregistré")
+                else: r3.write("Abandon enregistré")
                 if r4.button("🗑️", key=f"dlow_{i}"):
                     safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(r['Fase école'])]); st.cache_data.clear(); st.rerun()
         else: st.info("Aucun résultat.")
@@ -150,14 +124,12 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
 
         img_p_bytes, img_s_bytes = None, None
         if not is_refus and not df_disp.empty:
-            # CHART 1
             fig_p = px.pie(df_disp, names='Paiement', hole=0.4, height=220, color='Paiement', color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
             fig_p.update_layout(margin=dict(l=0,r=0,t=30,b=0), showlegend=True, legend=dict(orientation="h", y=-0.2))
             st.plotly_chart(fig_p, use_container_width=True)
             try: img_p_bytes = fig_p.to_image(format="png", width=400, height=300)
             except: pass
 
-            # CHART 2
             all_s = []
             for s in df_disp['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"])
@@ -172,14 +144,12 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
 
         if not df_disp.empty:
             st.write("---")
-            # BOUTON EXCEL
             buf_rep = io.BytesIO()
             with pd.ExcelWriter(buf_rep, engine='xlsxwriter') as wr:
                 df_disp.to_excel(wr, sheet_name='Details', index=False)
                 if img_p_bytes: wr.sheets['Details'].insert_image('G2', 'p.png', {'image_data': io.BytesIO(img_p_bytes)})
             st.download_button("📥 Export Excel (Filtres)", buf_rep.getvalue(), "rapport.xlsx", use_container_width=True)
 
-            # IMPRESSION FLASH (STRUCTUREE ET COLOREE)
             print_html = f"""<html><head><meta charset="UTF-8"><style>
                 body {{ font-family: Arial, sans-serif; padding: 30px; }}
                 .h {{ background: #008080; color: white; padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }}
@@ -209,7 +179,7 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 s_html = ""
                 for s in str(r.get('Services')).split('|'):
                     if s.strip() and s.strip() != "-":
-                        s_html += f'<span class="badge" style="background:{colors_map.get(s.strip(),"#999")}">{s.strip()}</span>'
+                        s_html += f'<span style="background:{colors_map.get(s.strip(),"#999")}">{s.strip()}</span>'
                 
                 print_html += f"<tr><td>{r['Ecole']}</td><td>{p_html}</td><td>{s_html}</td></tr>"
             
