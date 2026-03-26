@@ -5,6 +5,7 @@ PROV_NORM = {
     "liege": "Liège", "liège": "Liège", "province de liège": "Liège",
     "hainaut": "Hainaut", "namur": "Namur", "luxembourg": "Luxembourg",
     "brabant wallon": "Brabant Wallon", "bruxelles": "Bruxelles",
+    "région de bruxelles-capitale": "Bruxelles",
 }
 
 class DataManager:
@@ -22,7 +23,6 @@ class DataManager:
         df_ecoles = _self.clean_df(_self.conn.read(worksheet="Ecoles").dropna(how="all"))
         df_config = _self.clean_df(_self.conn.read(worksheet="EcolesConfig").dropna(how="all"))
         df_contacts = _self.clean_df(_self.conn.read(worksheet="Contacts").dropna(how="all"))
-        # Ajout du chargement du Time Tracking pour l'export de sécurité
         try:
             df_time = _self.conn.read(worksheet="TimeTracking").dropna(how="all")
         except:
@@ -33,7 +33,9 @@ class DataManager:
             p_raw = str(row.get('Province', '')).lower().strip()
             prov = PROV_NORM.get(p_raw, row.get('Province', 'Inconnu'))
             comm = str(row.get('Commune', '')).strip()
-            if not comm or comm.startswith('Province'): continue
+            
+            if not comm: continue # On ne saute plus les "Province de..."
+            
             if prov not in data_fwb: data_fwb[prov] = set()
             data_fwb[prov].add(comm)
         
