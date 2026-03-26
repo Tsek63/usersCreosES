@@ -5,6 +5,15 @@ import pandas as pd
 from ui_components import audit_card
 
 def render(df_ecoles, df_config, data_fwb, df_contacts):
+    # --- 0. GUIDE D'UTILISATION (README) ---
+    try:
+        with st.expander("📖 Guide d'utilisation et Documentation"):
+            with open("README.md", "r", encoding="utf-8") as f:
+                st.markdown(f.read())
+    except FileNotFoundError:
+        st.info("Le guide d'utilisation (README.md) n'est pas disponible à la racine du projet.")
+
+    # --- 1. PRÉPARATION ET NORMALISATION ---
     df_active = df_config[df_config['Extrascolaire'] == 'Oui'].copy()
     df_non = df_config[df_config['Extrascolaire'] == 'Non'].copy()
     
@@ -20,26 +29,28 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         prov = normalize_prov(grp['Province'].iloc[0] if not grp.empty else "Inconnu")
         nb_oui = len(grp)
         nb_non = len(df_non[df_non['Commune'] == comm])
+        
         fase_fwb = df_ecoles[df_ecoles['Commune'] == comm]['Fase école'].astype(str).tolist()
         fase_cfg = df_config[df_config['Commune'] == comm]['Fase école'].astype(str).tolist()
         nb_sans = len([e for e in fase_fwb if e not in fase_cfg])
+        
         tab1_rows.append({'Commune': comm, 'Province': prov, 'NbOui': nb_oui, 'NbNon': nb_non, 'NbSans': nb_sans})
     
     df_tab1 = pd.DataFrame(tab1_rows) if tab1_rows else pd.DataFrame(columns=['Province','Commune','NbOui','NbNon','NbSans'])
     total_ecoles_unifie = df_ecoles['Fase école'].nunique()
 
-    col_l, col_r = st.columns([5, 7])
-    with col_l:
-        p_dash = len(df_active[df_active['Paiement'] == 'Prépaiement'])
-        po_dash = len(df_active[df_active['Paiement'] == 'Post-paiement'])
-        s_dash = {
-            "Cantine Jour": (int(df_active['Services'].str.contains("Cantine Jour", na=False).sum()), "#FFD700"),
-            "Cantine Semaine": (int(df_active['Services'].str.contains("Cantine Semaine", na=False).sum()), "#FF8C00"),
-            "Cantine Mois": (int(df_active['Services'].str.contains("Cantine Mois", na=False).sum()), "#FF0000"),
-            "Garderie": (int(df_active['Services'].str.contains("Garderie", na=False).sum()), "#38bdf8"),
-            "Activités": (int(df_active['Services'].str.contains("Activités", na=False).sum()), "#4ade80"),
-        }
+    # --- 2. STATS GAUCHE ---
+    p_dash = len(df_active[df_active['Paiement'] == 'Prépaiement'])
+    po_dash = len(df_active[df_active['Paiement'] == 'Post-paiement'])
+    s_dash = {
+        "Cantine Jour": (int(df_active['Services'].str.contains("Cantine Jour", na=False).sum()), "#FFD700"),
+        "Cantine Semaine": (int(df_active['Services'].str.contains("Cantine Semaine", na=False).sum()), "#FF8C00"),
+        "Cantine Mois": (int(df_active['Services'].str.contains("Cantine Mois", na=False).sum()), "#FF0000"),
+        "Garderie": (int(df_active['Services'].str.contains("Garderie", na=False).sum()), "#38bdf8"),
+        "Activités": (int(df_active['Services'].str.contains("Activités", na=False).sum()), "#4ade80"),
+    }
 
+    # --- 3. CARTE & LISTE ---
     data_fwb_norm = {normalize_prov(k): v for k, v in data_fwb.items()}
     json_recs = df_tab1.to_json(orient='records')
     map_ref_json = json.dumps(data_fwb_norm)
@@ -59,7 +70,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
         #list {{ flex: 1; overflow-y: auto; }}
         .stats-panel {{ background: var(--dark); color: white; padding: 15px; border-radius: 12px; }}
         .panel-header {{ text-align: center; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px; }}
-        .item-row {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; align-items: center; color: #334155; }}
+        .item-row {{ display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; align-items: center; color: #334155; }}
         .commune-name {{ flex: 0 0 150px; font-weight: bold; color: #4169E1; font-size: 13px; }}
         .counts-container {{ display: flex; gap: 4px; flex-grow: 1; justify-content: flex-end; }}
         .cnt {{ padding: 2px 10px; border-radius: 4px; color: white; font-weight: bold; white-space: nowrap; font-size: 10px; }}
@@ -134,11 +145,13 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
     """
     components.html(html_map, height=750)
 
+    # --- 4. AUDIT ---
     st.divider()
     st.subheader("🕵️ Audit de Qualité & Prospection")
     communes_actives = df_active['Commune'].unique()
     communes_avec_contacts = df_contacts['Commune'].unique()
     sans_contact = [c for c in communes_actives if c not in communes_avec_contacts]
+    
     en_attente = total_ecoles_unifie - df_config['Fase école'].nunique()
     top_prov = df_active['Province'].value_counts().idxmax() if not df_active.empty else "N/A"
 
@@ -149,3 +162,7 @@ def render(df_ecoles, df_config, data_fwb, df_contacts):
     with aud4: 
         taux = round((len(df_active) / total_ecoles_unifie) * 100, 1) if total_ecoles_unifie > 0 else 0
         audit_card("Implémentation", f"{taux}%", "#8b5cf6", "📈")
+
+    if sans_contact:
+        with st.expander("🔎 Voir les communes actives sans contact"):
+            st.write(", ".join(sorted(sans_contact)))
