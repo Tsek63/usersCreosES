@@ -9,6 +9,7 @@ from safe_gsheets import safe_write
 from ui_components import icon_po
 
 def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
+    # --- BOUTON ACTUALISER ---
     titre_col, refresh_col = st.columns([0.8, 0.2])
     with refresh_col:
         if st.button("🔄 Actualiser", use_container_width=True, key="btn_ref_cfg"):
@@ -21,6 +22,9 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     svc_list = ["Cantine Jour", "Cantine Semaine", "Cantine Mois", "Garderie", "Activités"]
     colors_map = {"Cantine Jour": "#FFD700", "Cantine Semaine": "#FF8C00", "Cantine Mois": "#FF0000", "Garderie": "#38bdf8", "Activités": "#4ade80"}
 
+    # =========================================================================
+    # PARTIE HAUTE : FORMULAIRE
+    # =========================================================================
     col_l, col_r = st.columns([1.8, 1.2])
     with col_l:
         s1, s2, s3 = st.columns([1, 1, 1.5])
@@ -52,23 +56,36 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
         st.download_button("🛡️ Sécurité : export Excel complet", buf.getvalue(), "BACKUP.xlsx", use_container_width=True)
 
+    # =========================================================================
+    # PARTIE BASSE : SITUATION ACTUELLE (70/30)
+    # =========================================================================
     st.divider()
     st.subheader("📊 Situation actuelle")
-    view_mode = st.radio("Filtre :", ["✅ Écoles Utilisatrices", "❌ Écoles avec 'abandon'"], horizontal=True)
+    view_mode = st.radio("Choix de la liste :", ["✅ Écoles Utilisatrices", "❌ Écoles avec 'abandon'"], horizontal=True, key="v_mode")
     is_refus = "abandon" in view_mode
+    
     col_list, col_stats = st.columns([0.7, 0.3])
+
     with col_list:
-        f1, f2, f3 = st.columns(3)
+        f1, f2, f3 = st.columns([1, 1, 1.5]) # On donne un peu plus de place aux services
         with f1: fl_p = st.multiselect("Province", sorted(df_config['Province'].unique()), key="f_p_low")
         with f2: fl_m = st.selectbox("Paiement", ["TOUS", "Prépaiement", "Post-paiement"], disabled=is_refus)
-        with f3: fl_s = st.selectbox("Services", ["TOUS"] + svc_list, disabled=is_refus)
+        with f3: 
+            # MODIFICATION : Multiselect pour les services
+            fl_s = st.multiselect("Services (cumulables)", svc_list, disabled=is_refus, help="Affiche les écoles possédant TOUS les services sélectionnés")
+
         df_target = df_config[df_config['Extrascolaire'] == ('Non' if is_refus else 'Oui')].copy()
         if fl_p: df_target = df_target[df_target['Province'].isin(fl_p)]
         if not is_refus:
             if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
-            if fl_s != "TOUS": df_target = df_target[df_target['Services'].str.contains(fl_s, na=False)]
+            # LOGIQUE : On filtre successivement pour chaque service sélectionné (opération "ET")
+            if fl_s:
+                for s in fl_s:
+                    df_target = df_target[df_target['Services'].str.contains(s, na=False)]
+        
         df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
         df_disp = df_target.merge(df_names, on='Fase école', how='left').fillna("-").sort_values(['Province', 'Commune', 'Ecole'])
+        
         if not df_disp.empty:
             h1, h2, h3, h4 = st.columns([1.5, 1.5, 2, 0.5])
             h1.write("**Commune**"); h2.write("**École**"); h3.write("**Détails**")
@@ -84,16 +101,20 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 else: r3.write("Abandon enregistré")
                 if r4.button("🗑️", key=f"dlow_{i}"):
                     safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(r['Fase école'])]); st.cache_data.clear(); st.rerun()
+        else: st.info("Aucun résultat pour cette combinaison de filtres.")
 
     with col_stats:
+        # --- BLOC STATS DROITE (DYNAMIQUE) ---
         n_com = df_disp['Commune'].nunique(); n_eco = len(df_disp); p_c = df_disp['Paiement'].value_counts()
         st.markdown(f'<div style="background:#008080; padding:20px; border-radius:12px; color:white;"><div style="font-size:12px; font-weight:bold; text-transform:uppercase;">Résultats filtrés</div><hr style="margin:10px 0; opacity:0.3;"><div style="display:flex; justify-content:space-between;"><b style="font-size:22px;">{n_com}</b><span style="font-size:22px;">Communes</span></div><div style="display:flex; justify-content:space-between;"><b style="font-size:22px;">{n_eco}</b><span style="font-size:22px;">Écoles</span></div>{f"<hr style='margin:10px 0; opacity:0.3;'><div style='display:flex; justify-content:space-between; font-size:14px;'><span>Prépaiement:</span><b>{p_c.get('Prépaiement', 0)}</b></div><div style='display:flex; justify-content:space-between; font-size:14px;'><span>Post-paiement:</span><b>{p_c.get('Post-paiement', 0)}</b></div>" if not is_refus else ""}</div>', unsafe_allow_html=True)
+        
         img_p, img_s = None, None
         if not is_refus and not df_disp.empty:
             fig_p = px.pie(df_disp, names='Paiement', hole=0.4, height=220, color='Paiement', color_discrete_map={'Prépaiement':'#FF43D0', 'Post-paiement':'#008080'})
             fig_p.update_layout(margin=dict(l=0,r=0,t=30,b=0), showlegend=True, legend=dict(orientation="h", y=-0.2)); st.plotly_chart(fig_p, use_container_width=True)
             try: img_p = fig_p.to_image(format="png", width=400, height=300)
             except: pass
+
             all_s = []
             for s in df_disp['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"])
@@ -103,12 +124,16 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 fig_s.update_traces(textposition='outside'); fig_s.update_layout(margin=dict(l=0,r=0,t=30,b=0), showlegend=True, legend=dict(orientation="h", y=-0.5), xaxis_title=None, yaxis_title=None); st.plotly_chart(fig_s, use_container_width=True)
                 try: img_s = fig_s.to_image(format="png", width=400, height=300)
                 except: pass
+
         if not df_disp.empty:
+            st.write("---")
             buf_rep = io.BytesIO()
             with pd.ExcelWriter(buf_rep, engine='xlsxwriter') as wr:
                 df_disp.to_excel(wr, sheet_name='Details', index=False)
                 if img_p: wr.sheets['Details'].insert_image('G2', 'p.png', {'image_data': io.BytesIO(img_p)})
             st.download_button("📥 Export Excel", buf_rep.getvalue(), "rapport.xlsx", use_container_width=True)
+            
+            # --- RAPPORT IMPRESSION ---
             print_html = f"<html><head><meta charset='UTF-8'><style>body{{font-family:Arial;padding:30px;}}.h{{background:#008080;color:white;padding:20px;border-radius:8px;display:flex;justify-content:space-between;}}.prov-h{{background:#1e293b;color:white;padding:8px;margin-top:20px;}}.comm-h{{background:#f1f5f9;color:#008080;padding:5px;font-weight:bold;border-left:4px solid #008080;}}table{{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:11px;}}th,td{{border:1px solid #ddd;padding:8px;}}th{{background:#eee;}}.badge{{padding:2px 6px;border-radius:4px;color:white;font-weight:bold;font-size:10px;display:inline-block;}}</style></head><body><div class='h'><h2>Rapport : {view_mode}</h2><span>{datetime.now().strftime('%d/%m/%Y')}</span></div><p><b>Synthèse :</b> {n_com} Communes | {n_eco} Écoles</p>"
             curr_p, curr_c = "", ""
             for _, r in df_disp.iterrows():
