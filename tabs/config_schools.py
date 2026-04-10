@@ -49,12 +49,23 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
 <div style="font-size:14px; font-weight:bold;">Écoles qui Utilisent l'Extrascolaire</div><div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Oui'])}</div></div>
 <div style="background:#FF43D0; padding:15px; border-radius:10px; color:white; text-align:center; margin-bottom:10px;">
 <div style="font-size:14px; font-weight:bold;">Écoles avec 'abandon'</div><div style="font-size:42px; font-weight:bold;">{len(df_config[df_config['Extrascolaire'] == 'Non'])}</div></div>""", unsafe_allow_html=True)
+        
+        # --- BOUTON SÉCURITÉ AVEC DATE DYNAMIQUE ---
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
             df_config.to_excel(writer, sheet_name='EcolesConfig', index=False)
             df_contacts.to_excel(writer, sheet_name='Contacts', index=False)
             df_time.to_excel(writer, sheet_name='TimeTracking', index=False)
-        st.download_button("🛡️ Sécurité : export Excel complet", buf.getvalue(), "BACKUP.xlsx", use_container_width=True)
+        
+        # Formatage de la date du jour pour le nom du fichier
+        date_sauvegarde = datetime.now().strftime('%d_%m_%Y')
+        
+        st.download_button(
+            label="🛡️ Sécurité : export Excel complet", 
+            data=buf.getvalue(), 
+            file_name=f"BACKUP_TOTAL_{date_sauvegarde}.xlsx", # Mise à jour du nom ici
+            use_container_width=True
+        )
 
     # =========================================================================
     # PARTIE BASSE : SITUATION ACTUELLE (70/30)
@@ -74,25 +85,17 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             fl_s = st.multiselect("Services (Correspondance exacte)", svc_list, disabled=is_refus, help="Affiche uniquement les écoles possédant EXACTEMENT cette combinaison de services.")
 
         df_target = df_config[df_config['Extrascolaire'] == ('Non' if is_refus else 'Oui')].copy()
-        
-        # 1. Filtre Province
         if fl_p: df_target = df_target[df_target['Province'].isin(fl_p)]
-        
         if not is_refus:
-            # 2. Filtre Paiement
             if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
-            
-            # 3. LOGIQUE DE FILTRAGE PAR CORRESPONDANCE EXACTE
             if fl_s:
                 def check_exact_match(val):
                     if not val or val == "-": return False
                     school_services = set([x.strip() for x in str(val).split('|') if x.strip()])
                     selected_services = set(fl_s)
                     return school_services == selected_services
-                
                 df_target = df_target[df_target['Services'].apply(check_exact_match)]
         
-        # --- TRI ---
         df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
         df_disp = df_target.merge(df_names, on='Fase école', how='left').fillna("-").sort_values(['Province', 'Commune', 'Ecole'])
         
@@ -123,7 +126,6 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
             fig_p.update_layout(margin=dict(l=0,r=0,t=30,b=0), showlegend=True, legend=dict(orientation="h", y=-0.2)); st.plotly_chart(fig_p, use_container_width=True)
             try: img_p = fig_p.to_image(format="png", width=400, height=300)
             except: pass
-
             all_s = []
             for s in df_disp['Services'].str.split('|'):
                 if isinstance(s, list): all_s.extend([x.strip() for x in s if x.strip() and x != "-"])
@@ -142,7 +144,6 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 if img_p: wr.sheets['Details'].insert_image('G2', 'p.png', {'image_data': io.BytesIO(img_p)})
             st.download_button("📥 Export Excel", buf_rep.getvalue(), "rapport.xlsx", use_container_width=True)
             
-            # --- RAPPORT IMPRESSION ---
             print_html = f"<html><head><meta charset='UTF-8'><style>body{{font-family:Arial;padding:30px;}}.h{{background:#008080;color:white;padding:20px;border-radius:8px;display:flex;justify-content:space-between;}}.prov-h{{background:#1e293b;color:white;padding:8px;margin-top:20px;}}.comm-h{{background:#f1f5f9;color:#008080;padding:5px;font-weight:bold;border-left:4px solid #008080;}}table{{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:11px;}}th,td{{border:1px solid #ddd;padding:8px;}}th{{background:#eee;}}.badge{{padding:2px 6px;border-radius:4px;color:white;font-weight:bold;font-size:10px;display:inline-block;}}</style></head><body><div class='h'><h2>Rapport : {view_mode}</h2><span>{datetime.now().strftime('%d/%m/%Y')}</span></div><p><b>Synthèse :</b> {n_com} Communes | {n_eco} Écoles</p>"
             curr_p, curr_c = "", ""
             for _, r in df_disp.iterrows():
