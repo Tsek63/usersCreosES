@@ -67,22 +67,32 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
     col_list, col_stats = st.columns([0.7, 0.3])
 
     with col_list:
-        f1, f2, f3 = st.columns([1, 1, 1.5]) # On donne un peu plus de place aux services
+        f1, f2, f3 = st.columns([1, 1, 1.5])
         with f1: fl_p = st.multiselect("Province", sorted(df_config['Province'].unique()), key="f_p_low")
-        with f2: fl_m = st.selectbox("Paiement", ["TOUS", "Prépaiement", "Post-paiement"], disabled=is_refus)
+        with f2: fl_m = st.selectbox("Mode de paiement", ["TOUS", "Prépaiement", "Post-paiement"], disabled=is_refus)
         with f3: 
-            # MODIFICATION : Multiselect pour les services
-            fl_s = st.multiselect("Services (cumulables)", svc_list, disabled=is_refus, help="Affiche les écoles possédant TOUS les services sélectionnés")
+            fl_s = st.multiselect("Services (Correspondance exacte)", svc_list, disabled=is_refus, help="Affiche uniquement les écoles possédant EXACTEMENT cette combinaison de services.")
 
         df_target = df_config[df_config['Extrascolaire'] == ('Non' if is_refus else 'Oui')].copy()
-        if fl_p: df_target = df_target[df_target['Province'].isin(fl_p)]
-        if not is_refus:
-            if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
-            # LOGIQUE : On filtre successivement pour chaque service sélectionné (opération "ET")
-            if fl_s:
-                for s in fl_s:
-                    df_target = df_target[df_target['Services'].str.contains(s, na=False)]
         
+        # 1. Filtre Province
+        if fl_p: df_target = df_target[df_target['Province'].isin(fl_p)]
+        
+        if not is_refus:
+            # 2. Filtre Paiement
+            if fl_m != "TOUS": df_target = df_target[df_target['Paiement'] == fl_m]
+            
+            # 3. LOGIQUE DE FILTRAGE PAR CORRESPONDANCE EXACTE
+            if fl_s:
+                def check_exact_match(val):
+                    if not val or val == "-": return False
+                    school_services = set([x.strip() for x in str(val).split('|') if x.strip()])
+                    selected_services = set(fl_s)
+                    return school_services == selected_services
+                
+                df_target = df_target[df_target['Services'].apply(check_exact_match)]
+        
+        # --- TRI ---
         df_names = df_ecoles[['Fase école', 'Ecole']].drop_duplicates()
         df_disp = df_target.merge(df_names, on='Fase école', how='left').fillna("-").sort_values(['Province', 'Commune', 'Ecole'])
         
@@ -101,10 +111,9 @@ def render(conn, df_ecoles, df_config, df_contacts, df_time, data_fwb):
                 else: r3.write("Abandon enregistré")
                 if r4.button("🗑️", key=f"dlow_{i}"):
                     safe_write(conn, "EcolesConfig", df_config[df_config['Fase école'] != str(r['Fase école'])]); st.cache_data.clear(); st.rerun()
-        else: st.info("Aucun résultat pour cette combinaison de filtres.")
+        else: st.info("Aucun résultat pour cette combinaison exacte de filtres.")
 
     with col_stats:
-        # --- BLOC STATS DROITE (DYNAMIQUE) ---
         n_com = df_disp['Commune'].nunique(); n_eco = len(df_disp); p_c = df_disp['Paiement'].value_counts()
         st.markdown(f'<div style="background:#008080; padding:20px; border-radius:12px; color:white;"><div style="font-size:12px; font-weight:bold; text-transform:uppercase;">Résultats filtrés</div><hr style="margin:10px 0; opacity:0.3;"><div style="display:flex; justify-content:space-between;"><b style="font-size:22px;">{n_com}</b><span style="font-size:22px;">Communes</span></div><div style="display:flex; justify-content:space-between;"><b style="font-size:22px;">{n_eco}</b><span style="font-size:22px;">Écoles</span></div>{f"<hr style='margin:10px 0; opacity:0.3;'><div style='display:flex; justify-content:space-between; font-size:14px;'><span>Prépaiement:</span><b>{p_c.get('Prépaiement', 0)}</b></div><div style='display:flex; justify-content:space-between; font-size:14px;'><span>Post-paiement:</span><b>{p_c.get('Post-paiement', 0)}</b></div>" if not is_refus else ""}</div>', unsafe_allow_html=True)
         
