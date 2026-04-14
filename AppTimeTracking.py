@@ -82,17 +82,17 @@ def run(conn):
                 with col_txt:
                     st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
 
-                # BOUTON MODIFIER (CRAYON)
+                # BOUTON MODIFIER
                 with col_edit:
                     if st.button("✏️", key=f"edit_{i}"):
                         st.session_state[f"editing_{i}"] = True
 
-                # BOUTON SUPPRIMER (POUBELLE)
+                # BOUTON SUPPRIMER
                 with col_del:
                     if st.button("🗑️", key=f"del_{i}"):
                         st.session_state[f"confirm_{i}"] = True
 
-                # FORMULAIRE DE MODIFICATION (S'affiche si clic sur crayon)
+                # FORMULAIRE DE MODIFICATION
                 if st.session_state.get(f"editing_{i}"):
                     with st.form(key=f"form_mod_{i}"):
                         st.write("🔧 Modification")
@@ -168,17 +168,24 @@ def run(conn):
                 st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
+            # --- SYNTHÈSE AVEC FORÇAGE DES NOMBRES ENTIERS ---
             df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
             df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
             
+            # Forçage en nombres entiers (int)
+            df_synth["Total Quantité"] = df_synth["Total Quantité"].fillna(0).astype(int)
+            df_synth["Total Écoles"] = df_synth["Total Écoles"].fillna(0).astype(int)
+            
             col_tab, col_met = st.columns([3, 1.2])
             with col_tab:
+                # Affichage du tableau trié
                 st.table(df_synth.sort_values("Action / Tâche"))
 
             with col_met:
+                # Métrique en nombre entier
                 st.metric("TOTAL GÉNÉRAL", int(df_synth["Total Quantité"].sum()), "actions")
                 
-                # EXPORT EXCEL AVEC GRAPHIQUE
+                # EXPORT EXCEL
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df_synth.to_excel(writer, index=False, sheet_name='Synthese', startrow=4)
