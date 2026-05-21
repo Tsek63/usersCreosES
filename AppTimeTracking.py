@@ -40,7 +40,7 @@ def run(conn):
         intervenantes = ["Véronique Maigrié", "Sylvie Nyssen"]
         user = st.selectbox("Intervenante", intervenantes)
         
-        selected_date = st.date_input("Date", value=date.today())
+        selected_date = st.date_input("Date", value=date.today(), format="DD/MM/YYYY")
         
         # --- LOGIQUE DE DÉTECTION DU WEEK-END ---
         num_jour = selected_date.weekday() # 0 = Lundi, 6 = Dimanche
