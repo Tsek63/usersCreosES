@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import plotly.express as px
 import io
 from safe_gsheets import safe_write
 
+# --- CACHE POUR LA FEUILLE TIMETRACKING ---
 @st.cache_data(ttl=60)
 def load_timetracking(_conn):
     try:
@@ -28,6 +29,7 @@ def run(conn):
     ])
 
     JOURS_NOM = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+    COULEURS_MAP = {"Véronique Maigrié": "#FF00FF", "Sylvie Nyssen": "#008080"}
 
     df = load_timetracking(conn)
 
@@ -40,17 +42,20 @@ def run(conn):
         intervenantes = ["Véronique Maigrié", "Sylvie Nyssen"]
         user = st.selectbox("Intervenante", intervenantes)
         
+        # Format JJ/MM/AAAA pour plus de clarté
         selected_date = st.date_input("Date", value=date.today(), format="DD/MM/YYYY")
         
-        # --- LOGIQUE DE DÉTECTION DU WEEK-END ---
-        num_jour = selected_date.weekday() # 0 = Lundi, 6 = Dimanche
+        # Détection week-end
+        num_jour = selected_date.weekday()
         nom_du_jour = JOURS_NOM[num_jour]
         is_weekend = num_jour >= 5
 
         if is_weekend:
-            st.error(f"⚠️ {nom_du_jour} sélectionné (Week-end)")
+            st.error(f"⚠️ {nom_du_jour} est un jour de week-end.")
+            confirm_wk = st.checkbox("Je confirme vouloir encoder une prestation un week-end")
         else:
             st.info(f"📅 Jour : {nom_du_jour}")
+            confirm_wk = True
 
         tache = st.selectbox("Tâche", LISTE_TACHES)
 
@@ -60,14 +65,11 @@ def run(conn):
             if tache == "NETTOYAGES DES DONNEES CREOS":
                 nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1, value=1)
 
-            if st.form_submit_button("💾 Enregistrer", use_container_width=True):
-                new_row = pd.DataFrame([{
-                    "date": str(selected_date),
-                    "intervenante": user,
-                    "tache": tache,
-                    "quantite": int(quantite),
-                    "nb_ecoles": int(nb_ecoles)
-                }])
+            # Le bouton est désactivé si week-end non confirmé
+            submit_disabled = is_weekend and not confirm_wk
+            
+            if st.form_submit_button("💾 Enregistrer", use_container_width=True, disabled=submit_disabled):
+                new_row = pd.DataFrame([{"date": str(selected_date), "intervenante": user, "tache": tache, "quantite": int(quantite), "nb_ecoles": int(nb_ecoles)}])
                 df_updated = pd.concat([df, new_row], ignore_index=True)
                 safe_write(conn, "TimeTracking", df_updated)
                 st.cache_data.clear()
@@ -77,15 +79,14 @@ def run(conn):
     with c2:
         st.subheader(f"📋 Détails du {selected_date.strftime('%d/%m/%Y')}")
         df_copy = df.copy()
-        df_copy["date"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
-        df_j = df_copy[df_copy["date"] == selected_date]
+        df_copy["date_dt"] = pd.to_datetime(df_copy["date"], errors="coerce").dt.date
+        df_j = df_copy[df_copy["date_dt"] == selected_date]
 
         if not df_j.empty:
             for i, row in df_j.iterrows():
                 col_txt, col_edit, col_del = st.columns([0.7, 0.15, 0.15])
                 
                 with col_txt:
-                    # Coloration si c'est un week-end dans la liste
                     style = "color: #FF43D0; font-weight: bold;" if is_weekend else ""
                     st.markdown(f"<span style='{style}'>{row['intervenante']} • {row['tache']} ({int(row['quantite'])})</span>", unsafe_allow_html=True)
 
@@ -95,21 +96,29 @@ def run(conn):
                 if col_del.button("🗑️", key=f"del_{i}"):
                     st.session_state[f"confirm_{i}"] = True
 
-                # FORMULAIRE DE MODIFICATION
+                # --- FORMULAIRE DE MODIFICATION (INCLUANT LA DATE) ---
                 if st.session_state.get(f"editing_{i}"):
                     with st.form(key=f"form_mod_{i}"):
+                        st.write("🔧 Correction")
+                        # Conversion de la string date vers objet date pour le sélecteur
+                        current_date_val = datetime.strptime(str(row['date']), "%Y-%m-%d").date()
+                        new_date_val = st.date_input("Corriger la date", value=current_date_val, format="DD/MM/YYYY")
                         new_t = st.selectbox("Tâche", LISTE_TACHES, index=LISTE_TACHES.index(row['tache']) if row['tache'] in LISTE_TACHES else 0)
                         new_q = st.number_input("Quantité", min_value=1, value=int(row['quantite']))
                         new_e = st.number_input("Nombre écoles", value=int(row['nb_ecoles'])) if new_t == "NETTOYAGES DES DONNEES CREOS" else 0
-                        if st.form_submit_button("✅ Valider"):
+                        
+                        sv, cn = st.columns(2)
+                        if sv.form_submit_button("✅ Valider"):
+                            df.at[i, 'date'] = str(new_date_val)
                             df.at[i, 'tache'] = new_t
                             df.at[i, 'quantite'] = new_q
                             df.at[i, 'nb_ecoles'] = new_e
                             safe_write(conn, "TimeTracking", df)
                             del st.session_state[f"editing_{i}"]
                             st.cache_data.clear(); st.rerun()
+                        if cn.form_submit_button("❌ Annuler"):
+                            del st.session_state[f"editing_{i}"]; st.rerun()
 
-                # CONFIRMATION DE SUPPRESSION
                 if st.session_state.get(f"confirm_{i}"):
                     st.warning("Supprimer ?")
                     y, n = st.columns(2)
@@ -125,19 +134,18 @@ def run(conn):
     # --- SECTION STATS ---
     st.divider()
     st.header("📊 Statistiques & Synthèse")
-
     df_stats = df.copy()
     df_stats["date_dt"] = pd.to_datetime(df_stats["date"], errors="coerce")
-    df_stats["date"] = df_stats["date_dt"].dt.date
+    df_stats["date_only"] = df_stats["date_dt"].dt.date
 
     if not df_stats.empty:
         f1, f2, f3 = st.columns([1, 1, 1.5])
         with f1:
-            per = st.date_input("Période", [min(df_stats['date']), max(df_stats['date'])])
+            per = st.date_input("Période", [min(df_stats['date_only']), max(df_stats['date_only'])], format="DD/MM/YYYY")
         
         if isinstance(per, (list, tuple)) and len(per) == 2:
             d_start, d_end = per[0], per[1]
-            df_f = df_stats[(df_stats['date'] >= d_start) & (df_stats['date'] <= d_end)]
+            df_f = df_stats[(df_stats['date_only'] >= d_start) & (df_stats['date_only'] <= d_end)]
             
             with f2:
                 ints = sorted(df_f["intervenante"].dropna().unique())
@@ -149,12 +157,9 @@ def run(conn):
             if f_tac: df_f = df_f[df_f['tache'].isin(f_tac)]
 
             if not df_f.empty:
-                # Ajout du nom du jour dans la synthèse pour visibilité
-                df_f["Jour"] = df_f["date_dt"].dt.weekday.map(lambda x: JOURS_NOM[x])
-                
                 g1, g2 = st.columns(2)
                 with g1:
-                    fig1 = px.pie(df_f, names='intervenante', values='quantite', title="Par Intervenante")
+                    fig1 = px.pie(df_f, names='intervenante', values='quantite', title="Par Intervenante", color='intervenante', color_discrete_map=COULEURS_MAP)
                     st.plotly_chart(fig1, use_container_width=True)
                 with g2:
                     fig2 = px.pie(df_f, names='tache', values='quantite', title="Par Tâche")
@@ -163,8 +168,8 @@ def run(conn):
                 st.markdown("---")
                 df_synth = df_f.groupby('tache').agg({'quantite': 'sum', 'nb_ecoles': 'sum'}).reset_index()
                 df_synth.columns = ["Action / Tâche", "Total Quantité", "Total Écoles"]
-                df_synth["Total Quantité"] = df_synth["Total Quantité"].astype(int)
-                df_synth["Total Écoles"] = df_synth["Total Écoles"].astype(int)
+                df_synth["Total Quantité"] = df_synth["Total Quantité"].fillna(0).astype(int)
+                df_synth["Total Écoles"] = df_synth["Total Écoles"].fillna(0).astype(int)
                 
                 st.table(df_synth.sort_values("Action / Tâche"))
                 st.metric("TOTAL GÉNÉRAL", int(df_synth["Total Quantité"].sum()))
