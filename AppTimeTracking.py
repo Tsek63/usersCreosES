@@ -18,6 +18,7 @@ def run(conn):
     st.subheader("⏱️ Time Tracking")
 
     # --- CONFIGURATION ---
+    # AJOUT DE "CALL TONY" ICI
     LISTE_TACHES = sorted([
         "DEPANNAGE TELEPHONIQUE", "DEPANNAGE MAIL", "SUIVI DEPLOIEMENT TELEPHONIQUE",
         "SUIVI DEPLOIEMENT MAIL", "VISIO DE PRESENTATION", "VISIO DIVERS",
@@ -25,10 +26,12 @@ def run(conn):
         "SUIVI ADMIN FORMATION", "MATINEE D'ACCOMPAGNEMENT",
         "SUIVI MATINEE D'ACCOMPAGNEMENT", "ENCODAGE TICKET", "SUIVI FICHIER TICKETS",
         "MODIFICATION - CREATION DOC", "MODIFICATION – CREATION VIDEO",
-        "NETTOYAGES DES DONNEES CREOS", "BRIEFING DEV", "TEST EN ACCEPTANCE / PROD"
+        "NETTOYAGES DES DONNEES CREOS", "BRIEFING DEV", "TEST EN ACCEPTANCE / PROD",
+        "CALL TONY" 
     ])
 
     JOURS_NOM = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+    LISTE_USERS = ["Véronique Maigrié", "Sylvie Nyssen"]
     COULEURS_MAP = {"Véronique Maigrié": "#FF00FF", "Sylvie Nyssen": "#008080"}
 
     df = load_timetracking(conn)
@@ -39,13 +42,9 @@ def run(conn):
     # --- COLONNE 1 : ENCODAGE ---
     with c1:
         st.subheader("📝 Encodage")
-        intervenantes = ["Véronique Maigrié", "Sylvie Nyssen"]
-        user = st.selectbox("Intervenante", intervenantes)
-        
-        # Format JJ/MM/AAAA pour plus de clarté
+        user = st.selectbox("Intervenante", LISTE_USERS)
         selected_date = st.date_input("Date", value=date.today(), format="DD/MM/YYYY")
         
-        # Détection week-end
         num_jour = selected_date.weekday()
         nom_du_jour = JOURS_NOM[num_jour]
         is_weekend = num_jour >= 5
@@ -65,11 +64,16 @@ def run(conn):
             if tache == "NETTOYAGES DES DONNEES CREOS":
                 nb_ecoles = st.number_input("Nombre d'écoles", min_value=1, step=1, value=1)
 
-            # Le bouton est désactivé si week-end non confirmé
             submit_disabled = is_weekend and not confirm_wk
             
             if st.form_submit_button("💾 Enregistrer", use_container_width=True, disabled=submit_disabled):
-                new_row = pd.DataFrame([{"date": str(selected_date), "intervenante": user, "tache": tache, "quantite": int(quantite), "nb_ecoles": int(nb_ecoles)}])
+                new_row = pd.DataFrame([{
+                    "date": str(selected_date),
+                    "intervenante": user,
+                    "tache": tache,
+                    "quantite": int(quantite),
+                    "nb_ecoles": int(nb_ecoles)
+                }])
                 df_updated = pd.concat([df, new_row], ignore_index=True)
                 safe_write(conn, "TimeTracking", df_updated)
                 st.cache_data.clear()
@@ -96,20 +100,29 @@ def run(conn):
                 if col_del.button("🗑️", key=f"del_{i}"):
                     st.session_state[f"confirm_{i}"] = True
 
-                # --- FORMULAIRE DE MODIFICATION (INCLUANT LA DATE) ---
+                # --- FORMULAIRE DE MODIFICATION COMPLET ---
                 if st.session_state.get(f"editing_{i}"):
                     with st.form(key=f"form_mod_{i}"):
                         st.write("🔧 Correction")
-                        # Conversion de la string date vers objet date pour le sélecteur
+                        # 1. Modifier l'intervenante
+                        idx_user = LISTE_USERS.index(row['intervenante']) if row['intervenante'] in LISTE_USERS else 0
+                        new_u = st.selectbox("Intervenante", LISTE_USERS, index=idx_user)
+                        
+                        # 2. Modifier la date
                         current_date_val = datetime.strptime(str(row['date']), "%Y-%m-%d").date()
-                        new_date_val = st.date_input("Corriger la date", value=current_date_val, format="DD/MM/YYYY")
+                        new_d = st.date_input("Date", value=current_date_val, format="DD/MM/YYYY")
+                        
+                        # 3. Modifier la tâche
                         new_t = st.selectbox("Tâche", LISTE_TACHES, index=LISTE_TACHES.index(row['tache']) if row['tache'] in LISTE_TACHES else 0)
+                        
+                        # 4. Modifier quantité et écoles
                         new_q = st.number_input("Quantité", min_value=1, value=int(row['quantite']))
                         new_e = st.number_input("Nombre écoles", value=int(row['nb_ecoles'])) if new_t == "NETTOYAGES DES DONNEES CREOS" else 0
                         
                         sv, cn = st.columns(2)
                         if sv.form_submit_button("✅ Valider"):
-                            df.at[i, 'date'] = str(new_date_val)
+                            df.at[i, 'intervenante'] = new_u
+                            df.at[i, 'date'] = str(new_d)
                             df.at[i, 'tache'] = new_t
                             df.at[i, 'quantite'] = new_q
                             df.at[i, 'nb_ecoles'] = new_e
