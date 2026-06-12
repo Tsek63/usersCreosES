@@ -19,21 +19,25 @@ class DataManager:
 
     @st.cache_data(ttl=60)
     def load_all_data(_self):
-        df_ecoles = _self.clean_df(_self.conn.read(worksheet="Ecoles").dropna(how="all"))
-        df_config = _self.clean_df(_self.conn.read(worksheet="EcolesConfig").dropna(how="all"))
-        df_contacts = _self.clean_df(_self.conn.read(worksheet="Contacts").dropna(how="all"))
         try:
-            df_time = _self.conn.read(worksheet="TimeTracking").dropna(how="all")
-        except:
-            df_time = pd.DataFrame()
-        
-        data_fwb = {}
-        for _, row in df_ecoles.iterrows():
-            p_raw = str(row.get('Province', '')).lower().strip()
-            prov = PROV_NORM.get(p_raw, row.get('Province', 'Inconnu'))
-            comm = str(row.get('Commune', '')).strip()
-            if not comm or comm.startswith('Province'): continue
-            if prov not in data_fwb: data_fwb[prov] = set()
-            data_fwb[prov].add(comm)
-        
-        return df_ecoles, df_config, df_contacts, df_time, {k: sorted(list(v)) for k, v in data_fwb.items()}
+            df_ecoles = _self.clean_df(_self.conn.read(worksheet="Ecoles", ttl=60).dropna(how="all"))
+            df_config = _self.clean_df(_self.conn.read(worksheet="EcolesConfig", ttl=60).dropna(how="all"))
+            df_contacts = _self.clean_df(_self.conn.read(worksheet="Contacts", ttl=60).dropna(how="all"))
+            try:
+                df_time = _self.conn.read(worksheet="TimeTracking", ttl=60).dropna(how="all")
+            except:
+                df_time = pd.DataFrame(columns=["date", "intervenante", "tache", "quantite", "nb_ecoles"])
+            
+            data_fwb = {}
+            for _, row in df_ecoles.iterrows():
+                p_raw = str(row.get('Province', '')).lower().strip()
+                prov = PROV_NORM.get(p_raw, row.get('Province', 'Inconnu'))
+                comm = str(row.get('Commune', '')).strip()
+                if not comm or comm.startswith('Province'): continue
+                if prov not in data_fwb: data_fwb[prov] = set()
+                data_fwb[prov].add(comm)
+            
+            return df_ecoles, df_config, df_contacts, df_time, {k: sorted(list(v)) for k, v in data_fwb.items()}
+        except Exception as e:
+            st.error("🔌 Erreur de connexion avec Google Sheets. Veuillez patienter 30 secondes et actualiser.")
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {}
