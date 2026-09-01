@@ -30,18 +30,28 @@ def inject_custom_css():
             }
             .header-title { font-size: 24px; font-weight: bold; margin: 0; }
 
-            /* --- CORRECTIF POUR LE CALENDRIER --- */
-            /* Force la couleur du mois et de l'année en blanc pour qu'ils soient visibles */
-            div[data-baseweb="calendar"] header {
-                color: white !important;
+            /* --- CORRECTIF CALENDRIER : FOND CLAIR & TEXTE FONCÉ --- */
+            /* Cible le bloc entier du calendrier */
+            div[data-baseweb="calendar"] {
+                background-color: #f1f5f9 !important; /* Gris très clair */
+                border-radius: 8px !important;
             }
-            div[data-baseweb="calendar"] div {
-                color: white !important;
+            
+            /* Cible TOUT le texte à l'intérieur pour le forcer en bleu foncé/noir */
+            div[data-baseweb="calendar"] * {
+                color: #1e293b !important; /* Couleur sombre pour être lisible */
             }
-            /* Assure que les boutons de changement de mois sont visibles */
+
+            /* Style spécifique pour les jours sélectionnés ou survolés */
+            div[data-baseweb="calendar"] [aria-selected="true"] {
+                background-color: #4169E1 !important; /* Bleu original pour la sélection */
+                color: white !important; /* Chiffre en blanc sur le rond bleu */
+            }
+
+            /* Forcer les boutons de navigation (flèches) en noir */
             div[data-baseweb="calendar"] button {
-                color: white !important;
                 background-color: transparent !important;
+                border: none !important;
             }
         </style>
         <div class="main-header"><div class="header-title">Utilisateurs de Creos Extrascolaire</div></div>
