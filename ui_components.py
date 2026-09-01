@@ -29,6 +29,20 @@ def inject_custom_css():
                 margin-bottom: 15px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             }
             .header-title { font-size: 24px; font-weight: bold; margin: 0; }
+
+            /* --- CORRECTIF POUR LE CALENDRIER --- */
+            /* Force la couleur du mois et de l'année en blanc pour qu'ils soient visibles */
+            div[data-baseweb="calendar"] header {
+                color: white !important;
+            }
+            div[data-baseweb="calendar"] div {
+                color: white !important;
+            }
+            /* Assure que les boutons de changement de mois sont visibles */
+            div[data-baseweb="calendar"] button {
+                color: white !important;
+                background-color: transparent !important;
+            }
         </style>
         <div class="main-header"><div class="header-title">Utilisateurs de Creos Extrascolaire</div></div>
     """, unsafe_allow_html=True)
