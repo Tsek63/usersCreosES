@@ -20,14 +20,13 @@ def run(conn):
     ])
     USERS = ["Véronique Maigrié", "Sylvie Nyssen"]
     
-    # Récupération du DF depuis le chargement initial d'app.py
-    # Pour éviter l'API Error, on ne recharge pas ici, on utilise ce qui est en cache
+    # Chargement avec cache pour éviter les erreurs API de Google
     try:
         df = conn.read(worksheet="TimeTracking", ttl=60).dropna(how="all")
     except:
         df = pd.DataFrame(columns=["date", "intervenante", "tache", "quantite", "nb_ecoles"])
 
-    if st.button("🔄 Actualiser (si nécessaire)"):
+    if st.button("🔄 Rafraîchir l'affichage"):
         st.cache_data.clear()
         st.rerun()
 
@@ -36,12 +35,22 @@ def run(conn):
     with c1:
         st.subheader("📝 Encodage")
         user = st.selectbox("Intervenante", USERS)
-        sel_date = st.date_input("Date", value=date.today(), format="DD/MM/YYYY")
+        
+        # --- FIX CALENDRIER : On définit une plage min et max pour débloquer la navigation ---
+        sel_date = st.date_input(
+            "Date", 
+            value=date.today(), 
+            min_value=date(2023, 1, 1), 
+            max_value=date(2030, 12, 31),
+            format="DD/MM/YYYY"
+        )
+        
         tache = st.selectbox("Tâche", LISTE_TACHES)
 
-        with st.form("form_timetracking", clear_on_submit=True):
+        with st.form("form_timetracking_v6", clear_on_submit=True):
             q = st.number_input("Quantité", min_value=1, value=1)
             e = st.number_input("Nb Écoles", min_value=0, value=0) if tache == "NETTOYAGES DES DONNEES CREOS" else 0
+            
             if st.form_submit_button("💾 Enregistrer", use_container_width=True):
                 new_row = pd.DataFrame([{"date": str(sel_date), "intervenante": user, "tache": tache, "quantite": q, "nb_ecoles": e}])
                 df_final = pd.concat([df, new_row], ignore_index=True)
@@ -51,8 +60,8 @@ def run(conn):
 
     with c2:
         st.subheader(f"📋 Détails du {sel_date.strftime('%d/%m/%Y')}")
-        df_view = df.copy()
-        if not df_view.empty:
+        if not df.empty:
+            df_view = df.copy()
             df_view["date"] = pd.to_datetime(df_view["date"], errors="coerce").dt.date
             df_j = df_view[df_view["date"] == sel_date]
 
@@ -60,9 +69,13 @@ def run(conn):
                 for i, row in df_j.iterrows():
                     col_t, col_e, col_d = st.columns([0.7, 0.15, 0.15])
                     with col_t: st.write(f"**{row['intervenante']}** • {row['tache']} ({int(row['quantite'])})")
-                    if col_e.button("✏️", key=f"ed_{i}"): st.session_state[f"edit_tt_{i}"] = True
-                    if col_d.button("🗑️", key=f"de_{i}"): st.session_state[f"del_tt_{i}"] = True
+                    
+                    if col_e.button("✏️", key=f"ed_{i}"): 
+                        st.session_state[f"edit_tt_{i}"] = True
+                    if col_d.button("🗑️", key=f"de_{i}"): 
+                        st.session_state[f"del_tt_{i}"] = True
 
+                    # FORMULAIRE DE MODIFICATION
                     if st.session_state.get(f"edit_tt_{i}"):
                         with st.form(key=f"f_mod_{i}"):
                             u_idx = USERS.index(row['intervenante']) if row['intervenante'] in USERS else 0
@@ -74,15 +87,22 @@ def run(conn):
                                 df.at[i, 'tache'] = new_t
                                 df.at[i, 'quantite'] = new_q
                                 safe_write(conn, "TimeTracking", df)
-                                del st.session_state[f"edit_tt_{i}"]; st.cache_data.clear(); st.rerun()
+                                del st.session_state[f"edit_tt_{i}"]
+                                st.cache_data.clear()
+                                st.rerun()
 
+                    # SUPPRESSION
                     if st.session_state.get(f"del_tt_{i}"):
                         if st.button("Confirmer Suppression", key=f"c_{i}"):
                             df_new = df.drop(i).reset_index(drop=True)
                             safe_write(conn, "TimeTracking", df_new)
-                            del st.session_state[f"del_tt_{i}"]; st.cache_data.clear(); st.rerun()
+                            del st.session_state[f"del_tt_{i}"]
+                            st.cache_data.clear()
+                            st.rerun()
             else:
-                st.info("Aucune donnée.")
+                st.info("Aucune donnée pour ce jour.")
+        else:
+            st.warning("Base de données vide.")
 
     st.divider()
     st.header("📊 Statistiques")
