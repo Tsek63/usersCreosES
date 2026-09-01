@@ -30,28 +30,38 @@ def inject_custom_css():
             }
             .header-title { font-size: 24px; font-weight: bold; margin: 0; }
 
-            /* --- CORRECTIF CALENDRIER : FOND CLAIR & TEXTE FONCÉ --- */
-            /* Cible le bloc entier du calendrier */
-            div[data-baseweb="calendar"] {
-                background-color: #f1f5f9 !important; /* Gris très clair */
-                border-radius: 8px !important;
+            /* --- CORRECTIF ULTIME POUR LE CALENDRIER --- */
+            /* On cible le conteneur flottant (popover) qui contient le calendrier */
+            div[data-baseweb="popover"] div[data-baseweb="calendar"] {
+                background-color: #FFFFFF !important; /* Fond Blanc */
+                color: #000000 !important; /* Texte Noir */
+            }
+
+            /* On force TOUS les éléments textes et icônes à être noirs à l'intérieur */
+            div[data-baseweb="calendar"] *, 
+            div[data-baseweb="calendar"] svg,
+            div[data-baseweb="calendar"] button {
+                color: #000000 !important;
+                fill: #000000 !important;
+            }
+
+            /* On force le nom du mois et de l'année spécifiquement */
+            div[data-baseweb="calendar"] header div {
+                color: #000000 !important;
+                font-weight: bold !important;
+            }
+
+            /* On garde le jour sélectionné en bleu avec le chiffre en blanc */
+            div[data-baseweb="calendar"] [aria-selected="true"] {
+                background-color: #4169E1 !important;
+            }
+            div[data-baseweb="calendar"] [aria-selected="true"] * {
+                color: #FFFFFF !important;
             }
             
-            /* Cible TOUT le texte à l'intérieur pour le forcer en bleu foncé/noir */
-            div[data-baseweb="calendar"] * {
-                color: #1e293b !important; /* Couleur sombre pour être lisible */
-            }
-
-            /* Style spécifique pour les jours sélectionnés ou survolés */
-            div[data-baseweb="calendar"] [aria-selected="true"] {
-                background-color: #4169E1 !important; /* Bleu original pour la sélection */
-                color: white !important; /* Chiffre en blanc sur le rond bleu */
-            }
-
-            /* Forcer les boutons de navigation (flèches) en noir */
-            div[data-baseweb="calendar"] button {
-                background-color: transparent !important;
-                border: none !important;
+            /* Pour les jours "hors mois" (ex: fin du mois précédent) */
+            div[data-baseweb="calendar"] [aria-disabled="true"] {
+                color: #cccccc !important;
             }
         </style>
         <div class="main-header"><div class="header-title">Utilisateurs de Creos Extrascolaire</div></div>
