@@ -33,14 +33,13 @@ def run(conn):
 
     c1, c2 = st.columns([1, 1.2])
 
-    # --- COLONNE 1 : ENCODAGE ---
     with c1:
         st.subheader("📝 Encodage")
         user = st.selectbox("Intervenante", USERS)
         sel_date = st.date_input("Date", value=date.today(), format="DD/MM/YYYY")
         tache = st.selectbox("Tâche", LISTE_TACHES)
 
-        with st.form("form_tt_v9", clear_on_submit=True):
+        with st.form("form_tt_final", clear_on_submit=True):
             q = st.number_input("Quantité", min_value=1, value=1)
             e = st.number_input("Nb Écoles", min_value=0, value=0) if tache == "NETTOYAGES DES DONNEES CREOS" else 0
             if st.form_submit_button("💾 Enregistrer", use_container_width=True):
@@ -50,7 +49,6 @@ def run(conn):
                 st.cache_data.clear()
                 st.rerun()
 
-    # --- COLONNE 2 : DÉTAILS DU JOUR ---
     with c2:
         st.subheader(f"📋 Détails du {sel_date.strftime('%d/%m/%Y')}")
         if not df.empty:
@@ -89,37 +87,53 @@ def run(conn):
             else:
                 st.info("Aucune donnée.")
 
-    # --- SECTION STATISTIQUES (RÉTABLIE) ---
+    # --- SECTION STATISTIQUES ---
     st.divider()
     st.header("📊 Statistiques")
+    
     if not df.empty:
         df_stats = df.copy()
-        # On s'assure que la colonne date est bien au format date pour le filtre
         df_stats["date_only"] = pd.to_datetime(df_stats["date"], errors="coerce").dt.date
         
-        # Filtre de période
-        min_d = min(df_stats['date_only']) if not df_stats['date_only'].isnull().all() else date.today()
-        max_d = max(df_stats['date_only']) if not df_stats['date_only'].isnull().all() else date.today()
+        # Définition des dates min/max pour le sélecteur
+        min_date = df_stats["date_only"].min()
+        max_date = df_stats["date_only"].max()
         
-        per = st.date_input("Sélectionner la période", [min_d, max_d], format="DD/MM/YYYY")
+        # Sélecteur de période
+        per = st.date_input("Sélectionner la période", [min_date, max_date], format="DD/MM/YYYY")
         
-        # On ne traite que si on a bien une date de début et de fin
-        if isinstance(per, list) and len(per) == 2:
-            df_f = df_stats[(df_stats['date_only'] >= per[0]) & (df_stats['date_only'] <= per[1])]
+        # --- LOGIQUE DE FILTRAGE RÉPARÉE ---
+        if isinstance(per, (list, tuple)):
+            if len(per) == 2:
+                # Période complète choisie (Début et Fin)
+                start_d, end_date = per
+            else:
+                # Une seule date cliquée (on prend la même pour début et fin)
+                start_d = end_date = per[0]
+            
+            df_f = df_stats[(df_stats['date_only'] >= start_d) & (df_stats['date_only'] <= end_date)]
             
             if not df_f.empty:
                 g1, g2 = st.columns(2)
                 with g1:
-                    fig1 = px.pie(df_f, names='intervenante', values='quantite', title="Par Intervenante", color='intervenante', color_discrete_map=COULEURS_MAP)
+                    fig1 = px.pie(df_f, names='intervenante', values='quantite', title="Répartition / Intervenante", color='intervenante', color_discrete_map=COULEURS_MAP)
                     st.plotly_chart(fig1, use_container_width=True)
                 with g2:
-                    fig2 = px.pie(df_f, names='tache', values='quantite', title="Par Tâche")
+                    fig2 = px.pie(df_f, names='tache', values='quantite', title="Répartition / Tâche")
                     st.plotly_chart(fig2, use_container_width=True)
 
+                st.markdown("---")
+                # Synthèse avec totaux entiers
                 df_synth = df_f.groupby('tache').agg({'quantite': 'sum'}).reset_index()
-                df_synth.columns = ["Action", "Total"]
-                df_synth["Total"] = df_synth["Total"].astype(int)
-                st.table(df_synth.sort_values("Action"))
-                st.metric("TOTAL GÉNÉRAL", int(df_synth["Total"].sum()))
+                df_synth.columns = ["Action / Tâche", "Total Quantité"]
+                df_synth["Total Quantité"] = df_synth["Total Quantité"].astype(int)
+                
+                col_tab, col_met = st.columns([3, 1])
+                with col_tab:
+                    st.table(df_synth.sort_values("Action / Tâche"))
+                with col_met:
+                    st.metric("TOTAL GÉNÉRAL", int(df_synth["Total Quantité"].sum()))
+            else:
+                st.warning("Aucune donnée pour cette période.")
     else:
-        st.warning("Ajoutez des données pour voir les statistiques.")
+        st.info("La base de données est vide. Les statistiques s'afficheront après vos premiers encodages.")
